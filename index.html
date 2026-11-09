@@ -74,7 +74,6 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .avs{display:flex}
 .avs .av{border:2px solid var(--card);margin-left:-8px}
 .avs .av:first-child{margin-left:0}
-.av.pending{border:2px dashed hsl(var(--h) 50% 55%);background:none}
 .pill.wait{background:none;border:1.5px dashed var(--sub);color:var(--sub);padding:1px 9px}
 
 /* home */
@@ -460,7 +459,7 @@ const pill = st => '<span class="pill ' + st[1] + '">' + st[0] + '</span>';
 const midx = (t, id) => Math.max(0, t.members.findIndex(m => m.id === id));
 const nameOf = (t, id) => { const m = t.members.filter(x => x.id === id)[0]; return m ? m.name : '(削除済み)'; };
 const total = t => t.expenses.reduce((s, e) => s + e.amount, 0);
-function av(t, id){ const nm = nameOf(t, id), mm = t.members.filter(x => x.id === id)[0]; return '<span class="av' + (mm && mm.pending ? ' pending' : '') + '" style="--h:' + HUES[midx(t, id) % HUES.length] + '">' + esc(Array.from(nm)[0] || '?') + '</span>'; }
+function av(t, id){ const nm = nameOf(t, id), mm = t.members.filter(x => x.id === id)[0]; return '<span class="av" style="--h:' + HUES[midx(t, id) % HUES.length] + '">' + esc(Array.from(nm)[0] || '?') + '</span>'; }
 function tag(c){ return '<span class="tag" style="--h:' + c[3] + '">' + c[1] + '</span>'; }
 
 /* ---- install guidance (home screen) ---- */
