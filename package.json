@@ -1,0 +1,1 @@
+{ "name": "tabiwari", "private": true, "version": "0.1.0", "scripts": { "test": "node test/logic.test.js", "start": "python3 -m http.server 8080" } }
