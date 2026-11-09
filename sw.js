@@ -1,8 +1,11 @@
 /* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls (Supabase) are never cached. */
-const VERSION = 'tabiwari-v3';
-const FILES = ['./', './index.html', './config.js', './cloud.js', './vendor/supabase.js', './manifest.json', './terms.html', './privacy.html', './legal.html', './legal.css',
+const VERSION = 'tabiwari-v4';
+const FILES = ['./', './index.html', './config.js', './cloud.js', './vendor/supabase.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
-self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
+const OPTIONAL = ['./terms.html', './privacy.html', './legal.html', './legal.css'];   // only deployed once sharing is on
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES).then(() => Promise.all(OPTIONAL.map(f => c.add(f).catch(() => {}))))).then(() => self.skipWaiting()));
+});
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
