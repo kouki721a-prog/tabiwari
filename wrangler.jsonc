@@ -1,0 +1,6 @@
+{
+  // Cloudflare Workers (static assets). Build with `npm run build`, then `npx wrangler deploy` publishes dist/.
+  "name": "tabiwari",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./dist" }
+}

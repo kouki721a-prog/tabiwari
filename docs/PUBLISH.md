@@ -2,15 +2,17 @@
 
 共有機能なし（`config.js` が空）のまま公開する手順です。無料で、HTTPSは自動です。
 
-1. https://dash.cloudflare.com にログイン → **Workers & Pages → Create → Pages → Connect to Git**。
+1. https://dash.cloudflare.com にログイン → **Workers & Pages → Create → Connect to Git**（Pages の画面が出る場合もある。その場合は下の「Pages 方式」）。
 2. GitHub と連携し、`tabiwari` リポジトリを選ぶ。
-3. 設定：
-   - Production branch：公開したいブランチ（`main`、またはマージ前なら `claude/app-development-6oxs5w`）
-   - Framework preset：`None`
-   - Build command：`npm run build`
-   - Build output directory：`dist`
-4. **Save and Deploy**。数分で `https://<プロジェクト名>.pages.dev` で公開される。
+3. 設定（Workers 方式。リポジトリの `wrangler.jsonc` が公開フォルダ `dist` を指している）：
+   - プロジェクト名：`tabiwari`（`wrangler.jsonc` の `name` と同じにする）
+   - ビルドコマンド：`npm run build`
+   - デプロイコマンド：`npx wrangler deploy`（初期値のまま）
+   - プレビューコマンド：初期値のまま
+4. **デプロイ**。数分で `https://tabiwari.<アカウント名>.workers.dev` で公開される。
 5. iPhone の Safari で開き、共有 →「ホーム画面に追加」。Android は Chrome の案内から追加。
+
+**Pages 方式**（古い画面）の場合：Framework preset は `None`、ビルドコマンド `npm run build`、出力ディレクトリ `dist`。
 
 以降は、ブランチにpushするたびに自動で再公開される。ファイルを変えたら `sw.js` の `VERSION` を上げること（古いキャッシュが残らないように）。
 
