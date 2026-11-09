@@ -1,5 +1,5 @@
 /* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls (Supabase) are never cached. */
-const VERSION = 'tabiwari-v5';
+const VERSION = 'tabiwari-v6';
 const FILES = ['./', './index.html', './config.js', './cloud.js', './vendor/supabase.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 const OPTIONAL = ['./terms.html', './privacy.html', './legal.html', './legal.css'];   // only deployed once sharing is on
@@ -9,10 +9,23 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
+/* Network first, so a new release shows up on the next open; the cached copy is used only when offline or slow (>4s). */
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request)));
+  e.respondWith((async () => {
+    const cache = await caches.open(VERSION);
+    const fromCache = () => cache.match(e.request, { ignoreSearch: true });
+    try {
+      const res = await Promise.race([fetch(e.request), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 4000))]);
+      if (res && res.ok) cache.put(e.request, res.clone());
+      return res;
+    } catch (err) {
+      const hit = await fromCache();
+      if (hit) return hit;
+      throw err;
+    }
+  })());
 });
 
 /* Web Push: reminders sent by the send-reminders Edge Function. */
