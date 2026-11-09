@@ -1,0 +1,18 @@
+:root{--bg:#eef2f7;--ink:#0e2238;--sub:#5b6b80;--line:#dde4ee;--card:#fff;--warn:#fff4cf}
+@media (prefers-color-scheme:dark){:root{--bg:#0a1626;--ink:#e9f0fa;--sub:#93a3b8;--line:#243750;--card:#12243a;--warn:#3a3210}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;line-height:1.8;font-size:15px}
+main{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 16px) 16px 48px}
+a{color:inherit}
+.back{display:inline-block;margin-bottom:8px;color:var(--sub);text-decoration:none;font-weight:500}
+h1{font-size:22px;margin:4px 0 4px}
+h2{font-size:16px;margin:28px 0 6px}
+p,li{margin:6px 0}
+ul,ol{padding-left:22px}
+.sub{color:var(--sub);font-size:13px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-top:1px solid var(--line)}
+tr:first-child th,tr:first-child td{border-top:0}
+th{width:9em;font-weight:500;color:var(--sub)}
+@media (max-width:480px){th,td{display:block;width:auto}th{padding-bottom:0}td{border-top:0;padding-top:2px}}
+.todo{background:var(--warn);padding:0 4px;border-radius:4px}
