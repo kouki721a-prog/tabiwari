@@ -7,5 +7,6 @@ do $$ begin create role anon nologin; exception when duplicate_object then null;
 do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
 grant usage on schema public, auth to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
+do $$ begin create role service_role nologin; exception when duplicate_object then null; end $$;
 create publication supabase_realtime;
 insert into auth.users values ('00000000-0000-0000-0000-00000000000a'), ('00000000-0000-0000-0000-00000000000b'), ('00000000-0000-0000-0000-00000000000c');

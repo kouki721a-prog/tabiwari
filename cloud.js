@@ -97,7 +97,16 @@
   }
   Cloud.sendCode = function (email) { return Cloud.client.auth.signInWithOtp({ email: email, options: { shouldCreateUser: true } }); };
   Cloud.verify = function (email, code) { return Cloud.client.auth.verifyOtp({ email: email, token: code, type: 'email' }); };
-  Cloud.signOut = function () { return Cloud.client.auth.signOut(); };
+  Cloud.signOut = function () { return Cloud.client.auth.signOut({ scope: 'local' }); };   // this device only
+  Cloud.subscription = async function () { var r = await Cloud.client.from('subscriptions').select('*').maybeSingle(); if (r.error) throw r.error; return r.data; };
+  /* premium = what is_premium() in SQL says; the server stays the authority */
+  Cloud.isPremium = function (sub) { return !!sub && ['active', 'trialing', 'past_due'].indexOf(sub.status) >= 0 && (!sub.current_period_end || new Date(sub.current_period_end) >= new Date()); };
+  async function fn(name) { var r = await Cloud.client.functions.invoke(name, { body: {} }); if (r.error) { var e = r.error; try { var b = await e.context.json(); e = new Error(b.error || e.message); } catch (_) {} throw e; } return r.data.url; }
+  Cloud.checkout = function () { return fn('create-checkout'); };
+  Cloud.portal = function () { return fn('billing-portal'); };
+  Cloud.deleteAccount = function () { return rpc('delete_my_account', {}); };
+  Cloud.savePush = function (sub) { var j = sub.toJSON(); return rpc('save_push_subscription', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth }); };
+  Cloud.removePush = function (endpoint) { return rpc('remove_push_subscription', { p_endpoint: endpoint }); };
   Cloud.load = async function () {
     var r = await Cloud.client.from('trips').select('*, trip_members(*), expenses(*), paid(*), savings(*)');
     if (r.error) throw r.error;
@@ -118,6 +127,9 @@
     if (/invite_expired/.test(m)) return '招待リンクの期限が切れています。送ってくれた人に、新しいリンクをお願いしてください。';
     if (/already_member/.test(m)) return 'この旅行には、すでに参加しています。';
     if (/owner_cannot_leave/.test(m)) return '作成者は旅行から抜けられません。旅行を削除してください。';
+    if (/trip_limit/.test(m)) return '無料プランで作れる旅行は3件までです。';
+    if (/subscription_active/.test(m)) return 'プレミアムの契約が続いています。先に「プランの管理」から解約してください。';
+    if (/already_subscribed/.test(m)) return 'すでにプレミアムです。';
     if (/already_joined/.test(m)) return 'この枠は、すでに参加済みです。';
     if (/expired or is invalid|Token has expired/i.test(m)) return 'コードが違うか、期限が切れています。もう一度送り直してください。';
     if (/rate limit|For security purposes/i.test(m)) return '送信が多すぎます。少し待ってから、もう一度お試しください。';

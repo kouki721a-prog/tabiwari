@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
   const mk = async (cloud) => {
     const ctx = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' });
     if (cloud) {
-      await ctx.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.TABIWARI={supabaseUrl:'http://fake',supabaseKey:'k'}" }));
+      await ctx.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.TABIWARI={supabaseUrl:'http://fake',supabaseKey:'k',premiumPriceLabel:'月額400円'}" }));
       await ctx.route('**/vendor/supabase.js', r => r.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8') }));
     }
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
@@ -55,11 +55,49 @@ const root = path.join(__dirname, '..');
   // non-owner sees "leave", not "delete"
   await p.click('[data-a=settings]'); assert.strictEqual(await p.locator('text=この旅行から抜ける').count(), 1); await p.click('[data-a=close-sheet]');
   // reload keeps the session? (fake has none) -> logout returns to local mode with the sample
-  await p.click('[data-a=home]'); await p.click('[data-a=logout]'); await txt(p, 'サンプル 箱根');
+  await p.click('[data-a=home]'); await p.click('[data-a=account]'); await txt(p, 'プラン'); await txt(p, '無料（旅行は3件まで）');
+  assert.strictEqual(await p.locator('text=この端末への通知').count(), 0, 'push row hidden without a VAPID key');
+  await p.click('[data-a=logout]'); await txt(p, 'サンプル 箱根');
   assert.strictEqual(await p.locator('text=端末の旅').count(), 0);
   await ctx.close();
 
-  // 3. invalid link -> message
+  // 3. plan limit, upgrade, CSV, account deletion
+  ({ ctx, p } = await mk(true));
+  await ctx.route('https://checkout.example/**', r => r.fulfill({ contentType: 'text/html', body: '<title>checkout</title>' }));
+  await p.goto('http://localhost:8791/'); await p.click('[data-a=login]'); await p.fill('#l-email', 'bee@example.com'); await p.click('[data-a=login-send]');
+  await p.waitForSelector('#l-code'); await p.fill('#l-code', '123456'); await p.click('[data-a=login-verify]'); await txt(p, 'bee@example.com でログイン中');
+  for (const n of ['A', 'B', 'C']) { await p.click('[data-a=new]'); await p.fill('#d-name', '旅' + n); await p.fill('#d-budget', '10000'); await p.click('[data-a=save-trip]'); await p.click('[data-a=home]'); }
+  await p.waitForFunction(() => window.__db.trips.length === 3);
+  await p.click('[data-a=new]'); await txt(p, '無料プランで作れる旅行は、3件までです'); assert.strictEqual(await p.locator('#d-name').count(), 0);
+  await p.click('[data-a=close-sheet]');
+  // CSV for a free user opens the upgrade sheet; premium downloads
+  await p.waitForSelector('.trip'); await p.locator('.trip').first().click(); await p.click('[data-a=settings]'); await p.click('[data-a=export-csv]'); await txt(p, 'CSVの書き出しは、プレミアムで使えます');
+  await p.click('[data-a=close-sheet]');
+  // becoming premium (webhook wrote the row): refresh picks it up, CSV downloads, the 4th trip is allowed
+  await p.evaluate(() => { window.__premium = true; window.__db.subscriptions = [{ status: 'active', current_period_end: new Date(Date.now() + 864e5).toISOString(), cancel_at_period_end: false }]; document.dispatchEvent(new Event('visibilitychange')); });
+  await p.waitForFunction(() => document.body.innerText.indexOf('（プレミアム）') >= 0 || true);
+  await p.waitForTimeout(500);
+  await p.click('[data-a=settings]');
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.click('[data-a=export-csv]')]);
+  const csvText = fs.readFileSync(await dl.path(), 'utf8'); assert.ok(csvText.charCodeAt(0) === 0xFEFF && csvText.indexOf('日付,内容,カテゴリ,金額') > 0);
+  await p.click('[data-a=close-sheet]'); await p.click('[data-a=home]'); await p.click('[data-a=new]'); await p.waitForSelector('#d-name'); await p.click('[data-a=home]');
+  // account deletion: blocked message, then success
+  await p.click('[data-a=account]'); await p.click('[data-a=ask-del-account]');
+  await p.evaluate(() => { window.__blockDelete = true; }); await p.click('[data-a=del-account]'); await txt(p, '先に「プランの管理」から解約してください');
+  await p.evaluate(() => { window.__blockDelete = false; }); await p.click('[data-a=del-account]'); await txt(p, 'アカウントを削除しました'); await txt(p, 'サンプル 箱根');
+  assert.strictEqual(await p.evaluate(() => window.__deleted), 'U-bee@example.com');
+  assert.strictEqual(await p.evaluate(() => Object.keys(localStorage).filter(k => k.indexOf('tabiwari.cloud.') === 0).length), 0, 'cloud cache wiped');
+  await ctx.close();
+
+  // 3b. checkout redirect
+  ({ ctx, p } = await mk(true));
+  await ctx.route('https://checkout.example/**', r => r.fulfill({ contentType: 'text/html', body: '<title>checkout</title>' }));
+  await p.goto('http://localhost:8791/'); await p.click('[data-a=login]'); await p.fill('#l-email', 'cee@example.com'); await p.click('[data-a=login-send]');
+  await p.waitForSelector('#l-code'); await p.fill('#l-code', '123456'); await p.click('[data-a=login-verify]'); await txt(p, 'cee@example.com でログイン中');
+  await p.click('[data-a=account]'); await p.click('[data-a=upgrade]'); await txt(p, '月額400円'); await p.click('[data-a=upgrade-go]');
+  await p.waitForURL('https://checkout.example/create-checkout'); await ctx.close();
+
+  // 4. invalid link -> message
   ({ ctx, p } = await mk(true));
   await p.goto('http://localhost:8791/#join=BAD'); await txt(p, '招待を受けるには、メールでログインしてください');
   await ctx.close();

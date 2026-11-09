@@ -83,6 +83,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:12px}
 .bar>i{display:block;height:100%;background:var(--navy);border-radius:99px}
 .bar.over>i{background:var(--bad)}
+.legal a{color:var(--sub)}
 .install{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-top:10px;font-size:13px}
 .install .btn{width:auto;padding:8px 14px;font-size:14px;flex:none}
 .install .x{width:32px;height:32px;display:grid;place-items:center;color:var(--sub);flex:none}
@@ -250,6 +251,22 @@ function parseYen(s){
   s = String(s).replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/[,，円¥\s]/g, '');
   return /^-?\d+$/.test(s) ? parseInt(s, 10) : NaN;
 }
+function csvCell(v){
+  if (typeof v === 'number') return String(v);
+  v = String(v == null ? '' : v);
+  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;             // keep spreadsheets from running a typed "=..." as a formula
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function tripCsv(trip, catName){
+  var nm = function(id){ var m = trip.members.filter(function(x){ return x.id === id; })[0]; return m ? m.name : '(削除済み)'; };
+  var rows = [['日付', '内容', 'カテゴリ', '金額', '払った人', '割り勘の対象']];
+  trip.expenses.slice().sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }).forEach(function(e){
+    rows.push([e.date, e.title, catName(e.cat), e.amount, nm(e.payer), e.split.map(nm).join('・')]);
+  });
+  rows.push([], ['精算', '払う人', '受け取る人', '金額']);
+  settle(calcBalances(trip).net).forEach(function(p){ rows.push(['', nm(p.from), nm(p.to), p.amount]); });
+  return rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -311,7 +328,9 @@ const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, t
 
 /* ---- cloud: sign-in, sync, invitations (all optional; without config.js the app stays local-only) ---- */
 const CLOUD = typeof Cloud !== 'undefined' && Cloud.enabled;
-const cloud = { user: null, snap: null, dirty: false, running: null, again: false, stale: false, rev: 0, booting: CLOUD, unsub: null };
+const cloud = { user: null, snap: null, dirty: false, running: null, again: false, stale: false, rev: 0, booting: CLOUD, unsub: null, sub: null, premium: false };
+const CFG = window.TABIWARI || {}, FREE_TRIP_LIMIT = 3;   // keep FREE_TRIP_LIMIT in sync with enforce_trip_limit() in SQL
+const ownedCount = () => state.trips.filter(t => t.owner === cloud.user.id).length;
 const JOIN_KEY = 'tabiwari.join', LAST_KEY = 'tabiwari.lastuser';
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
 const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch(e){} };
@@ -329,26 +348,63 @@ function runSync(){
   const next = Sync.flatten(state.trips), ops = Sync.diff(cloud.snap, next);
   if (!ops.length){ if (cloud.dirty){ cloud.dirty = false; render(); } return Promise.resolve(true); }
   cloud.running = Sync.apply(Cloud.client, ops).then(() => { cloud.snap = next; saveSnap(); const was = cloud.dirty; cloud.dirty = false; if (was) render(); return true; }, err => {
+    if (/trip_limit/.test(String(err && err.message))){ cloud.dirty = false; flash(Cloud.errText(err)); cloudRefresh(true); return false; }
     const first = !cloud.dirty; cloud.dirty = true; clearTimeout(cloud.retry); cloud.retry = setTimeout(runSync, 10000);
     if (first){ render(); flash('同期できませんでした。つながったら自動で再送します。'); } return false;
   }).then(ok => { cloud.running = null; if (cloud.again){ cloud.again = false; return runSync(); } if (ok && cloud.stale){ cloud.stale = false; cloudRefresh(); } return ok; });
   return cloud.running;
 }
-async function cloudRefresh(){
+async function cloudRefresh(force){
   if (!cloud.user) return;
-  if (cloud.dirty || cloud.running || ui.sheet){ cloud.stale = true; return; }
+  if (!force && (cloud.dirty || cloud.running || ui.sheet)){ cloud.stale = true; return; }
   const rev = cloud.rev, who = cloud.user.id;
   try {
     const trips = await Cloud.load();
     if (!cloud.user || cloud.user.id !== who) return;
-    if (cloud.rev !== rev || cloud.dirty || cloud.running || ui.sheet){ cloud.stale = true; return; }
+    if (!force && (cloud.rev !== rev || cloud.dirty || cloud.running || ui.sheet)){ cloud.stale = true; return; }
     state.trips = trips; cloud.snap = Sync.flatten(trips); persist(); saveSnap(); render();
   } catch(e){ /* offline: keep showing the cached copy */ }
+  refreshSub();
 }
+async function refreshSub(){
+  try { cloud.sub = await Cloud.subscription(); cloud.premium = Cloud.isPremium(cloud.sub); lsSet(KEY + '.sub', JSON.stringify(cloud.sub)); render(); } catch(e){ /* offline: keep the cached plan */ }
+}
+async function pollPremium(n){
+  await refreshSub();
+  if (cloud.premium){ flash('プレミアムが始まりました。ありがとうございます'); return; }
+  if (n > 0) setTimeout(() => pollPremium(n - 1), 2000);
+}
+/* ---- push notifications (this device) ---- */
+const b64u8 = b => { const p = '='.repeat((4 - b.length % 4) % 4), r = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+async function pushState(){
+  if (!CFG.vapidPublicKey) return 'hidden';
+  if (isIOS() && !isStandalone()) return 'needs-install';
+  if (!('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'denied') return 'blocked';
+  try { const reg = await navigator.serviceWorker.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); return sub && Notification.permission === 'granted' ? 'on' : 'off'; } catch(e){ return 'off'; }
+}
+async function enablePush(){
+  const perm = await Notification.requestPermission();          // first await: still inside the tap
+  if (perm !== 'granted') return pushState();
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u8(CFG.vapidPublicKey) });
+  await Cloud.savePush(sub); return 'on';
+}
+async function disablePush(){
+  const reg = await navigator.serviceWorker.getRegistration(), sub = reg && await reg.pushManager.getSubscription();
+  if (sub){ try { await Cloud.removePush(sub.endpoint); } catch(e){} await sub.unsubscribe(); }
+  return 'off';
+}
+function downloadCsv(t){
+  const blob = new Blob(['\ufeff' + tripCsv(t, c => (CAT[c] || CAT.other)[2])], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (t.name.replace(/[\\/:*?"<>|]/g, '_') || 'tabiwari') + '.csv';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+if (/[?&]billing=/.test(location.search)){ ui.billingReturn = /billing=success/.test(location.search); try { history.replaceState(null, '', location.pathname); } catch(e){} }
 function setUser(u){
   if (!u){
     if (cloud.unsub){ cloud.unsub(); cloud.unsub = null; }
-    const had = !!cloud.user; cloud.user = null; cloud.snap = null; cloud.dirty = false; lsSet(LAST_KEY, null);
+    const had = !!cloud.user; cloud.user = null; cloud.snap = null; cloud.dirty = false; cloud.sub = null; cloud.premium = false; lsSet(LAST_KEY, null);
     KEY = LOCAL_KEY; state = load();
     if (had){ ui.view = 'home'; ui.tripId = null; ui.sheet = null; }
     render(); return;
@@ -357,9 +413,11 @@ function setUser(u){
   cloud.user = u; lsSet(LAST_KEY, JSON.stringify(u)); KEY = 'tabiwari.cloud.' + u.id; state = load();
   let snap = null; try { snap = JSON.parse(lsGet(KEY + '.snap')); } catch(e){}
   cloud.snap = snap || Sync.flatten(state.trips);
+  try { cloud.sub = JSON.parse(lsGet(KEY + '.sub')); cloud.premium = Cloud.isPremium(cloud.sub); } catch(e){ cloud.sub = null; cloud.premium = false; }
   if (!cloud.unsub) cloud.unsub = Cloud.subscribe(() => { clearTimeout(cloud.rt); cloud.rt = setTimeout(cloudRefresh, 400); });
   if (ui.view === 'login') ui.view = 'home';
-  render(); runSync().then(cloudRefresh); openJoin();
+  render(); runSync().then(() => cloudRefresh()); openJoin();
+  if (ui.billingReturn){ ui.billingReturn = false; pollPremium(8); }
 }
 function captureJoin(){
   const m = /[#&]join=([\w-]+)/.exec(location.hash);
@@ -376,7 +434,7 @@ async function openJoin(){
 if (CLOUD){
   captureJoin();
   window.addEventListener('hashchange', () => { captureJoin(); openJoin(); });
-  window.addEventListener('online', () => { if (!cloud.user){ Cloud.client.auth.getSession(); } runSync().then(cloudRefresh); });
+  window.addEventListener('online', () => { if (!cloud.user){ Cloud.client.auth.getSession(); } runSync().then(() => cloudRefresh()); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) cloudRefresh(); });
   setInterval(() => { if (cloud.stale && !ui.sheet){ cloud.stale = false; cloudRefresh(); } }, 2500);
   Cloud.client.auth.onAuthStateChange((ev, session) => {
@@ -453,10 +511,12 @@ function viewHome(){
         '<div class="bar ' + (left < 0 ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div></button>';
     });
   }
-  if (cloud.user) h += '<div class="sub sm" style="text-align:center;margin-top:16px">' + esc(cloud.user.email || '') + ' でログイン中 ・ <button class="sub sm" data-a="logout" style="text-decoration:underline">ログアウト</button></div>';
+  if (cloud.user) h += '<div class="sub sm" style="text-align:center;margin-top:16px">' + esc(cloud.user.email || '') + ' でログイン中' + (cloud.premium ? '（プレミアム）' : '') + ' ・ <button class="sub sm" data-a="account" style="text-decoration:underline">アカウント</button></div>';
+  if (CLOUD) h += legalLinks();
   return h + '<button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
+function legalLinks(){ return '<div class="sub sm legal" style="text-align:center;margin-top:8px"><a href="terms.html">利用規約</a> ・ <a href="privacy.html">プライバシー</a> ・ <a href="legal.html">特定商取引法</a></div>'; }
 function accountCard(){
   if (!CLOUD) return '';
   if (!cloud.user) return '<div class="install"><div class="grow">ログインすると、友だちと旅行を共有できます。</div><button class="btn" data-a="login">ログイン</button></div>';
@@ -469,7 +529,8 @@ function viewLogin(){
   if (l.msg) h += '<div class="sub" style="margin-top:10px">' + esc(l.msg) + '</div>';
   if (!code){
     h += '<label class="lab" for="l-email">メールアドレス</label><input class="field" id="l-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" data-login="email" value="' + esc(l.email) + '" placeholder="例：aoi@example.com">' +
-      '<div class="sub" style="margin-top:8px">6桁の確認コードをメールで送ります。パスワードは要りません。</div>';
+      '<div class="sub" style="margin-top:8px">6桁の確認コードをメールで送ります。パスワードは要りません。</div>' +
+      '<div class="sub sm legal" style="margin-top:10px">ログインすると、<a href="terms.html">利用規約</a>と<a href="privacy.html">プライバシーポリシー</a>に同意したことになります。</div>';
   } else {
     h += '<div class="sub" style="margin-top:10px">' + esc(l.email) + ' に送った、確認コードを入力してください。</div>' +
       '<label class="lab" for="l-code">確認コード</label><input class="field" id="l-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" data-login="code" value="' + esc(l.code) + '" placeholder="123456">' +
@@ -623,9 +684,35 @@ function viewSheet(){
       (s.link ? '<div class="row" style="margin-top:8px"><input class="field" id="s-link" type="text" readonly aria-label="招待リンク" value="' + esc(s.link) + '" style="flex:1"><button class="btn line" data-a="share-link" style="width:auto;white-space:nowrap;padding:10px 14px">共有する</button></div>' : '') +
       '<div class="row" style="margin-top:8px"><input class="field" id="s-newmember" type="text" aria-label="友だちを招待" placeholder="友だちを招待（名前を入力）" style="flex:1"><button class="btn line" data-a="add-tmember" style="width:auto;white-space:nowrap;padding:10px 14px">招待する</button></div>' +
       '<div class="sub sm" style="margin-top:5px">' + (cloud.user ? '名前を入れて招待し、「招待リンク」を相手に送ります。リンクは7日間有効で、1回だけ使えます。' : '名前だけの枠として、先に割り勘に使えます。ログインすると、招待リンクで友だちを誘えます。') + ' 支出に使われているメンバーは取り消せません。</div>' +
+      '<button class="link" data-a="export-csv" style="padding:8px 0 0">CSVで書き出す' + (cloud.premium ? '' : '（プレミアム）') + '</button>' +
       (isOwner(t) ? (s.confirmDel ? '<div style="margin-top:8px"><button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button></div>' : '<button class="link bad" data-a="ask-del-trip" style="padding:6px 0 0">この旅行を削除</button>')
         : (s.confirmDel ? '<div style="margin-top:8px"><button class="btn bad" data-a="leave-trip">本当にこの旅行から抜ける</button></div>' : '<button class="link bad" data-a="ask-del-trip" style="padding:6px 0 0">この旅行から抜ける</button>'));
     foot = err + '<button class="btn" data-a="save-settings">保存する</button>';
+  }
+  if (s.type === 'upgrade'){
+    ttl = 'プレミアム';
+    body = '<div class="panel" style="margin-top:12px">' + (s.reason === 'limit' ? '<b>無料プランで作れる旅行は、3件までです。</b>' : s.reason === 'csv' ? '<b>CSVの書き出しは、プレミアムで使えます。</b>' : '<b>プレミアムでできること</b>') +
+      '<ul style="margin:8px 0 0;padding-left:20px"><li>旅行を、何件でもつくれる</li><li>旅行ごとの支出と精算を、CSVで書き出せる</li></ul></div>' +
+      '<div class="sub" style="margin-top:10px">記録・割り勘・精算・積立・通知は、無料のまま使えます。メンバーは、プレミアムでなくても参加できます。</div>' +
+      '<div class="sub sm legal" style="margin-top:6px">' + esc(CFG.premiumPriceLabel || '') + '（税込）・毎月自動で更新・いつでも解約できます。<a href="legal.html">特定商取引法に基づく表記</a></div>';
+    foot = err + '<button class="btn" data-a="upgrade-go"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '決済ページを開いています…' : 'プレミアムにする') + '</button><button class="link" data-a="close-sheet">あとで</button>';
+  }
+  if (s.type === 'account'){
+    ttl = 'アカウント';
+    const sub = cloud.sub, end = sub && sub.current_period_end ? fmtDate(sub.current_period_end.slice(0, 10)) : '';
+    const plan = cloud.premium ? 'プレミアム' + (sub.cancel_at_period_end ? '（' + end + 'に終了）' : end ? '（次の更新 ' + end + '）' : '') : '無料（旅行は3件まで）';
+    const pm = { 'on': ['旅行の前日・記録の忘れ・精算を、お知らせします。', '止める'], 'off': ['旅行の前日・記録の忘れ・精算を、お知らせします。', '受け取る'] }[s.push];
+    const pnote = { 'needs-install': 'ホーム画面に追加すると、通知を使えます。', 'blocked': '端末の設定で、通知を許可してください。', 'unsupported': 'この端末・ブラウザでは、通知を使えません。' }[s.push];
+    body = '<div class="list" style="margin-top:12px"><div class="item slim"><div class="grow"><div class="sub sm">メールアドレス</div><div class="t">' + esc(cloud.user.email || '') + '</div></div></div>' +
+      '<div class="item slim"><div class="grow"><div class="sub sm">プラン</div><div class="t">' + esc(plan) + '</div></div>' +
+      (cloud.premium ? '<button class="btn line" data-a="portal" style="width:auto;padding:8px 12px;font-size:14px">プランの管理</button>' : '<button class="btn line" data-a="upgrade" style="width:auto;padding:8px 12px;font-size:14px">プレミアムにする</button>') + '</div>' +
+      (s.push && s.push !== 'hidden' ? '<div class="item slim"><div class="grow"><div class="sub sm">この端末への通知</div><div class="t" style="font-weight:400;font-size:14px">' + (pm ? pm[0] : pnote || '確認しています…') + '</div></div>' +
+        (pm ? '<button class="btn line" data-a="toggle-push" style="width:auto;padding:8px 12px;font-size:14px">' + pm[1] + '</button>' : '') + '</div>' : '') + '</div>' +
+      '<div class="sub sm legal" style="margin-top:12px"><a href="terms.html">利用規約</a> ・ <a href="privacy.html">プライバシーポリシー</a> ・ <a href="legal.html">特定商取引法に基づく表記</a></div>' +
+      '<button class="link" data-a="logout" style="margin-top:6px">ログアウト</button>' +
+      (s.confirm ? '<div class="sub" style="margin:6px 0 8px">アカウントを削除すると、ログイン情報と通知の設定が消えます。あなたがつくった旅行は、ほかの参加者がいれば最初に参加した人へ引き継がれ、いなければ削除されます。ほかの人の旅行に記録した支出は、精算のために残ります。元に戻せません。</div><button class="btn bad" data-a="del-account">本当にアカウントを削除する</button>' :
+        '<button class="link bad" data-a="ask-del-account" style="padding-top:2px">アカウントを削除</button>');
+    foot = err;
   }
   if (s.type === 'join'){
     ttl = '旅行への招待';
@@ -686,15 +773,17 @@ document.addEventListener('click', e => {
     if (!/^\d{6,8}$/.test(c)){ l.err = 'メールに届いた数字のコードを、そのまま入力してください。'; }
     else { l.busy = true; l.err = ''; Cloud.verify(l.email, c).then(r => { l.busy = false; if (r.error){ l.err = Cloud.errText(r.error); render(); } }, er => { l.busy = false; l.err = Cloud.errText(er); render(); }); }
   }
-  else if (a === 'logout'){ Cloud.signOut(); return; }
+  else if (a === 'logout'){ ui.sheet = null; disablePush().catch(() => {}).then(() => Cloud.signOut()); return; }
   else if (a === 'migrate'){
-    const mine = localTrips().filter(x => !state.trips.some(y => y.id === x.id));
+    const all = localTrips().filter(x => !state.trips.some(y => y.id === x.id)), room = cloud.premium ? all.length : Math.max(0, FREE_TRIP_LIMIT - ownedCount());
+    if (!room){ ui.sheet = { type: 'upgrade', reason: 'limit', err: '' }; render(); return; }
+    const mine = all.slice(0, room), movedIds = mine.map(x => x.id), partial = mine.length < all.length;
     mine.forEach(x => { const copy = JSON.parse(JSON.stringify(x)); copy.owner = cloud.user.id; copy.members[0].userId = cloud.user.id; state.trips.push(copy); });
     save(); flash('移しています…');
     runSync().then(ok => {
       if (!ok){ flash('移せませんでした。つながったら、自動でもう一度送ります。'); return; }
-      const ls = JSON.parse(localStorage.getItem(LOCAL_KEY) || '{"trips":[]}'); ls.trips = ls.trips.filter(x => x.sample); lsSet(LOCAL_KEY, JSON.stringify(ls)); delete memories[LOCAL_KEY];
-      flash('アカウントに移しました'); });
+      const ls = JSON.parse(localStorage.getItem(LOCAL_KEY) || '{"trips":[]}'); ls.trips = ls.trips.filter(x => x.sample || movedIds.indexOf(x.id) < 0); lsSet(LOCAL_KEY, JSON.stringify(ls)); delete memories[LOCAL_KEY];
+      flash(partial ? '無料プランは旅行3件までのため、' + mine.length + '件を移しました。残りは端末に残っています。' : 'アカウントに移しました'); });
     return;
   }
   else if (a === 'invite-link'){
@@ -723,7 +812,34 @@ document.addEventListener('click', e => {
   }
   else if (a === 'install'){ if (deferredInstall){ deferredInstall.prompt(); deferredInstall = null; } }
   else if (a === 'dismiss-install'){ try { localStorage.setItem('tabiwari.noinstall', '1'); } catch(err){} }
-  else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
+  else if (a === 'new'){
+    if (cloud.user && !cloud.premium && ownedCount() >= FREE_TRIP_LIMIT) ui.sheet = { type: 'upgrade', reason: 'limit', err: '' };
+    else { ui.view = 'new'; ui.draft = newDraft(); }
+  }
+  else if (a === 'account'){ ui.sheet = { type: 'account', err: '', confirm: false, push: null }; pushState().then(v => { if (ui.sheet && ui.sheet.type === 'account'){ ui.sheet.push = v; render(); } }); }
+  else if (a === 'upgrade'){ ui.sheet = { type: 'upgrade', reason: 'plan', err: '' }; }
+  else if (a === 'upgrade-go'){ s.busy = true; s.err = ''; Cloud.checkout().then(url => { location.href = url; }, er => { s.busy = false; s.err = Cloud.errText(er); render(); }); }
+  else if (a === 'portal'){ Cloud.portal().then(url => { location.href = url; }, er => { s.err = Cloud.errText(er); render(); }); return; }
+  else if (a === 'toggle-push'){
+    const on = s.push === 'on';
+    (on ? disablePush() : enablePush()).then(v => { if (ui.sheet && ui.sheet.type === 'account'){ ui.sheet.push = v; ui.sheet.err = ''; render(); } },
+      () => { if (ui.sheet && ui.sheet.type === 'account'){ ui.sheet.err = '通知を設定できませんでした。もう一度お試しください。'; render(); } });
+    return;
+  }
+  else if (a === 'ask-del-account'){ s.confirm = true; }
+  else if (a === 'del-account'){
+    const uid = cloud.user.id;
+    disablePush().catch(() => {}).then(() => Cloud.deleteAccount()).then(() => {
+      ['', '.snap', '.sub'].forEach(x => lsSet('tabiwari.cloud.' + uid + x, null)); delete memories['tabiwari.cloud.' + uid]; ui.sheet = null;
+      return Cloud.signOut(); }).then(() => flash('アカウントを削除しました'), er => { if (ui.sheet){ ui.sheet.err = Cloud.errText(er); render(); } });
+    return;
+  }
+  else if (a === 'export-csv'){
+    readSheet();
+    if (!cloud.user){ flash('CSVの書き出しは、ログインしたプレミアム会員が使えます。'); return; }
+    if (!cloud.premium) ui.sheet = { type: 'upgrade', reason: 'csv', err: '' };
+    else { downloadCsv(t); flash('CSVを書き出しました'); return; }
+  }
   else if (a === 'preset'){ ui.draft.budget = el.getAttribute('data-v'); }
   else if (a === 'save-trip'){
     const d = ui.draft, b = parseYen(d.budget);
