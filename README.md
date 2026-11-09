@@ -12,6 +12,8 @@
 - 課金（Stripe）：無料は、自分でつくる旅行が3件まで。プレミアムは、旅行の数が無制限 + CSV書き出し。
 - アカウントの削除、利用規約・プライバシーポリシー・特定商取引法の表記（ひな形。公開前に記入と専門家の確認が必要）。
 
+公開手順：[docs/PUBLISH.md](docs/PUBLISH.md)（`npm run build` で `dist/` をつくる）。
+
 ## 開発
 ```
 npm start      # http://localhost:8080 （Service Workerはhttp(s)でのみ動く）
