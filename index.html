@@ -914,7 +914,7 @@ function viewSheet(){
       '<button class="btn line" data-a="bk-now" style="width:auto;padding:8px 12px;font-size:14px">今すぐ</button></div>' +
       (s.ntf && s.ntf !== 'hidden' ? '<div class="item slim"><div class="grow"><div class="sub sm">この端末への通知</div><div class="t" style="font-weight:400;font-size:14px">' +
         ({ 'on': '旅行の前日の夜、旅行中の記録のし忘れ、旅行の翌朝の精算を、お知らせします。', 'off': '旅行の前日の夜、旅行中の記録のし忘れ、旅行の翌朝の精算を、お知らせできます。', 'needs-install': 'ホーム画面に追加すると、通知を使えます。', 'blocked': '端末の設定で、通知を許可してください。', 'unsupported': 'この端末・ブラウザでは、通知を使えません。' }[s.ntf] || '確認しています…') + '</div></div>' +
-        (s.ntf === 'on' || s.ntf === 'off' ? '<button class="btn line" data-a="ntf-toggle" style="width:auto;padding:8px 12px;font-size:14px">' + (s.ntf === 'on' ? '止める' : '受け取る') + '</button>' : '') + '</div>' : '') + '</div>' +
+        (s.ntf === 'on' || s.ntf === 'off' ? '<button class="btn line" data-a="ntf-toggle" style="width:auto;padding:8px 12px;font-size:14px">' + (s.ntf === 'on' ? '止める' : '受け取る') + '</button>' : '') + '</div>' + (s.ntf === 'on' ? '<div class="item slim"><div class="grow"><div class="t" style="font-weight:400;font-size:14px">' + (s.testMsg ? esc(s.testMsg) : '今すぐ、テスト通知を1件送ります。') + '</div></div><button class="btn line" data-a="ntf-test" style="width:auto;padding:8px 12px;font-size:14px"' + (s.testing ? ' disabled' : '') + '>送る</button></div>' : '') : '') + '</div>' +
       '<button class="btn line" data-a="bk-restore" style="margin-top:10px">バックアップから戻す</button>' +
       '<div class="sub sm" style="margin-top:8px">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを控えます（暗号化して保存）。別の端末で、同じLINEでログインして「バックアップから戻す」を押すと、旅行が戻ります。</div>' +
       (CFG.legalReady ? '<div class="sub sm legal" style="margin-top:8px"><a href="privacy.html">プライバシーポリシー</a></div>' : '') +
@@ -1077,6 +1077,11 @@ document.addEventListener('click', e => {
   else if (a === 'line-login'){ lineLogin(); return; }
   else if (a === 'line-cancel'){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; }
   else if (a === 'line-account'){ ui.sheet = { type: 'line-account', err: '', confirm: false, ntf: null }; ntfRefreshSheet(); Line.backupGet().then(r => { lineAcct.count = r.items.length; render(); }, () => {}); }
+  else if (a === 'ntf-test'){
+    s.testing = true; s.testMsg = '送っています…'; s.err = '';
+    Line.pushTest().then(r => { s.testing = false; s.testMsg = r.sent ? '送りました。数秒以内に届かないときは、端末の通知設定を確認してください。' : '配信サービスが受け付けませんでした。もう一度お試しください。'; render(); },
+      er => { s.testing = false; s.testMsg = ''; s.err = Line.errText(er); render(); });
+  }
   else if (a === 'ntf-toggle'){
     const on = s.ntf === 'on';
     (on ? ntfOff() : ntfOn()).then(v => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.ntf = v; ui.sheet.err = ''; render(); } },

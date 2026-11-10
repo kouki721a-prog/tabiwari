@@ -8,7 +8,7 @@
    That works even when LINE opens in a different browser context than the home-screen app (common on iPhone). */
 import { reply, sha256hex, limited, randomToken } from './util.js';
 import { seal, open } from './seal.js';
-import { getVapid, allowedEndpoint, validKeys } from './push.js';
+import { getVapid, allowedEndpoint, validKeys, sendPush } from './push.js';
 
 export const ACCOUNT_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, line_sub TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', picture TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, last_login INTEGER NOT NULL)`,
@@ -169,6 +169,22 @@ export async function handleAccount(req, env, url) {
         .bind(b.endpoint, user.id, b.keys.p256dh, b.keys.auth, nowSec()),
       env.DB.prepare("INSERT INTO meta(k, v) VALUES ('origin', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(url.origin)]);
     return reply({ ok: true });
+  }
+  if (p === '/api/push/test' && method === 'POST') {   // sends one sample notification to the caller's own devices, so the real Apple/Google delivery can be checked without waiting for a trip date
+    if (await limited(env, req, 't', 10, 600)) return reply({ error: 'rate_limited' }, 429);
+    const subs = (await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subs WHERE user_id = ?1').bind(user.id).all()).results.filter(x => allowedEndpoint(x.endpoint, env));
+    if (!subs.length) return reply({ error: 'no_device' }, 404);
+    const vapid = await getVapid(env), origin = await env.DB.prepare("SELECT v FROM meta WHERE k = 'origin'").first();
+    const out = { sent: 0, failed: 0, gone: 0 };
+    for (const x of subs) {
+      try {
+        const st = await sendPush(env, vapid, origin ? origin.v : url.origin, x, { title: 'たびわり：テスト通知', body: 'この通知が見えていれば、通知は正しく届いています。', url: './', tag: 'test' });
+        if (st >= 200 && st < 300) out.sent++;
+        else if (st === 404 || st === 410) { out.gone++; await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ?1').bind(x.endpoint).run(); }
+        else out.failed++;
+      } catch (e) { out.failed++; }
+    }
+    return reply(out);
   }
   if (p === '/api/push/unsubscribe' && method === 'POST') {
     let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }

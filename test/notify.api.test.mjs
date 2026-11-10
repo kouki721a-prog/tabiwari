@@ -104,6 +104,14 @@ try {
   await j('/api/backup', { cookie: c1, method: 'PUT', body: { upsert: [local('M', '軽井沢', '2026-12-05', '2026-12-06')] } });
   assert.strictEqual((await run('2026-12-04T09:30:00Z')).sent, 0, 'the dead device is no longer used');
 
+  // ---- "send a test notification" goes only to the caller's own devices, and needs a login
+  inbox.splice(0);
+  assert.strictEqual((await j('/api/push/test', { method: 'POST', body: {} })).status, 401, 'test push needs a login');
+  const tp = await j('/api/push/test', { cookie: c2, method: 'POST', body: {} });
+  assert.strictEqual(tp.status, 200); assert.strictEqual(tp.data.sent, 1, JSON.stringify(tp.data));
+  assert.ok(take(d2).some(m => m.title.includes('テスト')), 'the test notification arrives on the caller\'s device');
+  assert.strictEqual(take(d1).length, 0, 'and not on anybody else\'s');
+
   // ---- turning it off / deleting the account stops everything
   assert.strictEqual((await j('/api/push/unsubscribe', { cookie: c1, method: 'POST', body: { endpoint: d2.endpoint } })).status, 200, 'cannot remove someone else\'s device');
   await j('/api/backup', { cookie: c2, method: 'PUT', body: { upsert: [local('R', 'ふたりの旅', '2026-12-06', '2026-12-07')] } });
