@@ -16,11 +16,14 @@
 
 - 共有（リンク方式）：アカウントなしで、リンクを知っている人どうしが同じ旅行を記録。Cloudflare Worker + D1。[docs/SHARING.md](docs/SHARING.md)。
 
+- LINEログインとバックアップ（任意）：旅行を暗号化してサーバーに控え、別の端末で戻す。設定するまでは、表示されない。[docs/LINE.md](docs/LINE.md)。
+
 ## 開発
 ```
 npm start      # http://localhost:8080 （Service Workerはhttp(s)でのみ動く）
 npm test       # 計算ロジック・同期差分・リンク解析のテスト
 npm run test:share   # 共有（ローカルWorker + D1 でAPIと複数人の通し）
+npm run test:account # LINEログインとバックアップ（疑似LINE + ローカルWorker + D1）
 node test/e2e.js   # ブラウザでの通し確認（偽のSupabase）
 node test/launch-check.js   # 公開前の確認
 node icons/make.js   # icons/icon.svg からPNGアイコンを再生成（playwright必要）

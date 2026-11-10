@@ -4,10 +4,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-export async function startServer(port = 8788) {
+export async function startServer(port = 8788, vars = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'tabiwari-d1-'));
   const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
-  const child = spawn('npx', ['--yes', 'wrangler@4', 'dev', '--local', '--port', String(port), '--persist-to', dir], { cwd: root, stdio: 'ignore', detached: true });
+  const varArgs = Object.entries(vars).flatMap(([k, v]) => ['--var', k + ':' + v]);
+  const child = spawn('npx', ['--yes', 'wrangler@4', 'dev', '--local', '--port', String(port), '--persist-to', dir, ...varArgs], { cwd: root, stdio: 'ignore', detached: true });
   const base = 'http://localhost:' + port;
   for (let i = 0; i < 90; i++) {
     try { const r = await fetch(base + '/api/trip', { signal: AbortSignal.timeout(1500) }); if (r.status === 401) break; } catch (e) { /* not up yet */ }

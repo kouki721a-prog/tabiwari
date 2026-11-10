@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample};')();
+const L = new Function(m[1] + '; return {splitShares, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
 
 assert.deepStrictEqual(L.splitShares(100, ['a','b','c']).map(x => x[1]), [34,33,33]);
 assert.strictEqual(L.dayDiff('2026-03-28', '2026-03-30'), 2);
@@ -48,4 +48,18 @@ sm = sample(); sm.expenses[0].amount = 9700; assert.strictEqual(L.isUntouchedSam
 sm = sample(); sm.paid = { k: true }; assert.strictEqual(L.isUntouchedSample(sm), false, 'marked paid');
 sm = sample(); sm.savings.a = 25000; assert.strictEqual(L.isUntouchedSample(sm), false, 'changed savings');
 sm = sample(); sm.sample = false; assert.strictEqual(L.isUntouchedSample(sm), false, 'a real trip with the same numbers');
+
+// restoring from a backup rebuilds the trip field by field
+const raw = () => ({ id: 't1', name: 'お盆', start: '2026-08-13', end: '2026-08-15', budget: 40000, evil: '<script>', share: { token: 'x' },
+  members: [{ id: 'a', name: 'あおい', pos: 0, userId: 'U9' }, { id: 'b', name: 'けんた', pos: 1 }],
+  expenses: [{ id: 'e1', title: '昼食', amount: 1800, payer: 'a', cat: 'food', date: '2026-08-13', split: ['a', 'b', 'ghost'], extra: 1 }],
+  paid: { 'b-a-900': true, bad: 'yes' }, savings: { a: 5000, ghost: 9, b: -1 } });
+let r = L.sanitizeTrip(raw(), 'new-id');
+assert.strictEqual(r.id, 'new-id'); assert.deepStrictEqual(Object.keys(r).sort(), ['budget', 'end', 'expenses', 'id', 'members', 'name', 'paid', 'savings', 'start']);
+assert.deepStrictEqual(r.expenses[0].split, ['a', 'b'], 'unknown members are dropped from splits'); assert.strictEqual(r.expenses[0].extra, undefined);
+assert.deepStrictEqual(r.paid, { 'b-a-900': true }); assert.deepStrictEqual(r.savings, { a: 5000 }); assert.strictEqual(r.members[0].userId, undefined);
+for (const f of [t => { t.name = '  '; }, t => { t.budget = 0; }, t => { t.end = '2026-08-01'; }, t => { t.members = []; }, t => { t.start = 'soon'; }]) { const t = raw(); f(t); assert.strictEqual(L.sanitizeTrip(t, 'x'), null); }
+{ const t = raw(); t.expenses.push({ id: 'e2', amount: 5, payer: 'nobody', cat: 'food', date: '2026-08-13', split: ['a'] }, { id: 'e3', amount: 5, payer: 'a', cat: 'weapons', date: '2026-08-13', split: ['a'] }, { id: 'e4', amount: 5, payer: 'a', cat: 'food', date: '2026-08-13', split: ['ghost'] });
+  assert.strictEqual(L.sanitizeTrip(t, 'x').expenses.length, 1, 'rows that cannot be valid are dropped'); }
+assert.strictEqual(L.sanitizeTrip(null, 'x'), null); assert.strictEqual(L.sanitizeTrip('str', 'x'), null);
 console.log('logic tests passed');
