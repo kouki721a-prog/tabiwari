@@ -29,8 +29,8 @@ try {
 
   await d1.p.click('[data-a=line-login]'); await d1.p.waitForURL(/\/api\/auth\/line\/callback/); await see(d1.p, 'ログインできました');
   await d1.p.click('a[href="/"]');                                                 // "back to たびわり": the app finds the finished login by itself
-  await see(d1.p, 'LINEでログインしました'); await see(d1.p, 'あおい（LINE） でログイン中');
-  await d1.p.waitForFunction(() => document.body.innerText.indexOf('バックアップ 2件') >= 0, null, { timeout: 12000 });
+  await see(d1.p, 'LINEでログインしました'); await d1.p.waitForSelector('[data-a=line-account]'); assert.strictEqual(await d1.p.locator('text=でログイン中').count(), 0, 'the home page no longer shows the account line, only the link');
+  await d1.p.waitForFunction(() => lineAcct.count === 2, null, { timeout: 12000 });
   assert.strictEqual(await d1.p.locator('text=LINEでログインすると').count(), 0, 'the login card goes away');
 
   // ---------- device 2: LINE opens in a *different* browser (what happens in an iPhone home-screen app); the app still gets logged in
@@ -59,7 +59,7 @@ try {
   // ---------- a different LINE person sees nothing
   const d3 = await device(); line.setIdentity('U-other', '別の人');
   await d3.p.goto(base + '/'); await d3.p.click('[data-a=line-login]'); await d3.p.waitForURL(/\/api\/auth\/line\/callback/); await d3.p.click('a[href="/"]');
-  await see(d3.p, '別の人 でログイン中'); await d3.p.waitForTimeout(800);
+  await d3.p.waitForSelector('[data-a=line-account]'); await d3.p.waitForTimeout(800);
   assert.strictEqual(await d3.p.locator('text=バックアップから戻す').count(), 0, 'no restore offered: this account has no backup');
   await d3.p.click('[data-a=line-account]'); await see(d3.p, 'LINEアカウント'); await d3.p.click('[data-a=bk-restore]'); await see(d3.p, '戻すものはありません');
   await d3.p.click('[data-a=close-sheet]');
@@ -88,7 +88,7 @@ try {
   const backupHas = async (p, pred) => { for (let i = 0; i < 30; i++){ const items = await p.evaluate(async () => (await Line.backupGet()).items.map(x => ({ deleted: !!x.item.deleted, name: x.item.trip ? x.item.trip.name : x.item.name }))); if (pred(items)) return items; await p.waitForTimeout(500); } assert.fail('backup did not reach the expected state'); };
   const e = await device(); await e.p.goto(base + '/'); await see(e.p, 'LINEでログインすると');
   await newTrip(e.p, '消す旅'); await e.p.click('[data-a=home]'); await newTrip(e.p, '残す旅'); await e.p.click('[data-a=home]');
-  await loginFlow(e); await e.p.waitForFunction(() => document.body.innerText.indexOf('バックアップ 2件') >= 0, null, { timeout: 12000 });
+  await loginFlow(e); await e.p.waitForFunction(() => lineAcct.count === 2, null, { timeout: 12000 });
   await e.p.locator('.trip', { hasText: '消す旅' }).click(); await e.p.click('[data-a=settings]'); await e.p.click('[data-a=ask-del-trip]'); await e.p.click('[data-a=del-trip]'); await see(e.p, '旅行を削除しました');
   await backupHas(e.p, it => it.some(x => x.deleted && x.name === '消す旅'));
   await e.p.click('[data-a=line-account]'); await e.p.click('[data-a=line-logout]'); await see(e.p, 'ログアウトしました');
