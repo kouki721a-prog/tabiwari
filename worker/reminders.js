@@ -31,10 +31,12 @@ async function findDue(env, t, userIds, all = false) {
   const trips = [];
   for (const r of rows) {
     let item; try { item = await open(env, r.user_id + '|' + r.trip_id, r.data); } catch (e) { if (all) trips.push({ userId: r.user_id, tripId: r.trip_id, unreadable: true }); continue; }
+    if (item.deleted && !all) continue;   // deleted on the device: no reminders
     const src = item.kind === 'shared' ? item : item.trip;
     if (!src || !isDay(src.start) || !isDay(src.end) || typeof src.name !== 'string') continue;
     if (!all && !(src.start === t.tomorrow || (src.start <= t.today && t.today <= src.end) || src.end === t.yesterday)) continue;
-    trips.push({ userId: r.user_id, tripId: r.trip_id, name: src.name, start: src.start, end: src.end,
+    if (!all && trips.some(x => x.userId === r.user_id && x.name === src.name && x.start === src.start && x.end === src.end)) continue;   // the same trip saved twice: one reminder
+    trips.push({ userId: r.user_id, tripId: r.trip_id, name: src.name, start: src.start, end: src.end, deleted: !!item.deleted,
       hash: item.kind === 'shared' && typeof item.token === 'string' ? await sha256hex(item.token) : null,
       local: item.kind === 'local' ? (Array.isArray(item.trip.expenses) ? item.trip.expenses : []) : null });
   }
@@ -48,7 +50,7 @@ async function findDue(env, t, userIds, all = false) {
     if (x.unreadable) { due.push(x); continue; }
     const ex = x.hash ? (counts[x.hash] || { total: 0, onToday: 0 }) : { total: x.local.length, onToday: x.local.filter(e => e && e.date === t.today).length };
     const kinds = dueKinds(x, t, ex);
-    if (all) due.push({ u: x.userId, t: x.tripId, name: x.name, start: x.start, end: x.end, kinds, shared: !!x.hash, expenses: ex.total });
+    if (all) due.push({ u: x.userId, t: x.tripId, name: x.name, start: x.start, end: x.end, kinds: x.deleted ? [] : kinds, shared: !!x.hash, expenses: ex.total, deleted: !!x.deleted });
     else for (const kind of kinds) due.push({ u: x.userId, t: x.tripId, k: kind, name: x.name });
   }
   return due;
@@ -62,7 +64,7 @@ export async function reminderReport(env, userId, nowMs = Date.now()) {
   const last = await DB.prepare("SELECT v FROM meta WHERE k = 'last_cron'").first();
   let lastCron = null; try { lastCron = last ? JSON.parse(last.v) : null; } catch (e) { /* ignore */ }
   const trips = await findDue(env, t, [userId], true);
-  return { now: nowMs, jst: t, devices, lastCron, trips: trips.map(x => x.unreadable ? { unreadable: true } : { name: x.name, start: x.start, end: x.end, kinds: x.kinds, shared: x.shared, expenses: x.expenses }),
+  return { now: nowMs, jst: t, devices, lastCron, trips: trips.map(x => x.unreadable ? { unreadable: true } : { name: x.name, start: x.start, end: x.end, kinds: x.kinds, shared: x.shared, expenses: x.expenses, deleted: x.deleted }),
     sent: log.map(x => ({ kind: x.kind, day: x.day, at: x.t, tripId: x.trip_id })) };
 }
 

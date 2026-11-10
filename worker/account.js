@@ -66,10 +66,10 @@ async function backupPut(req, env, user) {
   const text = await req.text();
   if (text.length > BACKUP.bodyBytes) return reply({ error: 'too_large' }, 413);
   let body; try { body = JSON.parse(text); } catch (e) { return reply({ error: 'invalid' }, 400); }
-  const up = Array.isArray(body && body.upsert) ? body.upsert : [], rm = Array.isArray(body && body.remove) ? body.remove : [];
-  if (!up.length && !rm.length) return reply({ error: 'invalid' }, 400);
-  if (up.length > BACKUP.perRequest || rm.length > BACKUP.perRequest) return reply({ error: 'invalid' }, 400);
-  if (!up.every(x => x && isId(x.id) && validItem(x.item)) || !rm.every(isId)) return reply({ error: 'invalid' }, 400);
+  const up = Array.isArray(body && body.upsert) ? body.upsert : [], rm = Array.isArray(body && body.remove) ? body.remove : [], gone = Array.isArray(body && body.deleted) ? body.deleted : [];
+  if (!up.length && !rm.length && !gone.length) return reply({ error: 'invalid' }, 400);
+  if (up.length > BACKUP.perRequest || rm.length > BACKUP.perRequest || gone.length > BACKUP.perRequest) return reply({ error: 'invalid' }, 400);
+  if (!up.every(x => x && isId(x.id) && validItem(x.item)) || !rm.every(isId) || !gone.every(isId)) return reply({ error: 'invalid' }, 400);
   if (await limited(env, req, 'b', 120, 600)) return reply({ error: 'rate_limited' }, 429);
 
   const have = new Set((await env.DB.prepare('SELECT trip_id FROM backups WHERE user_id = ?').bind(user.id).all()).results.map(r => r.trip_id));
@@ -80,6 +80,14 @@ async function backupPut(req, env, user) {
   for (const x of up) S.push(env.DB.prepare('INSERT INTO backups(user_id,trip_id,data,updated_at) VALUES (?1,?2,?3,?4) ON CONFLICT(user_id,trip_id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at')
     .bind(user.id, x.id, await seal(env, user.id + '|' + x.id, x.item), now));
   for (const id of rm) S.push(env.DB.prepare('DELETE FROM backups WHERE user_id = ?1 AND trip_id = ?2').bind(user.id, id));
+  // trips deleted on the device: keep the content (so "restore" can still bring it back) but mark it, so it is not offered again at login and gets no reminders
+  for (const id of gone) {
+    const row = await env.DB.prepare('SELECT data FROM backups WHERE user_id = ?1 AND trip_id = ?2').bind(user.id, id).first();
+    if (!row || up.some(x => x.id === id)) continue;
+    let item; try { item = await open(env, user.id + '|' + id, row.data); } catch (e) { continue; }
+    item.deleted = true;
+    S.push(env.DB.prepare('UPDATE backups SET data = ?3, updated_at = ?4 WHERE user_id = ?1 AND trip_id = ?2').bind(user.id, id, await seal(env, user.id + '|' + id, item), now));
+  }
   await env.DB.batch(S);
   return reply({ ok: true, count: have.size });
 }

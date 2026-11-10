@@ -81,6 +81,33 @@ try {
   // device 1's session died with the account
   await d1.p.reload(); await see(d1.p, 'LINEでログインすると');
 
+  // ---------- a trip deleted on the device is not offered again at the next login, and neither is a trip the device already has under another id
+  line.setIdentity('U-new', '新人');
+  const loginFlow = async d => { await d.p.click('[data-a=line-login]'); await d.p.waitForURL(/\/api\/auth\/line\/callback/); await see(d.p, 'ログインできました'); await d.p.click('a[href="/"]'); await see(d.p, 'LINEでログインしました'); };
+  const noRestoreSheet = async p => { await p.waitForTimeout(2500); assert.strictEqual(await p.locator('[data-a=bk-restore-go]').count(), 0, 'no restore offer'); };
+  const backupHas = async (p, pred) => { for (let i = 0; i < 30; i++){ const items = await p.evaluate(async () => (await Line.backupGet()).items.map(x => ({ deleted: !!x.item.deleted, name: x.item.trip ? x.item.trip.name : x.item.name }))); if (pred(items)) return items; await p.waitForTimeout(500); } assert.fail('backup did not reach the expected state'); };
+  const e = await device(); await e.p.goto(base + '/'); await see(e.p, 'LINEでログインすると');
+  await newTrip(e.p, '消す旅'); await e.p.click('[data-a=home]'); await newTrip(e.p, '残す旅'); await e.p.click('[data-a=home]');
+  await loginFlow(e); await e.p.waitForFunction(() => document.body.innerText.indexOf('バックアップ 2件') >= 0, null, { timeout: 12000 });
+  await e.p.locator('.trip', { hasText: '消す旅' }).click(); await e.p.click('[data-a=settings]'); await e.p.click('[data-a=ask-del-trip]'); await e.p.click('[data-a=del-trip]'); await see(e.p, '旅行を削除しました');
+  await backupHas(e.p, it => it.some(x => x.deleted && x.name === '消す旅'));
+  await e.p.click('[data-a=line-account]'); await e.p.click('[data-a=line-logout]'); await see(e.p, 'ログアウトしました');
+  await loginFlow(e); await noRestoreSheet(e.p);
+  assert.strictEqual(await e.p.locator('.trip', { hasText: '消す旅' }).count(), 0, 'the deleted trip did not come back');
+  // the manual restore still lists it (marked), unchecked, so it can be brought back on purpose
+  await e.p.click('[data-a=line-account]'); await e.p.click('[data-a=bk-restore]'); await see(e.p, '削除した旅行');
+  assert.strictEqual(await e.p.locator('[data-a=bk-restore-go]').count(), 1); assert.strictEqual(await e.p.locator('.chk.on').count(), 0, 'deleted trips are not pre-selected');
+  await e.p.click('[data-a=bk-pick]'); await e.p.click('[data-a=bk-restore-go]'); await see(e.p, '1件を戻しました'); await see(e.p, '消す旅');
+  await backupHas(e.p, it => it.every(x => !x.deleted));   // the next backup clears the mark
+  // another device that already has "残す旅" (made there by itself, so a different id): no offer
+  const f = await device(); await f.p.goto(base + '/'); await see(f.p, 'LINEでログインすると'); await newTrip(f.p, '残す旅'); await f.p.click('[data-a=home]');
+  await loginFlow(f); await see(f.p, 'バックアップから戻す');
+  await f.p.waitForSelector('[data-a=bk-restore-go]'); const offered = await f.p.$$eval('.sheet .item .t', els => els.map(x => x.textContent));
+  assert.deepStrictEqual(offered.sort(), ['残す旅', '消す旅'].sort());
+  await see(f.p, '同じ旅行が、この端末にあります'); assert.strictEqual(await f.p.locator('.chk.on').count(), 1, 'only 消す旅 is pre-selected; the duplicate 残す旅 is not');
+  assert.ok(await f.p.locator('.item', { hasText: '消す旅' }).locator('.chk.on').count() === 1);
+  await f.p.click('[data-a=close-sheet]'); assert.strictEqual(await f.p.locator('.trip', { hasText: '残す旅' }).count(), 1, 'no second copy');
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('account e2e passed');
 } finally { await b.close(); srv.stop(); line.stop(); }
