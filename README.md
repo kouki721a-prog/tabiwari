@@ -14,10 +14,13 @@
 
 公開手順：[docs/PUBLISH.md](docs/PUBLISH.md)（`npm run build` で `dist/` をつくる）。
 
+- 共有（リンク方式）：アカウントなしで、リンクを知っている人どうしが同じ旅行を記録。Cloudflare Worker + D1。[docs/SHARING.md](docs/SHARING.md)。
+
 ## 開発
 ```
 npm start      # http://localhost:8080 （Service Workerはhttp(s)でのみ動く）
-npm test       # 計算ロジックと同期差分のテスト
+npm test       # 計算ロジック・同期差分・リンク解析のテスト
+npm run test:share   # 共有（ローカルWorker + D1 でAPIと複数人の通し）
 node test/e2e.js   # ブラウザでの通し確認（偽のSupabase）
 node test/launch-check.js   # 公開前の確認
 node icons/make.js   # icons/icon.svg からPNGアイコンを再生成（playwright必要）
