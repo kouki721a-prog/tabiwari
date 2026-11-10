@@ -485,7 +485,7 @@ function bannerDismissed(){ try { return localStorage.getItem('tabiwari.noinstal
 /* "add to the home screen" guidance. Benefit first, then the way that fits this browser:
    in-app browser (LINE etc.) -> open it in Safari / Chrome; opened from the home screen -> no guidance, a "turn on notifications" button instead;
    Android/Chrome with beforeinstallprompt -> [追加する]; iPhone -> share button steps; anything else -> menu steps */
-const inAppBrowser = () => /\bLine\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Twitter|Snapchat|Pinterest|TikTok|KAKAOTALK|NAVER\(/i.test(navigator.userAgent);
+const inAppBrowser = () => /\bLine\/|\bGSA\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Twitter|Snapchat|Pinterest|TikTok|KAKAOTALK|NAVER\(/i.test(navigator.userAgent);
 const BENEFIT = 'ホーム画面に追加すると、すぐ開けて、前日のお知らせも届きます。';
 function installBanner(){
   if (isStandalone()){
@@ -496,7 +496,7 @@ function installBanner(){
   }
   if (inAppBrowser()){
     const to = isIOS() ? 'Safari' : 'Chrome';
-    return '<div class="install col"><div><b>' + to + 'で開いてください。</b><div class="sub sm">LINEなどのアプリ内ブラウザでは、ホーム画面に追加できません。メニューから「' + to + 'で開く」を選んでください。</div></div><button class="btn line sm" data-a="copy-site">リンクをコピーして、' + to + 'に貼り付ける</button></div>';
+    return '<div class="install col"><div><b>' + to + 'で開いてください。</b><div class="sub sm">LINEやGoogleなどのアプリ内ブラウザでは、ホーム画面に追加できません。メニューから「' + to + 'で開く」を選んでください。</div></div><button class="btn line sm" data-a="copy-site">リンクをコピーして、' + to + 'に貼り付ける</button></div>';
   }
   if (bannerDismissed()) return '';
   const x = '<button class="x" data-a="dismiss-install" aria-label="案内を閉じる">' + icon('close', 18) + '</button>';
