@@ -7,7 +7,7 @@ import { startFakeLine } from './fake-line.mjs';
 let srv = await startServer(8788);
 try {
   const me = await (await fetch(srv.base + '/api/me')).json();
-  assert.deepStrictEqual(me, { login: false, user: null });
+  assert.deepStrictEqual(me, { login: false, user: null, push: null });
   const r = await fetch(srv.base + '/api/auth/begin', { method: 'POST', headers: { Origin: srv.base } });
   assert.strictEqual(r.status, 503);
   assert.strictEqual((await fetch(srv.base + '/api/backup')).status, 503);
@@ -45,7 +45,7 @@ const shared = { id: 'a'.repeat(64), item: { kind: 'shared', token: 'T'.repeat(3
 const local = { id: 'trip-local-1', item: { kind: 'local', trip: { id: 'trip-local-1', name: 'ローカル旅', members: [{ id: 'm1', name: 'あおい' }], expenses: [{ id: 'e1', title: '夕食', amount: 3000 }] } } };
 
 try {
-  assert.deepStrictEqual((await j('/api/me')).data, { login: true, user: null });
+  assert.deepStrictEqual((await j('/api/me')).data, { login: true, user: null, push: null });
   assert.strictEqual((await j('/api/auth/begin', { method: 'POST', body: {}, origin: false })).status, 403, 'cross-site posts are refused');
   assert.strictEqual((await j('/api/backup')).status, 401);
   assert.strictEqual((await j('/api/auth/poll', { method: 'POST', body: { id: 'nope', secret: 'x' } })).status, 410);
@@ -54,7 +54,7 @@ try {
 
   // --- login as U1
   const c1 = await login('U-one', 'テスト太郎');
-  assert.deepStrictEqual((await j('/api/me', { cookie: c1 })).data, { login: true, user: { name: 'テスト太郎' } });
+  { const me = (await j('/api/me', { cookie: c1 })).data; assert.deepStrictEqual([me.login, me.user], [true, { name: 'テスト太郎' }]); assert.strictEqual(me.push.length, 87, 'logged-in people are offered the push key'); }
   assert.ok(!JSON.stringify((await j('/api/me', { cookie: c1 })).data).includes('U-one'), 'the LINE user id is never sent to the app');
   assert.strictEqual((await j('/api/me', { cookie: 'tw_session=' + 'z'.repeat(43) })).data.user, null, 'a made-up cookie is nobody');
 

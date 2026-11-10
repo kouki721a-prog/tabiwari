@@ -1,5 +1,6 @@
 import { reply, sha256hex, limited } from './util.js';
 import { ACCOUNT_SCHEMA, handleAccount, purgeAccountData } from './account.js';
+import { runReminders } from './reminders.js';
 
 /* たびわり sharing API: Cloudflare Worker + D1.
    A shared trip is reachable only with its secret token (sent as `Authorization: Bearer <token>`).
@@ -141,6 +142,7 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS ? env.ASSETS.fetch(req) : new Response('not found', { status: 404 });
     try {
       await ensure(env);
+      if (env.TEST_HOOKS === '1' && url.pathname === '/api/_test/reminders' && req.method === 'POST') { const b = await req.json(); return reply(await runReminders(env, b.now)); }   // tests only: the variable is never set in production
       const acct = await handleAccount(req, env, url);
       if (acct) return acct;
       const m = /^Bearer (\S+)$/.exec(req.headers.get('Authorization') || '');
@@ -158,9 +160,12 @@ export default {
       return reply({ error: 'server' }, 500);
     }
   },
-  /* daily: forget old rate-limit counters, and trips nobody has touched for RETENTION_DAYS */
-  async scheduled(_event, env) {
+  /* hourly: send reminders. Once a day (03:00 Japan time): forget old counters and expired data. */
+  async scheduled(event, env) {
     await ensure(env);
+    const at = event.scheduledTime || Date.now();
+    try { await runReminders(env, at); } catch (e) { console.error('reminders failed', e && e.message); }
+    if (new Date(at).getUTCHours() !== 18) return;
     const now = Date.now();
     await env.DB.prepare('DELETE FROM hits WHERE t < ?').bind(Math.floor(now / 1000) - 2 * 86400).run();
     await purgeAccountData(env, Math.floor(now / 1000));
