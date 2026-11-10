@@ -83,6 +83,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .bar>i{display:block;height:100%;background:var(--navy);border-radius:99px}
 .bar.over>i{background:var(--bad)}
 .legal a{color:var(--sub)}
+.chip .x{width:24px;height:24px;display:grid;place-items:center;color:var(--sub);font-size:18px;line-height:1;margin-left:2px}
 .btn.lineg{background:#06c755;color:#fff;width:auto;padding:10px 14px;font-size:14px;flex:none}
 .install{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-top:10px;font-size:13px}
 .install .btn{width:auto;padding:8px 14px;font-size:14px;flex:none}
@@ -663,18 +664,23 @@ async function restoreTrips(items){
   }
   return { ok, skipped };
 }
+/* members as small tags (they join themselves from the share link; an unused person can be removed with ×) */
+function memberChips(t, used){
+  return '<div class="chips">' + t.members.map(m => '<span class="chip" style="cursor:default">' + av(t, m.id) + esc(m.name) + (m.id === meId(t) ? '<span class="sub sm">（あなた）</span>' : '') +
+    (m.id !== meId(t) && !used(m.id) ? '<button class="x" data-a="rm-tmember" data-id="' + m.id + '" aria-label="' + esc(m.name) + 'を外す">×</button>' : '') + '</span>').join('') + '</div>';
+}
 function shareSection(t, s){
   if (CLOUD) return '';
   const tip = 'LINEなどで、旅行に行く人にだけ送ってください。ホーム画面のアプリに入れている人は、リンクをコピーして、アプリのホームにある「共有リンクで参加する」に貼り付けてもらいます。';
-  if (!t.share) return '<span class="lab">友だちと共有</span><div class="panel"><div class="sub">共有すると、リンクを知っている人が、この旅行を見て、記録できます。' + tip +
-    '</div><button class="btn line" data-a="share-start" style="margin-top:10px"' + (s.sharing ? ' disabled' : '') + '>' + (s.sharing ? '準備しています…' : '友だちと共有する') + '</button></div>';
+  if (!t.share) return '<div class="panel" style="padding:10px 12px;margin-top:12px"><div class="row" style="gap:10px"><div class="grow"><b>友だちと共有</b><div class="sub sm">リンクを送ると、友だちが自分の名前で参加して、一緒に記録できます。</div></div>' +
+    '<button class="btn line" data-a="share-start" style="width:auto;white-space:nowrap;padding:9px 14px;font-size:14px"' + (s.sharing ? ' disabled' : '') + '>' + (s.sharing ? '準備中…' : '共有する') + '</button></div></div>';
   const url = Share.linkFor(t.share.token, location);
-  return '<span class="lab">友だちと共有</span><div class="panel"><b>共有中</b>' + (t.share.dirty ? '<span class="sub">（同期待ち）</span>' : '') +
-    '<div class="row" style="margin-top:8px"><input class="field" id="s-sharelink" type="text" readonly aria-label="共有リンク" value="' + esc(url) + '" style="flex:1"><button class="btn line" data-a="share-copy" style="width:auto;white-space:nowrap;padding:10px 14px">送る</button></div>' +
-    '<div class="sub sm" style="margin-top:8px">リンクを知っている人は、誰でも見て、記録できます。' + tip + '</div>' +
-    (s.confirm === 'stop' ? '<div class="sub" style="margin:8px 0">この端末での同期をやめます。旅行はこの端末に残り、ほかの人は、そのまま使えます。</div><button class="btn bad" data-a="share-stop-go">この端末の共有をやめる</button>' :
-     s.confirm === 'erase' ? '<div class="sub" style="margin:8px 0">共有しているデータを、サーバーから削除します。リンクを持つ全員が、同期できなくなります（各自の端末には残ります）。元に戻せません。</div><button class="btn bad" data-a="share-erase-go">サーバーから削除する</button>' :
-     '<button class="link" data-a="share-stop" style="padding:8px 0 0">この端末の共有をやめる</button><button class="link bad" data-a="share-erase" style="padding:2px 0 0">みんなの共有を終了（サーバーから削除）</button>') + '</div>';
+  return '<div class="panel" style="padding:10px 12px;margin-top:12px"><div><b>友だちと共有</b> <span class="sub sm">共有中' + (t.share.dirty ? '（同期待ち）' : '') + '・リンクを知っている人は、見て、記録できます</span></div>' +
+    '<div class="row" style="margin-top:6px"><input class="field" id="s-sharelink" type="text" readonly aria-label="共有リンク" value="' + esc(url) + '" style="flex:1;padding:8px 10px"><button class="btn line" data-a="share-copy" style="width:auto;white-space:nowrap;padding:9px 14px;font-size:14px">送る</button></div>' +
+    '<details style="margin-top:6px"><summary class="sub sm" style="cursor:pointer">送り方のヒント</summary><div class="sub sm" style="margin-top:4px">' + tip + '</div></details>' +
+    (s.confirm === 'stop' ? '<div class="sub sm" style="margin:8px 0">この端末での同期をやめます。旅行はこの端末に残り、ほかの人は、そのまま使えます。</div><button class="btn bad" data-a="share-stop-go">この端末の共有をやめる</button>' :
+     s.confirm === 'erase' ? '<div class="sub sm" style="margin:8px 0">共有しているデータを、サーバーから削除します。リンクを持つ全員が、同期できなくなります（各自の端末には残ります）。元に戻せません。</div><button class="btn bad" data-a="share-erase-go">サーバーから削除する</button>' :
+     '<div class="row" style="justify-content:center;gap:18px"><button class="link" data-a="share-stop" style="width:auto;padding:6px 0">この端末の共有をやめる</button><button class="link bad" data-a="share-erase" style="width:auto;padding:6px 0">みんなの共有を終了</button></div>') + '</div>';
 }
 
 /* ---- render ---- */
@@ -886,17 +892,19 @@ function viewSheet(){
       '<div class="two"><div><label class="lab" for="s-start">出発日</label><input class="field" id="s-start" type="date" value="' + d.start + '"></div>' +
       '<div><label class="lab" for="s-end">帰着日</label><input class="field" id="s-end" type="date" value="' + d.end + '"></div></div>' +
       '<label class="lab" for="s-budget">全体の予算（円）</label><input class="field" id="s-budget" type="text" inputmode="numeric" value="' + esc(d.budget) + '">' +
-      '<span class="lab">メンバー</span><div class="list">' + t.members.map((m, i) => '<div class="item slim">' + av(t, m.id) + '<div class="grow t">' + esc(m.name) + '</div>' +
+      '<span class="lab">メンバー</span>' + (!CLOUD ? memberChips(t, used) : '<div class="list">' + t.members.map((m, i) => '<div class="item slim">' + av(t, m.id) + '<div class="grow t">' + esc(m.name) + '</div>' +
         (m.id === meId(t) ? '<span class="pill">あなた</span>' : !CLOUD ? '' : m.pending ? '<span class="pill wait">参加待ち</span>' : '<span class="pill">参加中</span>') +
         (cloud.user && isOwner(t) && m.pending ? '<button class="sub" data-a="invite-link" data-id="' + m.id + '" style="font-weight:500;padding:6px 0 6px 6px;text-decoration:underline">招待リンク</button>' : '') +
-        ((CLOUD ? m.pending : m.id !== meId(t)) && !used(m.id) ? '<button class="sub" data-a="rm-tmember" data-id="' + m.id + '" style="font-weight:500;padding:6px 0 6px 6px">取り消す</button>' : '') + '</div>').join('') + '</div>' +
+        ((CLOUD ? m.pending : m.id !== meId(t)) && !used(m.id) ? '<button class="sub" data-a="rm-tmember" data-id="' + m.id + '" style="font-weight:500;padding:6px 0 6px 6px">取り消す</button>' : '') + '</div>').join('') + '</div>') +
+      (CLOUD ? (
       (s.link ? '<div class="row" style="margin-top:8px"><input class="field" id="s-link" type="text" readonly aria-label="招待リンク" value="' + esc(s.link) + '" style="flex:1"><button class="btn line" data-a="share-link" style="width:auto;white-space:nowrap;padding:10px 14px">共有する</button></div>' : '') +
       '<div class="row" style="margin-top:8px"><input class="field" id="s-newmember" type="text" aria-label="メンバーを追加" placeholder="' + (CLOUD ? '友だちを招待（名前を入力）' : 'メンバーを追加（名前を入力）') + '" style="flex:1"><button class="btn line" data-a="add-tmember" style="width:auto;white-space:nowrap;padding:10px 14px">' + (CLOUD ? '招待する' : '追加する') + '</button></div>' +
       '<div class="sub sm" style="margin-top:5px">' + (cloud.user ? '名前を入れて招待し、「招待リンク」を相手に送ります。リンクは7日間有効で、1回だけ使えます。' : CLOUD ? '名前だけの枠として、先に割り勘に使えます。ログインすると、招待リンクで友だちを誘えます。' : '名前を入れて、メンバーを追加します。友だちと同じ旅行を見るときは、下の「友だちと共有」を使います。') + ' 支出に使われているメンバーは取り消せません。</div>' +
+      '') : '') +
       shareSection(t, s) +
-      '<button class="link" data-a="export-csv" style="padding:8px 0 0">CSVで書き出す' + (!CLOUD || cloud.premium ? '' : '（プレミアム）') + '</button>' +
-      (isOwner(t) ? (s.confirmDel ? '<div style="margin-top:8px">' + (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button></div>' : '<button class="link bad" data-a="ask-del-trip" style="padding:6px 0 0">この旅行を削除</button>')
-        : (s.confirmDel ? '<div style="margin-top:8px"><button class="btn bad" data-a="leave-trip">本当にこの旅行から抜ける</button></div>' : '<button class="link bad" data-a="ask-del-trip" style="padding:6px 0 0">この旅行から抜ける</button>'));
+      '<div class="row" style="justify-content:center;gap:22px;margin-top:2px"><button class="link" data-a="export-csv" style="width:auto;padding:8px 0">CSVで書き出す' + (!CLOUD || cloud.premium ? '' : '（プレミアム）') + '</button>' +
+      (s.confirmDel ? '' : '<button class="link bad" data-a="ask-del-trip" style="width:auto;padding:8px 0">' + (isOwner(t) ? 'この旅行を削除' : 'この旅行から抜ける') + '</button>') + '</div>' +
+      (s.confirmDel ? '<div style="margin-top:4px">' + (isOwner(t) ? (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button>' : '<button class="btn bad" data-a="leave-trip">本当にこの旅行から抜ける</button>') + '</div>' : '');
     foot = err + '<button class="btn" data-a="save-settings">保存する</button>';
   }
   if (s.type === 'line-account'){
@@ -924,8 +932,8 @@ function viewSheet(){
   if (s.type === 'join-share'){
     const jt = s.trip; ttl = '共有された旅行';
     body = '<div class="panel" style="margin-top:12px"><div class="num">' + esc(jt.name) + '</div><div class="sub">' + fmtDate(jt.start) + ' - ' + fmtDate(jt.end) + '・メンバー ' + jt.members.length + '人・支出 ' + jt.expenses.length + '件</div></div>' +
-      '<span class="lab">あなたは誰ですか？</span><div class="chips">' + jt.members.map(m => '<button class="chip ' + (s.pick === m.id ? 'on' : '') + '" data-a="join-pick" data-v="' + m.id + '" aria-pressed="' + (s.pick === m.id) + '">' + av(jt, m.id) + esc(m.name) + '</button>').join('') + '</div>' +
-      '<label class="lab" for="j-name">リストにいない人は、名前を入力</label><input class="field" id="j-name" type="text" value="' + esc(s.name) + '" placeholder="例：みく">' +
+      '<label class="lab" for="j-name">あなたの名前</label><input class="field" id="j-name" type="text" maxlength="50" value="' + esc(s.name) + '" placeholder="例：みく">' +
+      (jt.members.length ? '<span class="lab">すでに参加している人（別の端末から入り直すとき）</span><div class="chips">' + jt.members.map(m => '<button class="chip ' + (s.pick === m.id ? 'on' : '') + '" data-a="join-pick" data-v="' + m.id + '" aria-pressed="' + (s.pick === m.id) + '">' + av(jt, m.id) + esc(m.name) + '</button>').join('') + '</div><div class="sub sm" style="margin-top:6px">自分が、すでにこの旅行に参加しているときだけ、選びます。ほかの人の名前は、選ばないでください。</div>' : '') +
       '<div class="sub sm" style="margin-top:8px">参加すると、この旅行の支出と精算を、見て、記録できます。</div>';
     foot = err + '<button class="btn" data-a="join-share-go"' + (s.busy ? ' disabled' : '') + '>参加する</button><button class="link" data-a="close-sheet">やめる</button>';
   }
@@ -996,6 +1004,7 @@ function readSheet(){
 }
 
 document.addEventListener('input', e => {
+  if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const lk = e.target.getAttribute && e.target.getAttribute('data-login'); if (lk && ui.login) ui.login[lk] = e.target.value;
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
@@ -1107,7 +1116,7 @@ document.addEventListener('click', e => {
   else if (a === 'join-pick'){ readSheet(); s.pick = el.getAttribute('data-v'); s.name = ''; }
   else if (a === 'join-share-go'){
     readSheet(); const jt = s.trip, nm = (s.name || '').trim();
-    if (!s.pick && !nm) s.err = '「あなたは誰ですか？」で自分を選ぶか、名前を入力してください。';
+    if (!s.pick && !nm) s.err = '名前を入力するか、すでに参加している自分を選んでください。';
     else if (!s.pick && jt.members.some(m => m.name === nm)) s.err = '同じ名前のメンバーがいます。リストから選んでください。';
     else if (!s.pick && jt.members.length >= 12) s.err = 'メンバーは12人までです。リストから選んでください。';
     else {

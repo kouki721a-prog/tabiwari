@@ -17,6 +17,7 @@ const person = async () => {
 const see = (p, t) => p.waitForSelector('text=' + t, { timeout: 9000 });
 const gone = async (p, t) => { await p.waitForTimeout(400); assert.strictEqual(await p.locator('text=' + t).count(), 0, t + ' should not be visible'); };
 const refresh = p => p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));   // same trigger as returning to the app
+const fits = p => p.evaluate(() => { const b = document.querySelector('.sheet-body'); return { scroll: b.scrollHeight, client: b.clientHeight, ok: b.scrollHeight <= b.clientHeight + 1 }; });
 const addExpense = async (p, amount, title) => { await p.click('[data-a=add-exp]'); await p.fill('#f-amount', String(amount)); await p.fill('#f-title', title); await p.click('[data-a=save-exp]'); await see(p, '記録しました'); };
 
 try {
@@ -25,18 +26,23 @@ try {
   await A.p.goto(base + '/'); await see(A.p, '最初の旅行をつくりましょう');
   await A.p.click('[data-a=new]'); await A.p.fill('#d-name', '共有テスト'); await A.p.fill('#d-budget', '30000'); await A.p.fill('#d-me', 'あおい'); await A.p.click('[data-a=save-trip]');
   await addExpense(A.p, 3000, '夕食');
-  await A.p.click('[data-a=settings]'); await A.p.fill('#s-newmember', 'けんた'); await A.p.click('[data-a=add-tmember]');
+  await A.p.setViewportSize({ width: 390, height: 780 });
+  await A.p.click('[data-a=settings]'); await see(A.p, '友だちと共有');
+  assert.strictEqual(await A.p.locator('#s-newmember').count(), 0, 'the organizer cannot type members in');
+  assert.strictEqual(await A.p.locator('[data-a=add-tmember]').count(), 0);
   assert.strictEqual(await A.p.locator('text=参加待ち').count(), 0, 'no "waiting to join" badge in link-sharing mode');
+  { const f = await fits(A.p); assert.ok(f.ok, 'settings fits one screen before sharing: ' + JSON.stringify(f)); }
   await A.p.click('[data-a=share-start]'); await A.p.waitForSelector('#s-sharelink', { timeout: 9000 });
   const link = await A.p.inputValue('#s-sharelink'); assert.match(link, /^http:\/\/localhost:8788\/#t=[A-Za-z0-9_-]{32}$/);
+  { const f = await fits(A.p); assert.ok(f.ok, 'settings fits one screen while shared: ' + JSON.stringify(f)); }
   await A.p.click('[data-a=close-sheet]'); await see(A.p, '共有中');
 
   // ---------- B opens the link (a fresh browser), picks who they are, sees A's data
   const Bp = await person();
   await Bp.p.goto(link); await see(Bp.p, '共有された旅行'); await see(Bp.p, '共有テスト');
   assert.ok(!Bp.p.url().includes('#t='), 'token is removed from the address bar after it is read');
-  await Bp.p.click('[data-a=join-share-go]'); await see(Bp.p, '自分を選ぶか');             // nothing chosen yet -> asked
-  await Bp.p.locator('[data-a=join-pick]', { hasText: 'けんた' }).click(); await Bp.p.click('[data-a=join-share-go]');
+  await Bp.p.click('[data-a=join-share-go]'); await see(Bp.p, '名前を入力するか');             // nothing entered yet -> asked
+  await Bp.p.fill('#j-name', 'けんた'); await Bp.p.click('[data-a=join-share-go]');
   await see(Bp.p, '参加しました'); await see(Bp.p, '夕食'); await see(Bp.p, '3,000円');
 
   // ---------- B records; A sees it; A edits; B sees it; both compute the same settlement
@@ -60,7 +66,8 @@ try {
   await C.p.fill('#p-link', '「共有テスト」の割り勘に参加してね。\n' + link + '\n'); await C.p.click('[data-a=join-paste-go]'); await see(C.p, '共有された旅行');
   await C.p.fill('#j-name', 'けんた'); await C.p.click('[data-a=join-share-go]'); await see(C.p, '同じ名前のメンバーがいます');
   await C.p.fill('#j-name', 'みく'); await C.p.click('[data-a=join-share-go]'); await see(C.p, '参加しました'); await see(C.p, '共有テスト'); await C.p.waitForTimeout(1200);   // let C's new member reach the server
-  await refresh(A.p); await A.p.waitForTimeout(1500); await A.p.click('[data-a=settings]'); await see(A.p, 'みく'); await A.p.click('[data-a=close-sheet]');
+  await refresh(A.p); await A.p.waitForTimeout(1500); await A.p.click('[data-a=settings]'); await see(A.p, 'みく'); await see(A.p, 'けんた');
+  { const f = await fits(A.p); assert.ok(f.ok, 'settings with 3 members fits one screen: ' + JSON.stringify(f)); } await A.p.click('[data-a=close-sheet]');
 
   // ---------- a wrong link
   const D = await person(); await D.p.goto(base + '/#t=' + 'Z'.repeat(40)); await see(D.p, '共有リンクが見つかりません');
