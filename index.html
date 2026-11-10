@@ -696,8 +696,8 @@ function viewNew(){
     '<div><label class="lab" for="d-end">帰着日</label><input class="field" id="d-end" type="date" data-draft="end" value="' + d.end + '"></div></div>' +
     '<label class="lab" for="d-budget">全体の予算（円）</label><input class="field" id="d-budget" type="text" inputmode="numeric" data-draft="budget" value="' + esc(d.budget) + '" placeholder="例：50000">' +
     '<div class="chips" style="margin-top:10px">' + [30000, 50000, 100000].map(n => '<button class="chip plain" data-a="preset" data-v="' + n + '">' + n.toLocaleString('ja-JP') + '</button>').join('') + '</div>' +
-    '<label class="lab" for="d-me">あなたの名前</label><input class="field" id="d-me" type="text" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">' +
-    '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあとに「設定」から招待します。</div>';
+    '<label class="lab" for="d-me">あなたの名前</label><input class="field" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">' +
+    '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあとに、旅行の設定の「友だちと共有」から誘えます。</div>';
   if (d.err) h += '<div class="err" role="alert">' + esc(d.err) + '</div>';
   return h + '</div><div class="cta"><button class="btn" data-a="save-trip">この内容でつくる</button></div>';
 }
@@ -897,7 +897,7 @@ function splitHint(d){
 
 /* ---- actions ---- */
 function nextPos(t){ return t.members.reduce((mx, m, i) => Math.max(mx, m.pos != null ? m.pos : i), -1) + 1; }
-function newDraft(){ const d = todayStr(); return { name: '', start: d, end: addDays(d, 1), budget: '', me: state.me || '自分', err: '' }; }
+function newDraft(){ const d = todayStr(); return { name: '', start: d, end: addDays(d, 1), budget: '', me: '', err: '' }; }
 function readSheet(){
   const s = ui.sheet; if (!s) return;
   const g = id => document.getElementById(id);
@@ -1032,8 +1032,9 @@ document.addEventListener('click', e => {
     if (!d.name.trim()) d.err = '旅行の名前を入力してください。';
     else if (d.end < d.start) d.err = '帰着日は、出発日と同じか、それ以降にしてください。';
     else if (!(b > 0)) d.err = '予算を、1以上の数字で入力してください。';
+    else if (!d.me.trim()) d.err = 'あなたの名前を入力してください。メンバーの一覧に、この名前で表示されます。';
     else {
-      const me = d.me.trim() || '自分'; state.me = me;
+      const me = d.me.trim(); state.me = me;
       const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, savings: {},
         members: [{ id: uid(), name: me, pos: 0 }], expenses: [] };
       state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
