@@ -51,9 +51,13 @@ try {
   const d = await device(); await login(d.p);
 
   // ---- turning notifications on
-  await d.p.click('[data-a=line-account]'); await see(d.p, 'この端末への通知');
-  try { await see(d.p, '受け取る', 4000); } catch (e) { console.log('DEBUG', await d.p.evaluate(async () => JSON.stringify({ state: await ntfState(), push: lineAcct.push && lineAcct.push.length, perm: Notification.permission, sw: !!(await navigator.serviceWorker.getRegistration()) })), (await d.p.locator('.sheet-body').innerText()).replace(/\n+/g, ' | ')); throw e; }
-  await d.p.click('[data-a=ntf-toggle]'); await see(d.p, '止める');
+  await d.p.click('[data-a=line-account]'); await see(d.p, 'この端末に通知する');
+  try { await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]', { timeout: 4000 }); } catch (e) { console.log('DEBUG', await d.p.evaluate(async () => JSON.stringify({ state: await ntfState(), push: lineAcct.push && lineAcct.push.length, perm: Notification.permission, sw: !!(await navigator.serviceWorker.getRegistration()) })), (await d.p.locator('.sheet-body').innerText()).replace(/\n+/g, ' | ')); throw e; }
+  await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]');
+  // "if it does not arrive": the help rows are folded away until asked for; the test notification and the diagnosis work from there
+  assert.strictEqual(await d.p.locator('[data-a=ntf-test]').count(), 0); await d.p.click('[data-a=ntf-help]');
+  await d.p.click('[data-a=ntf-diag]'); await see(d.p, '通知を受け取る端末：1台');
+  await d.p.click('[data-a=ntf-test]'); await see(d.p, '送りました'); inbox.splice(0);   // the test notification is not a reminder
   assert.deepStrictEqual(await d.p.evaluate(() => window.__subscribeOptions), { userVisibleOnly: true, keyLength: 65 }, 'subscribed with the site key, as a visible-notification subscription');
   await d.p.click('[data-a=close-sheet]');
 
@@ -72,7 +76,7 @@ try {
   assert.deepStrictEqual([msg.title, msg.url], ['明日から 「通知テスト旅行」', './']);
 
   // ---- turning it off: nothing more is sent
-  await d.p.click('[data-a=line-account]'); await see(d.p, '止める'); await d.p.click('[data-a=ntf-toggle]'); await see(d.p, '受け取る');
+  await d.p.click('[data-a=line-account]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]');
   assert.strictEqual(await d.p.evaluate(() => window.__sub), null, 'the browser subscription is removed too'); await d.p.click('[data-a=close-sheet]');
   await newTrip(d.p, 'もう一つの旅', '2027-01-11', '2027-01-12');
   for (let i = 0; i < 30 && !(await onServer('もう一つの旅')); i++) await d.p.waitForTimeout(500);
@@ -80,7 +84,7 @@ try {
   assert.strictEqual((await run('2027-01-10T09:40:00Z')).sent, 0); assert.strictEqual(inbox.length, 0);
 
   // ---- logging out also removes this device
-  await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=ntf-toggle]'); await see(d.p, '止める'); await d.p.click('[data-a=line-logout]'); await see(d.p, 'ログアウトしました');
+  await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=line-logout]'); await see(d.p, 'ログアウトしました');
   assert.strictEqual(await d.p.evaluate(() => window.__sub), null);
 
   // ---- if the person has blocked notifications in the system settings, the sheet says what to do
