@@ -210,7 +210,14 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 14px 6px 6px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);font-weight:500;font-size:14px}
 .chip.plain{padding:9px 14px}
-.chip.on{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.chip.on{border-color:var(--navy);background:var(--navy);color:#fff;font-weight:700}
+@media (prefers-color-scheme:dark){.chip.on{border-color:var(--focus)}}
+.datebox{position:relative;display:flex;align-items:center;cursor:pointer}
+.datebox span{pointer-events:none}
+.datebox input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
+.alone{margin-top:18px;padding:14px;border:1.5px dashed var(--line);border-radius:16px;text-align:center}
+.alone .btn{width:auto;margin:10px auto 0;padding:8px 16px}
+.btn:disabled{opacity:.4;pointer-events:none}
 .chip .av{width:26px;height:26px;font-size:13px}
 .catgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
 .cat{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);font-weight:500;font-size:11px;line-height:1.2;white-space:nowrap}
@@ -238,8 +245,9 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .memo-row .field{padding:11px 12px}
 .sheet .two .lab{margin-top:10px}
 .sheet h2{font-size:18px;font-weight:700;margin:0}
-.amount-wrap{display:flex;align-items:baseline;gap:6px;margin-top:6px}
-.amount{font:inherit;font-size:38px;font-weight:700;border:0;background:none;color:var(--ink);padding:0;width:100%;min-width:0;letter-spacing:-.02em}
+.amount-wrap{display:flex;align-items:baseline;justify-content:center;gap:4px;margin-top:6px;padding:10px 14px;border:1.5px solid var(--line);border-radius:16px;background:var(--card);cursor:text}
+.amount-wrap:focus-within{border-color:var(--focus)}
+.amount{font:inherit;font-size:38px;font-weight:700;border:0;background:none;color:var(--ink);padding:0;min-width:1ch;max-width:calc(100% - 40px);letter-spacing:-.02em;text-align:left}
 .amount:focus{outline:none}
 .amount::placeholder{color:var(--line)}
 .amount-wrap span{font-size:22px;font-weight:700}
@@ -944,14 +952,18 @@ function viewSheet(){
   let ttl = '', body = '', foot = '';
   if (s.type === 'exp'){
     const d = s.data; ttl = s.editId ? '支出を編集' : '支出を記録';
-    body = '<div class="amount-wrap"><input class="amount" id="f-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="金額" value="' + esc(d.amount) + '"><span>円</span></div>' +
+    const today = todayStr(), alone = t.members.length === 1, canSave = parseYen(d.amount) > 0;
+    const chip = (on, a2, v, inner, plain) => '<button class="chip ' + (plain ? 'plain ' : '') + (on ? 'on' : '') + '" data-a="' + a2 + '"' + (v ? ' data-v="' + v + '"' : '') + ' aria-pressed="' + on + '">' + inner + '</button>';
+    body = '<label class="amount-wrap" for="f-amount"><input class="amount" id="f-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="金額" value="' + esc(d.amount) + '" style="width:' + (Math.max(1, String(d.amount).length) + .15) + 'ch"><span>円</span></label>' +
       '<div class="hint" id="f-hint">' + splitHint(d) + '</div>' +
-      '<div class="memo-row"><input class="field" id="f-title" type="text" aria-label="内容" value="' + esc(d.title) + '" placeholder="内容（なくてもOK）"><input class="field" id="f-date" type="date" aria-label="日付" value="' + d.date + '"></div>' +
+      '<div class="memo-row"><input class="field" id="f-title" type="text" aria-label="内容" value="' + esc(d.title) + '" placeholder="内容（なくてもOK）">' +
+      '<label class="field datebox"><span id="f-datetext">' + (d.date === today ? '今日' : fmtDay(d.date)) + '</span><input id="f-date" type="date" aria-label="日付" value="' + d.date + '"></label></div>' +
       '<span class="lab">カテゴリ</span><div class="catgrid">' + CATS.map(c => '<button class="cat ' + (d.cat === c[0] ? 'on' : '') + '" data-a="pick-cat" data-v="' + c[0] + '" aria-pressed="' + (d.cat === c[0]) + '">' + tag(c) + c[2] + '</button>').join('') + '</div>' +
-      '<span class="lab">誰が払った？</span><div class="chips">' + t.members.map(m => '<button class="chip ' + (d.payer === m.id ? 'on' : '') + '" data-a="pick-payer" data-v="' + m.id + '" aria-pressed="' + (d.payer === m.id) + '">' + av(t, m.id) + esc(m.name) + '</button>').join('') + '</div>' +
-      '<span class="lab">誰の分？</span><div class="chips"><button class="chip plain ' + (d.split.length === t.members.length ? 'on' : '') + '" data-a="split-all">全員</button>' +
-      t.members.map(m => '<button class="chip ' + (d.split.indexOf(m.id) >= 0 ? 'on' : '') + '" data-a="toggle-split" data-v="' + m.id + '" aria-pressed="' + (d.split.indexOf(m.id) >= 0) + '">' + av(t, m.id) + esc(m.name) + '</button>').join('') + '</div>';
-    foot = err + '<button class="btn" data-a="save-exp">' + (s.editId ? '保存する' : '記録する') + '</button>' +
+      (alone ? '<div class="alone"><b>友だちを招待すると、割り勘できます。</b><div class="sub sm">いまは、あなたの分として記録されます。</div><button class="btn line sm" data-a="invite" data-id="' + t.id + '">友だちを招待する</button></div>' :
+        '<span class="lab">誰が払った？</span><div class="chips">' + t.members.map(m => chip(d.payer === m.id, 'pick-payer', m.id, av(t, m.id) + esc(m.name))).join('') + '</div>' +
+        '<span class="lab">誰の分？</span><div class="chips">' + chip(d.all, 'split-all', '', '全員', true) +
+        t.members.map(m => chip(!d.all && d.split.indexOf(m.id) >= 0, 'toggle-split', m.id, av(t, m.id) + esc(m.name))).join('') + '</div>');
+    foot = err + '<button class="btn" data-a="save-exp"' + (canSave ? '' : ' disabled') + '>' + (s.editId ? '保存する' : '記録する') + '</button>' +
       (s.editId ? (s.confirmDel ? '<div style="margin-top:8px"><button class="btn bad" data-a="del-exp">本当に削除する</button></div>' : '<button class="link bad" data-a="ask-del">この支出を削除</button>') : '');
   } else if (s.type === 'save'){
     ttl = esc(nameOf(t, s.id)) + ' の積立';
@@ -1060,10 +1072,11 @@ document.addEventListener('input', e => {
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
-  if (e.target.id === 'f-amount' && ui.sheet){ ui.sheet.data.amount = e.target.value; document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); }
+  if (e.target.id === 'f-amount' && ui.sheet){ ui.sheet.data.amount = e.target.value; e.target.style.width = (Math.max(1, e.target.value.length) + .15) + 'ch'; const sb = document.querySelector('[data-a=save-exp]'); if (sb) sb.disabled = !(parseYen(e.target.value) > 0); document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); }
 });
 
 document.addEventListener('change', e => {
+  if (e.target.id === 'f-date' && ui.sheet && ui.sheet.type === 'exp'){ ui.sheet.data.date = e.target.value; const tx = document.getElementById('f-datetext'); if (tx && e.target.value) tx.textContent = e.target.value === todayStr() ? '今日' : fmtDay(e.target.value); return; }
   if (e.target.id !== 'csv-file' || !e.target.files || !e.target.files[0]) return;
   const f = e.target.files[0], t = trip(); if (!t) return;
   if (f.size > 1024 * 1024){ flash('ファイルが大きすぎます（1MBまで）。'); return; }
@@ -1084,6 +1097,7 @@ document.addEventListener('click', e => {
   else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.copyText = null; ui.q = ''; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
+    readSheet();   // keep what is typed in an open sheet
     const keep = ui.view === 'trip'; ui.inviting = tr.id; render();
     (async () => {
       let url = null;
@@ -1210,19 +1224,20 @@ document.addEventListener('click', e => {
 
   else if (a === 'add-exp'){
     const today = todayStr();
-    ui.sheet = { type: 'exp', err: '', editId: null, data: { amount: '', title: '', cat: 'food', payer: meId(t),
+    ui.sheet = { type: 'exp', err: '', editId: null, data: { amount: '', title: '', cat: 'food', payer: meId(t), all: true,
       split: t.members.map(m => m.id), date: (today < t.start || today > t.end) ? t.start : today } };
   }
   else if (a === 'edit-exp'){
     const x = t.expenses.filter(q => q.id === id)[0];
-    ui.sheet = { type: 'exp', err: '', editId: id, data: { amount: String(x.amount), title: x.title, cat: x.cat, payer: x.payer, split: x.split.slice(), date: x.date } };
+    ui.sheet = { type: 'exp', err: '', editId: id, data: { amount: String(x.amount), title: x.title, cat: x.cat, payer: x.payer, split: x.split.slice(), all: x.split.length === t.members.length, date: x.date } };
   }
   else if (a === 'pick-cat'){ readSheet(); s.data.cat = el.getAttribute('data-v'); }
   else if (a === 'pick-payer'){ readSheet(); s.data.payer = el.getAttribute('data-v'); }
-  else if (a === 'split-all'){ readSheet(); s.data.split = t.members.map(m => m.id); }
+  else if (a === 'split-all'){ readSheet(); s.data.all = true; s.data.split = t.members.map(m => m.id); }   // "全員" and single people are exclusive
   else if (a === 'toggle-split'){
-    readSheet(); const v = el.getAttribute('data-v'), ix = s.data.split.indexOf(v);
-    if (ix >= 0) s.data.split.splice(ix, 1); else s.data.split.push(v);
+    readSheet(); const v = el.getAttribute('data-v');
+    if (s.data.all){ s.data.all = false; s.data.split = [v]; }   // from "全員" to one person: start the list with that person
+    else { const ix = s.data.split.indexOf(v); if (ix >= 0) s.data.split.splice(ix, 1); else s.data.split.push(v); }
   }
   else if (a === 'save-exp'){
     readSheet(); const dd = s.data, amt = parseYen(dd.amount);
