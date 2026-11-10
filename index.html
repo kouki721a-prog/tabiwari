@@ -96,6 +96,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .lineg:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .install{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-top:10px;font-size:13px}
 .install .btn{width:auto;padding:8px 14px;font-size:14px;flex:none}
+.install .btn.sm{padding:7px 12px}
+.ic-inline{display:inline-block;vertical-align:-3px}
 .install .x{width:32px;height:32px;display:grid;place-items:center;color:var(--sub);flex:none}
 .empty{text-align:center;padding:34px 12px;color:var(--sub)}
 .home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
@@ -418,7 +420,8 @@ const IC = {
   close:'<path d="M6 6l12 12M18 6L6 18"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
-  chev:'<path d="M9 5l7 7-7 7"/>'
+  chev:'<path d="M9 5l7 7-7 7"/>',
+  share:'<path d="M12 15V3M8 7l4-4 4 4M7 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>'
 };
 const icon = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>';
 
@@ -479,12 +482,32 @@ let deferredInstall = null;
 const isStandalone = () => navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
 function bannerDismissed(){ try { return localStorage.getItem('tabiwari.noinstall') === '1'; } catch(e){ return false; } }
+/* "add to the home screen" guidance. Benefit first, then the way that fits this browser:
+   in-app browser (LINE etc.) -> open it in Safari / Chrome; opened from the home screen -> no guidance, a "turn on notifications" button instead;
+   Android/Chrome with beforeinstallprompt -> [追加する]; iPhone -> share button steps; anything else -> menu steps */
+const inAppBrowser = () => /\bLine\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Twitter|Snapchat|Pinterest|TikTok|KAKAOTALK|NAVER\(/i.test(navigator.userAgent);
+const BENEFIT = 'ホーム画面に追加すると、すぐ開けて、前日のお知らせも届きます。';
 function installBanner(){
-  if (isStandalone() || bannerDismissed()) return '';
+  if (isStandalone()){
+    if (lineAcct.user && lineAcct.push && lineAcct.ntfHome === 'off')
+      return '<div class="install"><div class="grow"><b>通知をオンにすると、前日のお知らせが届きます。</b></div><button class="btn" data-a="ntf-home">通知をオンにする</button></div>';
+    if (lineAcct.user && lineAcct.ntfHome === 'blocked') return '<div class="install"><div class="grow sub sm">通知が許可されていません。端末の設定で、たびわりの通知を許可してください。</div></div>';
+    return '';
+  }
+  if (inAppBrowser()){
+    const to = isIOS() ? 'Safari' : 'Chrome';
+    return '<div class="install col"><div><b>' + to + 'で開いてください。</b><div class="sub sm">LINEなどのアプリ内ブラウザでは、ホーム画面に追加できません。メニューから「' + to + 'で開く」を選んでください。</div></div><button class="btn line sm" data-a="copy-site">リンクをコピーして、' + to + 'に貼り付ける</button></div>';
+  }
+  if (bannerDismissed()) return '';
   const x = '<button class="x" data-a="dismiss-install" aria-label="案内を閉じる">' + icon('close', 18) + '</button>';
-  if (deferredInstall) return '<div class="install"><div class="grow">ホーム画面に追加すると、アプリのように開けます。</div><button class="btn" data-a="install">追加する</button>' + x + '</div>';
-  if (isIOS()) return '<div class="install"><div class="grow">ホーム画面に追加できます。Safariの共有ボタン →「ホーム画面に追加」</div>' + x + '</div>';
-  return '';
+  const head = '<b>' + BENEFIT + '</b>';
+  if (deferredInstall) return '<div class="install"><div class="grow">' + head + '</div><button class="btn" data-a="install">追加する</button>' + x + '</div>';
+  if (isIOS()) return '<div class="install"><div class="grow">' + head + '<div class="sub sm" style="margin-top:2px">画面の下（または上）の共有ボタン <span class="ic-inline" aria-hidden="true">' + icon('share', 16) + '</span> →「ホーム画面に追加」</div></div>' + x + '</div>';
+  return '<div class="install"><div class="grow">' + head + '<div class="sub sm" style="margin-top:2px">ブラウザのメニューから、「ホーム画面に追加」または「アプリをインストール」を選びます。</div></div>' + x + '</div>';
+}
+async function refreshNtfHome(){
+  if (!isStandalone() || !lineAcct.user || !lineAcct.push) return;
+  const v = await ntfState(); if (v !== lineAcct.ntfHome){ lineAcct.ntfHome = v; if (ui.view === 'home') render(); }
 }
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; if (ui.view === 'home') render(); });
 window.addEventListener('appinstalled', () => { deferredInstall = null; render(); });
@@ -547,7 +570,7 @@ async function captureShareHash(){
 }
 function bootShare(){
   lineInit();
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); if (!document.hidden) refreshNtfHome(); });
   captureShareHash();
   window.addEventListener('hashchange', captureShareHash);
   shared().forEach(t => shareSync(t));
@@ -589,7 +612,7 @@ async function lineInit(){
     if (m.user){ try { lineAcct.count = (await Line.backupGet()).items.length; } catch(e){} bkRun(); }
   } catch(e){ /* offline or no server: login simply is not offered */ }
   if (lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); else { lineAcct.waiting = false; }
-  render();
+  render(); refreshNtfHome();
 }
 async function lineLogin(){
   try { const a = await Line.begin(); lsSet(LINE_ATTEMPT, JSON.stringify({ id: a.id, secret: a.secret, t: Date.now() })); location.href = a.url; }
@@ -716,7 +739,7 @@ function viewHomeEmpty(){
   const steps = [['旅行をつくる', '日程と、予算を決めます。'], ['支出を記録する', '誰が払ったか、誰の分かを選びます。'], ['精算する', '誰が誰にいくら払うかが、自動で出ます。']];
   let line = '';
   if (lineAcct.waiting) line = lineCard();
-  else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">LINEでログインすると、旅行をバックアップできます。</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
+  else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">' + (isStandalone() ? 'LINEでログインすると、通知とバックアップを使えます。' : 'LINEでログインすると、旅行をバックアップできます。') + '</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   else if (lineAcct.user) line = '<div style="text-align:center"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
   return '<div class="home0"><h1 class="brand">たびわり</h1>' + installBanner() +
     '<div class="home0-intro"><b>最初の旅行をつくりましょう</b>予算を決めて記録するだけ。割り勘は自動で計算します。</div>' +
@@ -1012,6 +1035,8 @@ document.addEventListener('click', e => {
 
   if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.copyText = null; ui.q = ''; }
   else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.copyText = null; ui.q = ''; }
+  else if (a === 'ntf-home'){ ntfOn().then(v => { lineAcct.ntfHome = v; render(); if (v === 'on') flash('通知をオンにしました'); }, er => { flash(er && er.status ? Line.errText(er) : '通知を設定できませんでした。もう一度お試しください。'); refreshNtfHome(); }); return; }
+  else if (a === 'copy-site'){ const u = location.origin + '/'; try { navigator.clipboard.writeText(u).then(() => flash('リンクをコピーしました'), () => flash(u)); } catch(err){ flash(u); } return; }
   else if (a === 'install'){ if (deferredInstall){ deferredInstall.prompt(); deferredInstall = null; } }
   else if (a === 'dismiss-install'){ try { localStorage.setItem('tabiwari.noinstall', '1'); } catch(err){} }
   else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
@@ -1030,7 +1055,7 @@ document.addEventListener('click', e => {
   }
   else if (a === 'ntf-toggle'){
     const on = s.ntf === 'on';
-    (on ? ntfOff() : ntfOn()).then(v => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.ntf = v; ui.sheet.err = ''; render(); } },
+    (on ? ntfOff() : ntfOn()).then(v => { lineAcct.ntfHome = v; if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.ntf = v; ui.sheet.err = ''; render(); } },
       er => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = er && er.status ? Line.errText(er) : '通知を設定できませんでした。もう一度お試しください。'; render(); ntfRefreshSheet(); } });
     return;
   }
@@ -1050,7 +1075,7 @@ document.addEventListener('click', e => {
     else Line.backupPut([], ids.slice(0, 20)).then(r => { lineAcct.count = r.count; const sigs = readSigs(); ids.forEach(x => delete sigs[x]); lsSet(BK_SIGS, JSON.stringify(sigs));
       return Line.backupGet(); }).then(r => { openRestore(r.items); flash('バックアップから削除しました'); }, er => { if (ui.sheet) { ui.sheet.err = Line.errText(er); render(); } });
   }
-  else if (a === 'line-logout'){ ui.sheet = null; ntfOff().catch(() => {}).then(() => Line.logout()).catch(() => {}).then(() => { lineAcct.user = null; lineAcct.count = null; lsSet(BK_SIGS, null); render(); flash('ログアウトしました'); }); return; }
+  else if (a === 'line-logout'){ ui.sheet = null; ntfOff().catch(() => {}).then(() => Line.logout()).catch(() => {}).then(() => { lineAcct.user = null; lineAcct.count = null; lineAcct.ntfHome = null; lsSet(BK_SIGS, null); render(); flash('ログアウトしました'); }); return; }
   else if (a === 'line-del-no'){ s.confirm = false; }
   else if (a === 'line-del-ask'){ s.confirm = true; }
   else if (a === 'line-del-go'){
