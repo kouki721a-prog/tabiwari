@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell};')();
+const L = new Function(m[1] + '; return {splitShares, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample};')();
 
 assert.deepStrictEqual(L.splitShares(100, ['a','b','c']).map(x => x[1]), [34,33,33]);
 assert.strictEqual(L.dayDiff('2026-03-28', '2026-03-30'), 2);
@@ -37,4 +37,15 @@ assert.strictEqual(csv[1], '2026-11-09,"\'=HYPERLINK(""x"")",お土産,1000,あ�
 assert.strictEqual(csv[2], '2026-11-10,"夕食, 2軒目",食事,3000,けんた,あおい・けんた');
 assert.strictEqual(csv[3], ''); assert.strictEqual(csv[4], '精算,払う人,受け取る人,金額'); assert.strictEqual(csv[5], ',あおい,けんた,1500');
 assert.strictEqual(L.csvCell(-5), '-5');
+
+// the old demo trip: removed only while untouched
+const sample = () => ({ sample: true, budget: 80000, paid: {}, savings: {a: 20000, b: 15000}, members: [{id:'a'},{id:'b'},{id:'c'}], expenses: [
+  ['新幹線',9600,'transport',3],['旅館 1泊',30000,'stay',3],['夕食',8700,'food',3],['ロープウェイ',2400,'sight',2],['朝食ビュッフェ',4300,'food',3]]
+  .map((x, i) => ({ id: 'e' + i, title: x[0], amount: x[1], cat: x[2], split: Array(x[3]).fill('a') })) });
+assert.strictEqual(L.isUntouchedSample(sample()), true);
+let sm = sample(); sm.expenses.push({ id: 'n', title: 'コーヒー', amount: 500, cat: 'food', split: ['a'] }); assert.strictEqual(L.isUntouchedSample(sm), false, 'added expense');
+sm = sample(); sm.expenses[0].amount = 9700; assert.strictEqual(L.isUntouchedSample(sm), false, 'edited expense');
+sm = sample(); sm.paid = { k: true }; assert.strictEqual(L.isUntouchedSample(sm), false, 'marked paid');
+sm = sample(); sm.savings.a = 25000; assert.strictEqual(L.isUntouchedSample(sm), false, 'changed savings');
+sm = sample(); sm.sample = false; assert.strictEqual(L.isUntouchedSample(sm), false, 'a real trip with the same numbers');
 console.log('logic tests passed');
