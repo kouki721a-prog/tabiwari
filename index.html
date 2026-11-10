@@ -306,22 +306,8 @@ function load(){
 function persist(){ memories[KEY] = state; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
 function save(){ persist(); if (cloud.user){ cloud.rev++; pushSoon(); } }
 
-function makeSample(){
-  const A = uid(), B = uid(), C = uid(), d = todayStr(), y = addDays(d, -1);
-  const tr = { id: uid(), sample: true, name: 'サンプル 箱根 紅葉旅行', start: y, end: addDays(d, 1), budget: 80000, paid: {}, savings: {},
-    members: [{id: A, name: 'あおい'}, {id: B, name: 'けんた'}, {id: C, name: 'みく', pending: true}], expenses: [
-      { id: uid(), title: '新幹線', amount: 9600, payer: A, cat: 'transport', date: y, split: [A, B, C] },
-      { id: uid(), title: '旅館 1泊', amount: 30000, payer: B, cat: 'stay', date: y, split: [A, B, C] },
-      { id: uid(), title: '夕食', amount: 8700, payer: C, cat: 'food', date: y, split: [A, B, C] },
-      { id: uid(), title: 'ロープウェイ', amount: 2400, payer: A, cat: 'sight', date: d, split: [A, C] },
-      { id: uid(), title: '朝食ビュッフェ', amount: 4300, payer: B, cat: 'food', date: d, split: [A, B, C] } ] };
-  tr.savings[A] = 20000; tr.savings[B] = 15000;
-  return tr;
-}
-
 let state = load();
-if (!state.trips.length && !state.seeded){ state.trips.push(makeSample()); state.seeded = true; persist(); }
-else if (!state.seeded){ state.seeded = true; persist(); }
+
 
 const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, copyText: null, login: null };
 
