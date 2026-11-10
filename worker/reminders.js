@@ -23,24 +23,17 @@ export function dueKinds(trip, t, ex) {
 }
 const isDay = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-export async function runReminders(env, nowMs = Date.now()) {
-  const t = jstParts(nowMs), out = { claimed: 0, sent: 0, gone: 0, failed: 0, released: 0 };
-  if (t.hour < 10) return out;
-  const DB = env.DB;
-  const subs = (await DB.prepare('SELECT endpoint, p256dh, auth, user_id FROM push_subs').all()).results;
-  if (!subs.length) return out;
-  const origin = await DB.prepare("SELECT v FROM meta WHERE k = 'origin'").first();
-  if (!origin) return out;
-  const byUser = new Map(); for (const s of subs) { if (!byUser.has(s.user_id)) byUser.set(s.user_id, []); byUser.get(s.user_id).push(s); }
-
-  // trips that are in a window where something could be due
-  const rows = (await DB.prepare('SELECT user_id, trip_id, data FROM backups WHERE user_id IN (SELECT DISTINCT user_id FROM push_subs)').all()).results;
+/* Everything that is due for these users right now (all = also list trips that are not due, for the diagnosis screen). */
+async function findDue(env, t, userIds, all = false) {
+  const DB = env.DB, rows = userIds
+    ? (await DB.prepare('SELECT user_id, trip_id, data FROM backups WHERE user_id IN (SELECT value FROM json_each(?1))').bind(JSON.stringify(userIds)).all()).results
+    : (await DB.prepare('SELECT user_id, trip_id, data FROM backups WHERE user_id IN (SELECT DISTINCT user_id FROM push_subs)').all()).results;
   const trips = [];
   for (const r of rows) {
-    let item; try { item = await open(env, r.user_id + '|' + r.trip_id, r.data); } catch (e) { continue; }
+    let item; try { item = await open(env, r.user_id + '|' + r.trip_id, r.data); } catch (e) { if (all) trips.push({ userId: r.user_id, tripId: r.trip_id, unreadable: true }); continue; }
     const src = item.kind === 'shared' ? item : item.trip;
     if (!src || !isDay(src.start) || !isDay(src.end) || typeof src.name !== 'string') continue;
-    if (!(src.start === t.tomorrow || (src.start <= t.today && t.today <= src.end) || src.end === t.yesterday)) continue;
+    if (!all && !(src.start === t.tomorrow || (src.start <= t.today && t.today <= src.end) || src.end === t.yesterday)) continue;
     trips.push({ userId: r.user_id, tripId: r.trip_id, name: src.name, start: src.start, end: src.end,
       hash: item.kind === 'shared' && typeof item.token === 'string' ? await sha256hex(item.token) : null,
       local: item.kind === 'local' ? (Array.isArray(item.trip.expenses) ? item.trip.expenses : []) : null });
@@ -52,9 +45,38 @@ export async function runReminders(env, nowMs = Date.now()) {
   }
   const due = [];
   for (const x of trips) {
+    if (x.unreadable) { due.push(x); continue; }
     const ex = x.hash ? (counts[x.hash] || { total: 0, onToday: 0 }) : { total: x.local.length, onToday: x.local.filter(e => e && e.date === t.today).length };
-    for (const kind of dueKinds(x, t, ex)) due.push({ u: x.userId, t: x.tripId, k: kind, name: x.name });
+    const kinds = dueKinds(x, t, ex);
+    if (all) due.push({ u: x.userId, t: x.tripId, name: x.name, start: x.start, end: x.end, kinds, shared: !!x.hash, expenses: ex.total });
+    else for (const kind of kinds) due.push({ u: x.userId, t: x.tripId, k: kind, name: x.name });
   }
+  return due;
+}
+
+/* What the app's "通知の状態" screen shows for one signed-in user. Nothing here changes any data. */
+export async function reminderReport(env, userId, nowMs = Date.now()) {
+  const t = jstParts(nowMs), DB = env.DB;
+  const devices = (await DB.prepare('SELECT COUNT(*) AS n FROM push_subs WHERE user_id = ?1').bind(userId).first()).n;
+  const log = (await DB.prepare('SELECT trip_id, kind, day, t FROM notif_log WHERE user_id = ?1 ORDER BY t DESC LIMIT 8').bind(userId).all()).results;
+  const last = await DB.prepare("SELECT v FROM meta WHERE k = 'last_cron'").first();
+  let lastCron = null; try { lastCron = last ? JSON.parse(last.v) : null; } catch (e) { /* ignore */ }
+  const trips = await findDue(env, t, [userId], true);
+  return { now: nowMs, jst: t, devices, lastCron, trips: trips.map(x => x.unreadable ? { unreadable: true } : { name: x.name, start: x.start, end: x.end, kinds: x.kinds, shared: x.shared, expenses: x.expenses }),
+    sent: log.map(x => ({ kind: x.kind, day: x.day, at: x.t, tripId: x.trip_id })) };
+}
+
+export async function runReminders(env, nowMs = Date.now()) {
+  const t = jstParts(nowMs), out = { claimed: 0, sent: 0, gone: 0, failed: 0, released: 0 };
+  if (t.hour < 10) return out;
+  const DB = env.DB;
+  const subs = (await DB.prepare('SELECT endpoint, p256dh, auth, user_id FROM push_subs').all()).results;
+  if (!subs.length) return out;
+  const origin = await DB.prepare("SELECT v FROM meta WHERE k = 'origin'").first();
+  if (!origin) return out;
+  const byUser = new Map(); for (const s of subs) { if (!byUser.has(s.user_id)) byUser.set(s.user_id, []); byUser.get(s.user_id).push(s); }
+
+  const due = await findDue(env, t, null);
   if (!due.length) return out;
 
   const claimed = (await DB.prepare('INSERT OR IGNORE INTO notif_log(user_id, trip_id, kind, day, t) SELECT json_extract(value, \'$.u\'), json_extract(value, \'$.t\'), json_extract(value, \'$.k\'), ?1, ?2 FROM json_each(?3) RETURNING user_id, trip_id, kind')
