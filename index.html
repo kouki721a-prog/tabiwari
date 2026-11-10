@@ -90,9 +90,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .lineg{position:relative;display:flex;align-items:stretch;width:100%;height:44px;padding:0;border-radius:6px;overflow:hidden;background:#06c755;color:#fff;font-size:16px;font-weight:700;white-space:nowrap}
 .lineg img{display:block;width:44px;height:44px;flex:none;border-right:1px solid rgba(0,0,0,.08);box-sizing:border-box}
 .lineg span{flex:1;display:flex;align-items:center;justify-content:center;padding:0 32px}
-.lineg::after{content:"";position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
-.lineg:active::after{opacity:.3}
-@media (hover:hover) and (pointer:fine){.lineg:hover::after{opacity:.1}}   /* never leave a touch screen stuck on the darker "hover" shade */
+.lineg::after{content:"";position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:0}   /* layer order from LINE's guideline: base colour, then the black overlay, then the divider and the white text/logo on top */
+.lineg:active::after{opacity:.3}   /* pressed only: black 30% (no hover shade) */
+.lineg img,.lineg span{position:relative;z-index:1}
 .lineg:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .install{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-top:10px;font-size:13px}
 .install .btn{width:auto;padding:8px 14px;font-size:14px;flex:none}
