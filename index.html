@@ -712,7 +712,7 @@ function viewHome(){
     });
   }
   h += legalLinks();
-  if (lineAcct.user) h += '<div class="sub sm" style="text-align:center;margin-top:16px">' + esc(lineAcct.user.name || 'LINE') + ' でログイン中' + (lineAcct.count != null ? '・バックアップ ' + lineAcct.count + '件' : '') + ' ・ <button class="sub sm" data-a="line-account" style="text-decoration:underline">アカウント</button></div>';
+  if (lineAcct.user) h += '<div style="text-align:center;margin-top:8px"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
   h += '<div style="text-align:center;margin-top:10px"><button class="link" data-a="join-paste" style="width:auto;padding:8px 12px;text-decoration:underline">共有リンクで参加する</button></div>';
   return h + '<button class="btn fab" data-a="new">旅行をつくる</button>';
 }
