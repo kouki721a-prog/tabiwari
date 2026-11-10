@@ -127,8 +127,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .chev{display:grid;place-items:center;transition:transform .15s}.chev.open{transform:rotate(90deg)}
 .btn.sm{width:auto;flex:none;padding:7px 14px;font-size:14px;border-radius:12px}
 .acc-note{margin:8px 4px 0}
-.acc-foot{text-align:center;font-size:13px;color:var(--sub);margin-top:18px}
-.acc-foot a,.acc-foot .link{color:var(--sub);text-decoration:underline;font-size:13px}
+.item.acc .bad-t{color:var(--bad)}
+.acc-del{margin-top:10px;border-color:var(--bad)}
+.item.acc{text-align:left;color:inherit;text-decoration:none}
 .sw{position:relative;flex:none;width:51px;height:31px;border-radius:99px;background:#b4bfcc;transition:background .15s}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
 .sw[aria-checked=true]{background:var(--good)}.sw[aria-checked=true]::after{transform:translateX(20px)}
@@ -894,8 +895,12 @@ function viewSheet(){
         (s.ntf === 'on' ? '<button class="item slim acc" data-a="ntf-help" aria-expanded="' + !!s.help + '"><div class="grow"><div class="t">うまく届かないとき</div></div><span class="chev' + (s.help ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
           (s.help ? row('テスト通知を送る', s.testMsg ? esc(s.testMsg) : '今すぐ、この端末に1件送ります。', smallBtn('ntf-test', '送る', s.testing)) +
             row('サーバーの状態を調べる', s.diag ? s.diag.map(l => esc(l)).join('<br>') : '端末の登録や、自動の判定の記録を確認します。', smallBtn('ntf-diag', '調べる', s.diagging)) : '') : '') + '</div>' : '') +
-      '<div class="acc-foot">' + (CFG.legalReady ? '<a href="privacy.html">プライバシーポリシー</a> ・ ' : '') + '<button class="link" data-a="line-logout" style="width:auto;display:inline;padding:0">ログアウト</button></div>' +
-      (s.confirm ? '<div class="sub" style="margin:6px 0 8px">LINEのログイン情報と、バックアップを、サーバーから削除します。この端末の旅行は、そのまま残ります。元に戻せません。</div><button class="btn bad" data-a="line-del-go">本当にアカウントを削除する</button>' : '<button class="link bad" data-a="line-del-ask" style="padding-top:2px">アカウントを削除</button>');
+      '<div class="sechd">アカウント</div><div class="list">' +
+        (CFG.legalReady ? '<a class="item slim acc" href="privacy.html"><div class="grow"><div class="t">プライバシーポリシー</div></div>' + icon('chev', 18) + '</a>' : '') +
+        '<button class="item slim acc" data-a="line-logout"><div class="grow"><div class="t">ログアウト</div><div class="sub sm">この端末の通知は、止まります。旅行は、端末に残ります。</div></div>' + icon('chev', 18) + '</button>' +
+        (s.confirm ? '' : '<button class="item slim acc" data-a="line-del-ask"><div class="grow"><div class="t bad-t">アカウントを削除</div></div>' + icon('chev', 18) + '</button>') + '</div>' +
+      (s.confirm ? '<div class="panel acc-del"><b>アカウントを削除しますか？</b><div class="sub" style="margin:6px 0 12px">LINEのログイン情報と、バックアップを、サーバーから削除します。この端末の旅行は、そのまま残ります。元に戻せません。</div>' +
+        '<button class="btn bad" data-a="line-del-go">本当に削除する</button><button class="link" data-a="line-del-no" style="margin-top:4px">やめる</button></div>' : '');
     foot = err;
   }
   if (s.type === 'line-restore'){
@@ -1021,6 +1026,7 @@ document.addEventListener('click', e => {
       return Line.backupGet(); }).then(r => { openRestore(r.items); flash('バックアップから削除しました'); }, er => { if (ui.sheet) { ui.sheet.err = Line.errText(er); render(); } });
   }
   else if (a === 'line-logout'){ ui.sheet = null; ntfOff().catch(() => {}).then(() => Line.logout()).catch(() => {}).then(() => { lineAcct.user = null; lineAcct.count = null; lsSet(BK_SIGS, null); render(); flash('ログアウトしました'); }); return; }
+  else if (a === 'line-del-no'){ s.confirm = false; }
   else if (a === 'line-del-ask'){ s.confirm = true; }
   else if (a === 'line-del-go'){
     Line.deleteAccount().then(() => { ntfOff().catch(() => {}); ui.sheet = null; lineAcct.user = null; lineAcct.count = null; lsSet(BK_SIGS, null); render(); flash('アカウントを削除しました。この端末の旅行は、残っています'); },
