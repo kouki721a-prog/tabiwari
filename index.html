@@ -697,7 +697,7 @@ let sheetWasOpen = false, toastN = 0;
 function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
 function viewHome(){
-  let h = '<h1 class="brand">たびわり</h1><div class="sub">旅行のお金を、みんなで見える化</div>' + installBanner() + lineCard();
+  let h = '<h1 class="brand">たびわり</h1>' + installBanner() + lineCard();
   if (!state.trips.length){
     h += '<div class="empty"><b>最初の旅行をつくりましょう</b>予算を決めて、支出を記録すると、割り勘が自動で計算されます。</div>';
   } else {
