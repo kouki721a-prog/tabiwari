@@ -1,3 +1,6 @@
+import { reply, sha256hex, limited } from './util.js';
+import { ACCOUNT_SCHEMA, handleAccount, purgeAccountData } from './account.js';
+
 /* たびわり sharing API: Cloudflare Worker + D1.
    A shared trip is reachable only with its secret token (sent as `Authorization: Bearer <token>`).
    The database stores sha256(token) as the trip id, never the token itself, so a database leak does not
@@ -11,7 +14,8 @@ const SCHEMA = [
      cat TEXT NOT NULL, spent_on TEXT NOT NULL, split TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (trip_id, id))`,
   `CREATE TABLE IF NOT EXISTS paid (trip_id TEXT NOT NULL, key TEXT NOT NULL, PRIMARY KEY (trip_id, key))`,
   `CREATE TABLE IF NOT EXISTS savings (trip_id TEXT NOT NULL, member_id TEXT NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY (trip_id, member_id))`,
-  `CREATE TABLE IF NOT EXISTS hits (k TEXT NOT NULL, w INTEGER NOT NULL, n INTEGER NOT NULL, t INTEGER NOT NULL, PRIMARY KEY (k, w))`
+  `CREATE TABLE IF NOT EXISTS hits (k TEXT NOT NULL, w INTEGER NOT NULL, n INTEGER NOT NULL, t INTEGER NOT NULL, PRIMARY KEY (k, w))`,
+  ...ACCOUNT_SCHEMA
 ];
 let ready = null;   // schema is created on first use, so there is no separate migration step to run
 const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prepare(s))).catch(e => { ready = null; throw e; }));
@@ -62,17 +66,7 @@ export function validateOps(ops) {
 }
 
 const J = JSON.stringify;
-const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-export const sha256hex = async s => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
 const TOKEN = /^[A-Za-z0-9_-]{32,64}$/;
-const reply = (obj, status = 200) => new Response(J(obj), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
-
-async function limited(env, req, bucket, limit, windowSec) {
-  const ip = req.headers.get('CF-Connecting-IP') || 'local';
-  const k = bucket + ':' + (await sha256hex(ip)).slice(0, 16), now = Math.floor(Date.now() / 1000), w = Math.floor(now / windowSec);
-  const r = await env.DB.prepare('INSERT INTO hits(k,w,n,t) VALUES (?1,?2,1,?3) ON CONFLICT(k,w) DO UPDATE SET n=n+1, t=?3 RETURNING n').bind(k, w, now).first();
-  return r.n > limit;
-}
 
 async function getTrip(env, id, rev) {
   const tr = await env.DB.prepare('SELECT * FROM trips WHERE id=?').bind(id).first();
@@ -147,6 +141,8 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS ? env.ASSETS.fetch(req) : new Response('not found', { status: 404 });
     try {
       await ensure(env);
+      const acct = await handleAccount(req, env, url);
+      if (acct) return acct;
       const m = /^Bearer (\S+)$/.exec(req.headers.get('Authorization') || '');
       if (!m || !TOKEN.test(m[1])) return reply({ error: 'unauthorized' }, 401);
       const id = await sha256hex(m[1]);
@@ -167,6 +163,7 @@ export default {
     await ensure(env);
     const now = Date.now();
     await env.DB.prepare('DELETE FROM hits WHERE t < ?').bind(Math.floor(now / 1000) - 2 * 86400).run();
+    await purgeAccountData(env, Math.floor(now / 1000));
     const old = await env.DB.prepare('SELECT id FROM trips WHERE updated_at < ? LIMIT 200').bind(now - RETENTION_DAYS * 86400000).all();
     for (const r of old.results) await env.DB.batch(wipe(env.DB, r.id));
   }

@@ -83,6 +83,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .bar>i{display:block;height:100%;background:var(--navy);border-radius:99px}
 .bar.over>i{background:var(--bad)}
 .legal a{color:var(--sub)}
+.btn.lineg{background:#06c755;color:#fff;width:auto;padding:10px 14px;font-size:14px;flex:none}
 .install{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-top:10px;font-size:13px}
 .install .btn{width:auto;padding:8px 14px;font-size:14px;flex:none}
 .install .x{width:32px;height:32px;display:grid;place-items:center;color:var(--sub);flex:none}
@@ -207,6 +208,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
 <script src="vendor/supabase.js"></script>
 <script src="cloud.js"></script>
 <script src="share.js"></script>
+<script src="line.js"></script>
 <script>
 /* ===== LOGIC_START (pure functions; tested separately) ===== */
 function splitShares(amount, ids){
@@ -274,6 +276,29 @@ function isUntouchedSample(t){
   var sav = Object.keys(t.savings || {}).map(function(k){ return t.savings[k]; }).sort().join(',');
   return sig === '新幹線:9600:transport:3|旅館 1泊:30000:stay:3|夕食:8700:food:3|ロープウェイ:2400:sight:2|朝食ビュッフェ:4300:food:3' && sav === '15000,20000' && t.budget === 80000;
 }
+/* Rebuild a trip from backup data field by field, so a restored trip can only contain what the app itself writes. null if unusable. */
+function sanitizeTrip(raw, newId){
+  var S = function(v, max){ return typeof v === 'string' ? v.slice(0, max) : ''; };
+  var D = function(v){ return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; };
+  var ID = function(v){ return typeof v === 'string' && /^[\w.-]{1,64}$/.test(v) ? v : null; };
+  var INT = function(v, lo, hi){ return Number.isInteger(v) && v >= lo && v <= hi; };
+  if (!raw || typeof raw !== 'object') return null;
+  var name = S(raw.name, 100).trim(), start = D(raw.start), end = D(raw.end);
+  if (!name || !start || !end || end < start || !INT(raw.budget, 1, 1e9)) return null;
+  var members = (Array.isArray(raw.members) ? raw.members : []).slice(0, 12).map(function(m, i){
+    var id = m && ID(m.id), nm = m && S(m.name, 50).trim(); return id && nm ? { id: id, name: nm, pos: INT(m.pos, 0, 1e6) ? m.pos : i } : null; }).filter(Boolean);
+  if (!members.length) return null;
+  var ids = {}; members.forEach(function(m){ ids[m.id] = 1; });
+  var CATK = ['transport', 'stay', 'food', 'sight', 'gift', 'other'];
+  var expenses = (Array.isArray(raw.expenses) ? raw.expenses : []).slice(0, 2000).map(function(e){
+    if (!e || !ID(e.id) || !INT(e.amount, 1, 1e9) || !ids[e.payer] || CATK.indexOf(e.cat) < 0 || !D(e.date)) return null;
+    var split = (Array.isArray(e.split) ? e.split : []).filter(function(x){ return ids[x]; }).slice(0, 12);
+    return split.length ? { id: e.id, title: S(e.title, 100), amount: e.amount, payer: e.payer, cat: e.cat, date: e.date, split: split } : null; }).filter(Boolean);
+  var paid = {}, savings = {};
+  if (raw.paid && typeof raw.paid === 'object') Object.keys(raw.paid).slice(0, 500).forEach(function(k){ if (raw.paid[k] === true && k.length <= 200) paid[k] = true; });
+  if (raw.savings && typeof raw.savings === 'object') members.forEach(function(m){ if (INT(raw.savings[m.id], 0, 1e9)) savings[m.id] = raw.savings[m.id]; });
+  return { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, paid: paid, savings: savings };
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -313,7 +338,7 @@ function load(){
   return s;
 }
 function persist(){ memories[KEY] = state; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
-function save(){ persist(); if (cloud.user){ cloud.rev++; pushSoon(); } if (state.trips.some(t => t.share)) shareSoon(); }
+function save(){ persist(); if (cloud.user){ cloud.rev++; pushSoon(); } if (state.trips.some(t => t.share)) shareSoon(); if (lineAcct.user) bkSoon(); }
 
 let state = load();
 
@@ -532,12 +557,90 @@ async function captureShareHash(){
   try { const sh = await beginJoin(m[1]); if (sh){ ui.sheet = sh; render(); } } catch(e){ flash(Share.errText(e)); }
 }
 function bootShare(){
+  lineInit();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); });
   captureShareHash();
   window.addEventListener('hashchange', captureShareHash);
   shared().forEach(t => shareSync(t));
   setInterval(() => { if (!document.hidden) shared().forEach(t => shareSync(t)); }, SHARE_POLL_MS);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) shared().forEach(t => shareSync(t)); });
   window.addEventListener('online', () => shared().forEach(t => shareSync(t)));
+}
+/* ---- LINE login + backup (worker/account.js). Logging in is optional; sharing by link never needs it. ---- */
+const lineAcct = { login: false, user: null, waiting: false, count: null, last: null };
+const LINE_ATTEMPT = 'tabiwari.lineattempt', BK_SIGS = 'tabiwari.bksigs';
+const sigOf = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return str.length + ':' + h; };
+const readSigs = () => { try { return JSON.parse(lsGet(BK_SIGS)) || {}; } catch(e){ return {}; } };
+function bkItem(t){
+  if (t.share) return { kind: 'shared', token: t.share.token, me: t.share.me, name: t.name, start: t.start, end: t.end };
+  const copy = JSON.parse(JSON.stringify(t)); delete copy.share; return { kind: 'local', trip: copy };
+}
+function bkSoon(){ clearTimeout(bkSoon.t); bkSoon.t = setTimeout(() => bkRun(), 4000); }
+async function bkRun(){
+  if (!lineAcct.user || bkRun.busy) return; bkRun.busy = true;
+  try {
+    const sigs = readSigs(), todo = [];
+    state.trips.forEach(t => { const item = bkItem(t), sg = sigOf(JSON.stringify(item)); if (sigs[t.id] !== sg) todo.push({ id: t.id, item: item, sg: sg }); });
+    for (let i = 0; i < todo.length; i += 20){
+      const part = todo.slice(i, i + 20), r = await Line.backupPut(part.map(x => ({ id: x.id, item: x.item })));
+      part.forEach(x => { sigs[x.id] = x.sg; }); lsSet(BK_SIGS, JSON.stringify(sigs)); lineAcct.count = r.count;
+    }
+    if (todo.length) lineAcct.last = Date.now();
+  } catch(e){
+    if (e && e.status === 401){ lineAcct.user = null; flash(Line.errText(e)); render(); }
+    else if (e && e.status === 413) flash(Line.errText(e));
+  } finally { bkRun.busy = false; }
+}
+async function lineInit(){
+  try {
+    const m = await Line.me(); lineAcct.login = !!m.login; lineAcct.user = m.user;
+    if (m.user){ try { lineAcct.count = (await Line.backupGet()).items.length; } catch(e){} bkRun(); }
+  } catch(e){ /* offline or no server: login simply is not offered */ }
+  if (lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); else { lineAcct.waiting = false; }
+  render();
+}
+async function lineLogin(){
+  try { const a = await Line.begin(); lsSet(LINE_ATTEMPT, JSON.stringify({ id: a.id, secret: a.secret, t: Date.now() })); location.href = a.url; }
+  catch(e){ flash(Line.errText(e)); }
+}
+async function linePoll(){
+  if (linePoll.running) return; linePoll.running = true; lineAcct.waiting = true; render();
+  try {
+    for (;;){
+      let a = null; try { a = JSON.parse(lsGet(LINE_ATTEMPT)); } catch(e){}
+      if (!a || Date.now() - a.t > 10 * 60 * 1000){ lsSet(LINE_ATTEMPT, null); break; }
+      if (!document.hidden){
+        try {
+          const r = await Line.poll(a.id, a.secret);
+          if (r.ok){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; await lineInit(); flash('LINEでログインしました'); lineOfferRestore(); return; }
+        } catch(e){ if (e.status === 410){ lsSet(LINE_ATTEMPT, null); flash('ログインできませんでした。もう一度お試しください。'); break; } }
+      }
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  } finally { linePoll.running = false; lineAcct.waiting = false; render(); }
+}
+async function lineOfferRestore(){
+  try { const items = (await Line.backupGet()).items; if (items.some(x => !state.trips.some(t => t.id === x.id))) openRestore(items); } catch(e){}
+}
+function openRestore(items){
+  const missing = items.filter(x => !state.trips.some(t => t.id === x.id));
+  ui.sheet = { type: 'line-restore', items: missing, pick: missing.map(x => x.id), err: '', busy: false }; render();
+}
+const bkLabel = x => x.item.kind === 'shared' ? { name: x.item.name, start: x.item.start, end: x.item.end, shared: true } : { name: x.item.trip.name, start: x.item.trip.start, end: x.item.trip.end, shared: false };
+async function restoreTrips(items){
+  let ok = 0, skipped = 0;
+  for (const x of items){
+    if (state.trips.some(t => t.id === x.id)){ continue; }
+    if (x.item.kind === 'local'){ const t = sanitizeTrip(x.item.trip, x.id); if (t){ state.trips.push(t); ok++; } else skipped++; }
+    else {
+      try {
+        const g = await Share.get(x.item.token), t = Sync.assemble([g.trip])[0];
+        t.share = { token: x.item.token, me: t.members.some(m => m.id === x.item.me) ? x.item.me : t.members[0].id, rev: g.rev, snap: Sync.flatten([t]), dirty: false };
+        state.trips.push(t); ok++;
+      } catch(e){ skipped++; }
+    }
+  }
+  return { ok, skipped };
 }
 function shareSection(t, s){
   if (CLOUD) return '';
@@ -571,7 +674,7 @@ function render(){
 function flash(msg){ ui.toast = msg; render(); setTimeout(() => { ui.toast = null; render(); }, 1700); }
 
 function viewHome(){
-  let h = '<div class="brand">たびわり</div><div class="sub">旅行のお金を、みんなで見える化</div>' + installBanner() + accountCard();
+  let h = '<div class="brand">たびわり</div><div class="sub">旅行のお金を、みんなで見える化</div>' + installBanner() + accountCard() + lineCard();
   if (!state.trips.length){
     h += '<div class="empty"><b>最初の旅行をつくりましょう</b>予算を決めて、支出を記録すると、割り勘が自動で計算されます。</div>';
   } else {
@@ -586,12 +689,22 @@ function viewHome(){
     });
   }
   if (cloud.user) h += '<div class="sub sm" style="text-align:center;margin-top:16px">' + esc(cloud.user.email || '') + ' でログイン中' + (cloud.premium ? '（プレミアム）' : '') + ' ・ <button class="sub sm" data-a="account" style="text-decoration:underline">アカウント</button></div>';
-  if (CLOUD) h += legalLinks();
+  h += legalLinks();
+  if (lineAcct.user && !CLOUD) h += '<div class="sub sm" style="text-align:center;margin-top:16px">' + esc(lineAcct.user.name || 'LINE') + ' でログイン中' + (lineAcct.count != null ? '・バックアップ ' + lineAcct.count + '件' : '') + ' ・ <button class="sub sm" data-a="line-account" style="text-decoration:underline">アカウント</button></div>';
   h += '<div style="text-align:center;margin-top:10px"><button class="link" data-a="join-paste" style="width:auto;padding:8px 12px;text-decoration:underline">共有リンクで参加する</button></div>';
   return h + '<button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
-function legalLinks(){ return '<div class="sub sm legal" style="text-align:center;margin-top:8px"><a href="terms.html">利用規約</a> ・ <a href="privacy.html">プライバシー</a> ・ <a href="legal.html">特定商取引法</a></div>'; }
+function legalLinks(){
+  if (CLOUD) return '<div class="sub sm legal" style="text-align:center;margin-top:8px"><a href="terms.html">利用規約</a> ・ <a href="privacy.html">プライバシー</a> ・ <a href="legal.html">特定商取引法</a></div>';
+  return CFG.legalReady ? '<div class="sub sm legal" style="text-align:center;margin-top:12px"><a href="terms.html">利用規約</a> ・ <a href="privacy.html">プライバシーポリシー</a></div>' : '';
+}
+function lineCard(){
+  if (!lineAcct.login || CLOUD) return '';
+  if (lineAcct.waiting) return '<div class="install"><div class="grow">LINEでのログインを待っています。LINEの画面で、許可してください。</div><button class="btn line" data-a="line-cancel" style="font-size:14px;padding:8px 12px">やめる</button></div>';
+  if (!lineAcct.user) return '<div class="install"><div class="grow">LINEでログインすると、旅行をバックアップして、別の端末でも戻せます。</div><button class="btn lineg" data-a="line-login">LINEでログイン</button></div>';
+  return '';
+}
 function accountCard(){
   if (!CLOUD) return '';
   if (!cloud.user) return '<div class="install"><div class="grow">ログインすると、友だちと旅行を共有できます。</div><button class="btn" data-a="login">ログイン</button></div>';
@@ -765,6 +878,25 @@ function viewSheet(){
         : (s.confirmDel ? '<div style="margin-top:8px"><button class="btn bad" data-a="leave-trip">本当にこの旅行から抜ける</button></div>' : '<button class="link bad" data-a="ask-del-trip" style="padding:6px 0 0">この旅行から抜ける</button>'));
     foot = err + '<button class="btn" data-a="save-settings">保存する</button>';
   }
+  if (s.type === 'line-account'){
+    const nm = lineAcct.user ? lineAcct.user.name : ''; ttl = 'LINEアカウント';
+    body = '<div class="list" style="margin-top:12px"><div class="item slim"><span class="av" style="--h:150">' + esc(Array.from(nm)[0] || 'L') + '</span><div class="grow"><div class="sub sm">ログイン中</div><div class="t">' + esc(nm) + '</div></div></div>' +
+      '<div class="item slim"><div class="grow"><div class="sub sm">バックアップ</div><div class="t" style="font-weight:400;font-size:14px">' + (lineAcct.count == null ? '確認しています…' : lineAcct.count + '件' + (lineAcct.last ? '・' + new Date(lineAcct.last).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) + ' に保存' : '')) + '</div></div>' +
+      '<button class="btn line" data-a="bk-now" style="width:auto;padding:8px 12px;font-size:14px">今すぐ</button></div></div>' +
+      '<button class="btn line" data-a="bk-restore" style="margin-top:10px">バックアップから戻す</button>' +
+      '<div class="sub sm" style="margin-top:8px">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを控えます（暗号化して保存）。別の端末で、同じLINEでログインして「バックアップから戻す」を押すと、旅行が戻ります。</div>' +
+      (CFG.legalReady ? '<div class="sub sm legal" style="margin-top:8px"><a href="privacy.html">プライバシーポリシー</a></div>' : '') +
+      '<button class="link" data-a="line-logout" style="margin-top:6px">ログアウト</button>' +
+      (s.confirm ? '<div class="sub" style="margin:6px 0 8px">LINEのログイン情報と、バックアップを、サーバーから削除します。この端末の旅行は、そのまま残ります。元に戻せません。</div><button class="btn bad" data-a="line-del-go">本当にアカウントを削除する</button>' : '<button class="link bad" data-a="line-del-ask" style="padding-top:2px">アカウントを削除</button>');
+    foot = err;
+  }
+  if (s.type === 'line-restore'){
+    ttl = 'バックアップから戻す';
+    body = s.loading ? '<div class="sub" style="margin-top:14px">読み込んでいます…</div>' : !s.items.length ? '<div class="empty" style="padding:24px 8px"><b>戻すものはありません</b>この端末にない旅行は、バックアップに入っていません。</div>' :
+      '<div class="sub" style="margin-top:12px">この端末にない旅行です。戻したいものを選んでください。</div><div class="list" style="margin-top:8px">' + s.items.map(x => { const l = bkLabel(x), on = s.pick.indexOf(x.id) >= 0;
+        return '<button class="item" data-a="bk-pick" data-id="' + esc(x.id) + '" aria-pressed="' + on + '"><span class="chk ' + (on ? 'on' : '') + '">' + icon('check', 18) + '</span><div class="grow"><div class="t">' + esc(l.name) + '</div><div class="sub">' + fmtDate(l.start) + ' - ' + fmtDate(l.end) + (l.shared ? '・共有中' : '') + '</div></div></button>'; }).join('') + '</div>';
+    foot = err + (s.items && s.items.length ? '<button class="btn" data-a="bk-restore-go"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '戻しています…' : '選んだ旅行を戻す') + '</button>' + (s.delAsk ? '<div class="sub" style="margin:8px 0">選んだ ' + s.pick.length + '件を、バックアップから削除します（この端末や、共有している旅行には、影響しません）。元に戻せません。</div><button class="btn bad" data-a="bk-del-yes">本当に削除する</button><button class="link" data-a="bk-del-no">やめる</button>' : '<button class="link bad" data-a="bk-del-go">選んだものを、バックアップから削除</button>') : '<button class="link" data-a="close-sheet">閉じる</button>');
+  }
   if (s.type === 'join-share'){
     const jt = s.trip; ttl = '共有された旅行';
     body = '<div class="panel" style="margin-top:12px"><div class="num">' + esc(jt.name) + '</div><div class="sub">' + fmtDate(jt.start) + ' - ' + fmtDate(jt.end) + '・メンバー ' + jt.members.length + '人・支出 ' + jt.expenses.length + '件</div></div>' +
@@ -908,6 +1040,32 @@ document.addEventListener('click', e => {
   else if (a === 'new'){
     if (cloud.user && !cloud.premium && ownedCount() >= FREE_TRIP_LIMIT) ui.sheet = { type: 'upgrade', reason: 'limit', err: '' };
     else { ui.view = 'new'; ui.draft = newDraft(); }
+  }
+  else if (a === 'line-login'){ lineLogin(); return; }
+  else if (a === 'line-cancel'){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; }
+  else if (a === 'line-account'){ ui.sheet = { type: 'line-account', err: '', confirm: false }; Line.backupGet().then(r => { lineAcct.count = r.items.length; render(); }, () => {}); }
+  else if (a === 'bk-now'){ readSheet(); lsSet(BK_SIGS, null); bkRun().then(() => { flash('バックアップしました'); render(); }); return; }
+  else if (a === 'bk-restore'){ ui.sheet = { type: 'line-restore', items: [], pick: [], err: '', busy: false, loading: true };
+    Line.backupGet().then(r => openRestore(r.items), er => { if (ui.sheet) { ui.sheet.loading = false; ui.sheet.err = Line.errText(er); render(); } }); }
+  else if (a === 'bk-pick'){ const i = s.pick.indexOf(id); if (i >= 0) s.pick.splice(i, 1); else s.pick.push(id); }
+  else if (a === 'bk-restore-go'){
+    const chosen = s.items.filter(x => s.pick.indexOf(x.id) >= 0);
+    if (!chosen.length) s.err = '戻す旅行を、1つ以上選んでください。';
+    else { s.busy = true; s.err = ''; restoreTrips(chosen).then(r => { ui.sheet = null; if (r.ok) save(); render(); flash(r.ok + '件を戻しました' + (r.skipped ? '（' + r.skipped + '件は、戻せませんでした）' : '')); }); }
+  }
+  else if (a === 'bk-del-go'){ if (!s.pick.length) s.err = '削除する旅行を、1つ以上選んでください。'; else { s.err = ''; s.delAsk = true; } }
+  else if (a === 'bk-del-no'){ s.delAsk = false; }
+  else if (a === 'bk-del-yes'){
+    const ids = s.pick.slice(); if (!ids.length) s.err = '削除する旅行を、1つ以上選んでください。';
+    else Line.backupPut([], ids.slice(0, 20)).then(r => { lineAcct.count = r.count; const sigs = readSigs(); ids.forEach(x => delete sigs[x]); lsSet(BK_SIGS, JSON.stringify(sigs));
+      return Line.backupGet(); }).then(r => { openRestore(r.items); flash('バックアップから削除しました'); }, er => { if (ui.sheet) { ui.sheet.err = Line.errText(er); render(); } });
+  }
+  else if (a === 'line-logout'){ ui.sheet = null; Line.logout().catch(() => {}).then(() => { lineAcct.user = null; lineAcct.count = null; lsSet(BK_SIGS, null); render(); flash('ログアウトしました'); }); return; }
+  else if (a === 'line-del-ask'){ s.confirm = true; }
+  else if (a === 'line-del-go'){
+    Line.deleteAccount().then(() => { ui.sheet = null; lineAcct.user = null; lineAcct.count = null; lsSet(BK_SIGS, null); render(); flash('アカウントを削除しました。この端末の旅行は、残っています'); },
+      er => { if (ui.sheet) { ui.sheet.err = Line.errText(er); render(); } });
+    return;
   }
   else if (a === 'join-paste'){ ui.sheet = { type: 'join-paste', err: '', text: '', busy: false }; }
   else if (a === 'join-paste-go'){

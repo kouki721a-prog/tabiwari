@@ -11,7 +11,7 @@ const root = path.join(__dirname, '..');
       await ctx.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.TABIWARI={supabaseUrl:'http://fake',supabaseKey:'k',premiumPriceLabel:'月額400円'}" }));
       await ctx.route('**/vendor/supabase.js', r => r.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8') }));
     }
-    const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
+    const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));   // this static test server has no /api
     return { ctx, p };
   };
   const txt = (p, s) => p.waitForSelector('text=' + s, { timeout: 3000 });
