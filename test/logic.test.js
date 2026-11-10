@@ -3,7 +3,15 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
 const L = new Function(m[1] + '; return {splitShares, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
 
-assert.deepStrictEqual(L.splitShares(100, ['a','b','c']).map(x => x[1]), [34,33,33]);
+// leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
+const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
+assert.deepStrictEqual(L.splitShares(100, ids3, 'e1'), L.splitShares(100, ids3, 'e1'));
+assert.deepStrictEqual(L.splitShares(100, ['c','a','b'], 'e1').sort(), L.splitShares(100, ids3, 'e1').sort(), 'selection order does not matter');
+assert.deepStrictEqual(L.splitShares(99, ids3, 'x').map(x => x[1]), [33,33,33]);
+const extraCount = { a: 0, b: 0, c: 0 };
+for (let k = 0; k < 3000; k++){ const r = L.splitShares(100, ids3, 'exp' + k); assert.strictEqual(sum3(r), 100); r.forEach(x => { assert.ok(x[1] === 33 || x[1] === 34); if (x[1] === 34) extraCount[x[0]]++; }); }
+Object.values(extraCount).forEach(c => assert.ok(c > 800 && c < 1200, 'the extra yen are spread evenly: ' + JSON.stringify(extraCount)));
+assert.strictEqual(L.splitShares(10, ['a'], 'z')[0][1], 10);
 assert.strictEqual(L.dayDiff('2026-03-28', '2026-03-30'), 2);
 assert.strictEqual(L.dayDiff('2026-11-01', '2026-11-01'), 0);
 assert.strictEqual(L.parseYen('１，２３４円'), 1234);
@@ -17,7 +25,7 @@ for (let k = 0; k < 2000; k++){
   for (let e = 0, c = 1 + Math.floor(rnd() * 12); e < c; e++){
     const split = ids.filter(() => rnd() < .6); if (!split.length) split.push(ids[0]);
     const amount = 1 + Math.floor(rnd() * 50000);
-    assert.strictEqual(L.splitShares(amount, split).reduce((s, x) => s + x[1], 0), amount);
+    assert.strictEqual(L.splitShares(amount, split, 'e' + e).reduce((s, x) => s + x[1], 0), amount);
     t.expenses.push({ amount, payer: ids[Math.floor(rnd() * n)], split });
   }
   const net = L.calcBalances(t).net, sum = Object.values(net).reduce((a, b) => a + b, 0);

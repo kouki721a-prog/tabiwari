@@ -212,9 +212,18 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
 <script src="line.js"></script>
 <script>
 /* ===== LOGIC_START (pure functions; tested separately) ===== */
-function splitShares(amount, ids){
+function hashStr(str){   // FNV-1a: the same text gives the same number on every device
+  var h = 2166136261; str = String(str || '');
+  for (var i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+/* amount / people, rounded down for everyone; the leftover yen go one each to people picked by rotating from a start point that depends on `seed`
+   (the expense id), so the same person is not always the one who pays the extra yen, and every device computes the same result. */
+function splitShares(amount, ids, seed){
   var n = ids.length, base = Math.floor(amount / n), rem = amount - base * n;
-  return ids.map(function(id, i){ return [id, base + (i < rem ? 1 : 0)]; });
+  var order = ids.slice().sort(), start = hashStr(seed) % n, extra = {};
+  for (var k = 0; k < rem; k++) extra[order[(start + k) % n]] = 1;
+  return ids.map(function(id){ return [id, base + (extra[id] ? 1 : 0)]; });
 }
 function calcBalances(trip){
   var paid = {}, owed = {};
@@ -222,7 +231,7 @@ function calcBalances(trip){
   trip.expenses.forEach(function(e){
     if (paid[e.payer] === undefined) return;
     paid[e.payer] += e.amount;
-    splitShares(e.amount, e.split).forEach(function(s){ if (owed[s[0]] !== undefined) owed[s[0]] += s[1]; });
+    splitShares(e.amount, e.split, e.id).forEach(function(s){ if (owed[s[0]] !== undefined) owed[s[0]] += s[1]; });
   });
   var net = {};
   trip.members.forEach(function(m){ net[m.id] = paid[m.id] - owed[m.id]; });
@@ -982,8 +991,8 @@ function splitHint(d){
   const a = parseYen(d.amount);
   if (!(a > 0)) return '金額を入れると、1人あたりの金額が出ます。';
   if (!d.split.length) return '割り勘の対象を選んでください。';
-  const sh = splitShares(a, d.split).map(x => x[1]);
-  return d.split.length === 1 ? '1人の分として記録します。' : '1人あたり ' + yen(sh[sh.length - 1]) + (sh[0] !== sh[sh.length - 1] ? '〜' + yen(sh[0]) : '') + '（' + d.split.length + '人で割り勘）';
+  const sh = splitShares(a, d.split, '').map(x => x[1]), lo = Math.min.apply(null, sh), hi = Math.max.apply(null, sh);
+  return d.split.length === 1 ? '1人の分として記録します。' : '1人あたり ' + yen(lo) + (lo !== hi ? '〜' + yen(hi) : '') + '（' + d.split.length + '人で割り勘）';
 }
 
 /* ---- actions ---- */
