@@ -266,6 +266,13 @@ function tripCsv(trip, catName){
   settle(calcBalances(trip).net).forEach(function(p){ rows.push(['', nm(p.from), nm(p.to), p.amount]); });
   return rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
 }
+/* The demo trip older versions put on first launch. True only while it is exactly as it was installed. */
+function isUntouchedSample(t){
+  if (!t || !t.sample || t.members.length !== 3 || Object.keys(t.paid || {}).length) return false;
+  var sig = t.expenses.map(function(e){ return e.title + ':' + e.amount + ':' + e.cat + ':' + e.split.length; }).join('|');
+  var sav = Object.keys(t.savings || {}).map(function(k){ return t.savings[k]; }).sort().join(',');
+  return sig === '新幹線:9600:transport:3|旅館 1泊:30000:stay:3|夕食:8700:food:3|ロープウェイ:2400:sight:2|朝食ビュッフェ:4300:food:3' && sav === '15000,20000' && t.budget === 80000;
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -300,6 +307,7 @@ function load(){
   let s = null;
   try { const raw = localStorage.getItem(KEY); if (raw) s = JSON.parse(raw); } catch(e){}
   s = s || memories[KEY] || { trips: [] };
+  s.trips = s.trips.filter(t => !isUntouchedSample(t));
   s.trips.forEach(t => { t.paid = t.paid || {}; t.savings = t.savings || {}; });
   return s;
 }
