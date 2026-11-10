@@ -1,5 +1,5 @@
 /* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls (Supabase) are never cached. */
-const VERSION = 'tabiwari-v11';
+const VERSION = 'tabiwari-v12';
 const FILES = ['./', './index.html', './config.js', './cloud.js', './share.js', './line.js', './vendor/supabase.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/icon-maskable-512.png'];
 const OPTIONAL = ['./terms.html', './privacy.html', './legal.html', './legal.css'];   // only deployed once sharing is on
