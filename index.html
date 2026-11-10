@@ -586,7 +586,7 @@ window.addEventListener('online', () => { checkRemote(true); });
   window.addEventListener('online', () => shared().forEach(t => shareSync(t)));
 }
 /* ---- LINE login + backup (worker/account.js). Logging in is optional; sharing by link never needs it. ---- */
-const lineAcct = { login: false, user: null, waiting: false, count: null, last: null, push: null, remoteItems: [] };
+const lineAcct = { login: false, user: null, waiting: false, count: null, last: null, push: null, remoteItems: [], bkErr: null };
 const LINE_ATTEMPT = 'tabiwari.lineattempt', BK_SIGS = 'tabiwari.bksigs';
 const sigOf = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return str.length + ':' + h; };
 const readSigs = () => { try { return JSON.parse(lsGet(BK_SIGS)) || {}; } catch(e){ return {}; } };
@@ -596,22 +596,29 @@ function bkItem(t){
 }
 function bkSoon(){ clearTimeout(bkSoon.t); bkSoon.t = setTimeout(() => bkRun(), 4000); }
 function bkRun(){ if (!bkRun.p) bkRun.p = bkRunInner().finally(() => { bkRun.p = null; }); return bkRun.p; }
+/* Sends local changes to the backup. Returns true when everything went through; otherwise sets lineAcct.bkErr (shown in the account sheet) instead of failing silently.
+   A batch that the server refuses as invalid is retried one trip at a time, so one bad trip cannot block the others. */
 async function bkRunInner(){
-  if (!lineAcct.user || bkRun.busy) return; bkRun.busy = true;
+  if (!lineAcct.user || bkRun.busy) return true; bkRun.busy = true;
+  const failed = []; let err = null;
   try {
-    const sigs = readSigs(), todo = [];
-    const gone = readGone().filter(id => !state.trips.some(t => t.id === id));
-    for (let i = 0; i < gone.length; i += 20){ const part = gone.slice(i, i + 20); await Line.backupPut([], [], part); lsSet(GONE_KEY, JSON.stringify(readGone().filter(id => part.indexOf(id) < 0))); }
+    const sigs = readSigs(), todo = [], nameOfTrip = id => { const t = state.trips.find(x => x.id === id); return t ? t.name : '旅行'; };
     state.trips.forEach(t => { const item = bkItem(t), sg = sigOf(JSON.stringify(item)); if (sigs[t.id] !== sg) todo.push({ id: t.id, item: item, sg: sg }); });
+    const put = async part => { const r = await Line.backupPut(part.map(x => ({ id: x.id, item: x.item }))); part.forEach(x => { sigs[x.id] = x.sg; }); lsSet(BK_SIGS, JSON.stringify(sigs)); lineAcct.count = r.count; lineAcct.last = Date.now(); };
     for (let i = 0; i < todo.length; i += 20){
-      const part = todo.slice(i, i + 20), r = await Line.backupPut(part.map(x => ({ id: x.id, item: x.item })));
-      part.forEach(x => { sigs[x.id] = x.sg; }); lsSet(BK_SIGS, JSON.stringify(sigs)); lineAcct.count = r.count;
+      const part = todo.slice(i, i + 20);
+      try { await put(part); }
+      catch(e){ if (!(e && e.status === 400)) throw e; for (const x of part){ try { await put([x]); } catch(e2){ if (e2 && e2.status === 400) failed.push(nameOfTrip(x.id)); else throw e2; } } }
     }
-    if (todo.length) lineAcct.last = Date.now();
+    const gone = readGone().filter(id => !state.trips.some(t => t.id === id));
+    for (let i = 0; i < gone.length; i += 20){ const part = gone.slice(i, i + 20); try { await Line.backupPut([], [], part); lsSet(GONE_KEY, JSON.stringify(readGone().filter(id => part.indexOf(id) < 0))); } catch(e){ if (e && e.status === 401) throw e; } }
   } catch(e){
     if (e && e.status === 401){ lineAcct.user = null; flash(Line.errText(e)); render(); }
-    else if (e && e.status === 413) flash(Line.errText(e));
+    else err = Line.errText(e);
   } finally { bkRun.busy = false; }
+  const msg = err || (failed.length ? '「' + failed.join('」「') + '」は、バックアップできませんでした（大きすぎるか、形式が正しくありません）。' : null);
+  if (msg && msg !== lineAcct.bkErr && !ui.sheet) flash(msg);
+  lineAcct.bkErr = msg; return !msg;
 }
 async function lineInit(){
   try {
@@ -961,7 +968,7 @@ function viewSheet(){
     const sw = s.ntf === 'on' || s.ntf === 'off' ? '<button class="sw" role="switch" aria-checked="' + (s.ntf === 'on') + '" aria-label="この端末に通知する" data-a="ntf-toggle"></button>' : '';
     body = '<div class="acc-me"><span class="av" aria-hidden="true" style="--h:150">' + esc(Array.from(nm)[0] || 'L') + '</span><div class="grow"><div class="t">' + esc(nm) + '</div><div class="sub sm">LINEでログイン中</div></div></div>' +
       '<div class="sechd">バックアップ</div><div class="list">' +
-        row('自動でバックアップ', esc(saved), smallBtn('bk-now', '今すぐ')) +
+        row('自動でバックアップ', esc(saved) + (lineAcct.bkErr ? '<br><span class="bad-t">' + esc(lineAcct.bkErr) + '</span>' : ''), smallBtn('bk-now', '今すぐ')) +
         '<button class="item slim acc" data-a="bk-restore"><div class="grow"><div class="t">バックアップから戻す</div><div class="sub sm">別の端末に移すときや、消した旅行を戻すとき</div></div>' + icon('chev', 18) + '</button></div>' +
       '<div class="sub sm acc-note">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを暗号化して控えます。</div>' +
       (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('この端末に通知する', ntfSub, sw) +
@@ -1086,7 +1093,7 @@ document.addEventListener('click', e => {
       er => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = er && er.status ? Line.errText(er) : '通知を設定できませんでした。もう一度お試しください。'; render(); ntfRefreshSheet(); } });
     return;
   }
-  else if (a === 'bk-now'){ readSheet(); lsSet(BK_SIGS, null); bkRun().then(() => { flash('バックアップしました'); render(); }); return; }
+  else if (a === 'bk-now'){ readSheet(); lsSet(BK_SIGS, null); bkRun().then(ok => { flash(ok ? 'バックアップしました' : (lineAcct.bkErr || 'バックアップできませんでした')); render(); }); return; }
   else if (a === 'bk-restore'){ ui.sheet = { type: 'line-restore', items: [], pick: [], err: '', busy: false, loading: true };
     Line.backupGet().then(r => openRestore(r.items), er => { if (ui.sheet) { ui.sheet.loading = false; ui.sheet.err = Line.errText(er); render(); } }); }
   else if (a === 'bk-pick'){ const i = s.pick.indexOf(id); if (i >= 0) s.pick.splice(i, 1); else s.pick.push(id); }
