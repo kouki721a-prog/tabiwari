@@ -1,4 +1,4 @@
-const assert = require('assert'), S = require('../cloud.js');
+const assert = require('assert'), S = require('../sync.js');
 const trip = () => ({ id: 't1', name: '箱根', start: '2026-11-09', end: '2026-11-11', budget: 80000, paid: { 'b-a-100': true }, savings: { a: 5000 },
   members: [{ id: 'a', name: 'あおい', userId: 'U1' }, { id: 'b', name: 'けんた', pending: true }],
   expenses: [{ id: 'e1', title: '新幹線', amount: 9600, payer: 'a', cat: 'transport', date: '2026-11-09', split: ['a', 'b'] }] });

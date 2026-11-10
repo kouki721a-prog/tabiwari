@@ -2,36 +2,24 @@
 
 友人・カップルで行く国内旅行の、予算管理と割り勘アプリ（PWA）。仕様と方針は [HANDOFF.md](HANDOFF.md)。
 
-## 現状（フェーズ1：PWA / フェーズ2：共有 / フェーズ3：通知・課金・公開準備）
-- 素のHTML/CSS/JS（ビルド不要）。データは端末の `localStorage` のみ。
-- `manifest.json` + `sw.js` でホーム画面に追加、オフライン動作。
-- ホームに「ホーム画面に追加」の案内（Androidは `beforeinstallprompt`、iPhoneは手順表示）。
-- 共有（任意）：Supabase でメールの6桁コードでログイン、旅行の共有、招待リンク、リアルタイム同期、端末データの移行。`config.js` が空なら端末内だけで動く。手順は [docs/SETUP.md](docs/SETUP.md)。
+## できること
+- 素のHTML/CSS/JS（フレームワークなし）。データは、端末の `localStorage`。ログインなしで、旅行・支出・精算・積立・CSV書き出しが使える。
+- `manifest.json` + `sw.js` で、ホーム画面に追加、オフライン動作。
+- 共有（リンク方式）：アカウントなしで、リンクを知っている人どうしが、同じ旅行を記録。Cloudflare Worker + D1。[docs/SHARING.md](docs/SHARING.md)
+- LINEログインとバックアップ：旅行を暗号化してサーバーに控え、別の端末で戻す。[docs/LINE.md](docs/LINE.md)
+- 通知（LINEログイン + 端末ごとにオン）：旅行の前日の夜、旅行中の記録のし忘れ、旅行の翌朝の精算。[docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md)
+- 利用規約・プライバシーポリシー（ひな形。不特定多数への公開や有料化の前に、専門家の確認が必要）。
 
-- 通知（Web Push）：旅行の前日、記録のし忘れ、精算。端末ごとに入り切り。
-- 課金（Stripe）：無料は、自分でつくる旅行が3件まで。プレミアムは、旅行の数が無制限 + CSV書き出し。
-- アカウントの削除、利用規約・プライバシーポリシー・特定商取引法の表記（ひな形。公開前に記入と専門家の確認が必要）。
-
-公開手順：[docs/PUBLISH.md](docs/PUBLISH.md)（`npm run build` で `dist/` をつくる）。
-
-- 共有（リンク方式）：アカウントなしで、リンクを知っている人どうしが同じ旅行を記録。Cloudflare Worker + D1。[docs/SHARING.md](docs/SHARING.md)。
-
-- LINEログインとバックアップ（任意）：旅行を暗号化してサーバーに控え、別の端末で戻す。設定するまでは、表示されない。[docs/LINE.md](docs/LINE.md)。
-
-- 通知（LINEログイン + 端末ごとにオン）：旅行の前日の夜、旅行中の記録のし忘れ、旅行の翌朝の精算。サーバー側の追加設定は不要。[docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md)。
+公開手順：[docs/PUBLISH.md](docs/PUBLISH.md)（`main` にマージすると、Cloudflare が自動でビルドして公開する）。
 
 ## 開発
 ```
-npm start      # http://localhost:8080 （Service Workerはhttp(s)でのみ動く）
-npm test       # 計算ロジック・同期差分・リンク解析のテスト
+npm start            # http://localhost:8080 （Service Workerはhttp(s)でのみ動く）
+npm test             # 計算ロジック・同期差分・リンク解析・通知の暗号化
 npm run test:share   # 共有（ローカルWorker + D1 でAPIと複数人の通し）
 npm run test:account # LINEログインとバックアップ（疑似LINE + ローカルWorker + D1）
 npm run test:notify  # 通知（暗号化・購読・毎時の判定・配信を、疑似の配信サービスで通し）
-node test/e2e.js   # ブラウザでの通し確認（偽のSupabase）
 node test/launch-check.js   # 公開前の確認
 node icons/make.js   # icons/icon.svg からPNGアイコンを再生成（playwright必要）
 ```
-`index.html` / `cloud.js` / `manifest.json` / アイコンを変えたら、`sw.js` の `VERSION` を上げること。
-
-## 次
-公開前の準備は docs/SETUP.md の §4。
+`index.html` / `sync.js` / `share.js` / `line.js` / `manifest.json` / アイコンを変えたら、`sw.js` の `VERSION` を上げること。

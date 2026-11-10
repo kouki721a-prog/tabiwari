@@ -1,6 +1,6 @@
 # 公開手順（Cloudflare Pages・端末のみ版）
 
-共有機能なし（`config.js` が空）のまま公開する手順です。無料で、HTTPSは自動です。
+公開する手順です（現在は Cloudflare Workers。共有・LINEログイン・通知は、Worker と D1 が担います）。無料で、HTTPSは自動です。
 
 1. https://dash.cloudflare.com にログイン → **Workers & Pages → Create → Connect to Git**（Pages の画面が出る場合もある。その場合は下の「Pages 方式」）。
 2. GitHub と連携し、`tabiwari` リポジトリを選ぶ。
@@ -18,9 +18,6 @@
 
 ## 独自ドメイン
 Pages のプロジェクト → **Custom domains** で追加。ドメインをCloudflareで管理していれば、設定は自動。
-
-## 共有機能を足すとき
-`config.js` に Supabase の値を入れて push するだけ。そのとき `npm run build` が、利用規約などの法務ページも `dist/` に含める。先に `node test/launch-check.js` を通すこと。
 
 ## うまく更新されないとき
 - 公開されている版は、`https://<URL>/sw.js` を開くと、`const VERSION = 'tabiwari-v〇'` で確認できる（リポジトリの `sw.js` と同じ数字なら、最新）。
