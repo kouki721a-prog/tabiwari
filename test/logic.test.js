@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -71,3 +71,10 @@ for (const f of [t => { t.name = '  '; }, t => { t.budget = 0; }, t => { t.end =
   assert.strictEqual(L.sanitizeTrip(t, 'x').expenses.length, 1, 'rows that cannot be valid are dropped'); }
 assert.strictEqual(L.sanitizeTrip(null, 'x'), null); assert.strictEqual(L.sanitizeTrip('str', 'x'), null);
 console.log('logic tests passed');
+
+// search: every word must match; full-width characters are normalised
+const ex = { title: '箱根ロープウェイ', amount: 3200, date: '2026-11-10' }, lb = { cat: '交通', payer: 'あおい', split: ['あおい', 'けんた'] };
+assert.ok(L.matchExpense(ex, '', lb), 'empty query matches everything');
+assert.ok(L.matchExpense(ex, 'ロープ', lb) && L.matchExpense(ex, '交通 けんた', lb) && L.matchExpense(ex, '３２００', lb) && L.matchExpense(ex, '2026-11', lb));
+assert.ok(!L.matchExpense(ex, 'ロープ 宿泊', lb) && !L.matchExpense(ex, '9999', lb));
+console.log('search tests passed');

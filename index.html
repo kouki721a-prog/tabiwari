@@ -202,7 +202,8 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .tab.on svg{stroke-width:2.6}
 .plus{width:54px;height:54px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;margin:-22px auto 4px;box-shadow:0 6px 16px rgba(0,0,0,.22)}
 .fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) * .5 + 14px);width:calc(100% - 32px);max-width:488px;box-shadow:0 8px 20px rgba(0,0,0,.22);z-index:10}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 100px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:99px;font-size:14px;font-weight:500;z-index:40}
+.toast button{margin-left:14px;color:#fff;text-decoration:underline;font-weight:700;font-size:14px}
+.toast{display:flex;align-items:center;white-space:nowrap;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 100px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:99px;font-size:14px;font-weight:500;z-index:40}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
 @media (prefers-reduced-motion: no-preference){
   .sheet{animation:up .22s ease-out}
@@ -260,6 +261,12 @@ function settle(net){
     if (d.v === 0) db.shift();
   }
   return out;
+}
+/* search: every space-separated word must appear in the title, category, payer, members, amount or date (full-width characters are normalised) */
+function matchExpense(e, q, label){
+  var terms = String(q || '').normalize('NFKC').toLowerCase().split(/\s+/).filter(Boolean);
+  var hay = [e.title || '', label.cat, label.payer, label.split.join(' '), String(e.amount), e.date].join(' ').normalize('NFKC').toLowerCase();
+  return terms.every(function(w){ return hay.indexOf(w) >= 0; });
 }
 function dayDiff(a, b){
   var pa = a.split('-').map(Number), pb = b.split('-').map(Number);
@@ -359,7 +366,7 @@ function save(){ persist(); if (state.trips.some(t => t.share)) shareSoon(); if 
 let state = load();
 
 
-const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, copyText: null };
+const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', copyText: null };
 
 const CFG = window.TABIWARI || {};
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
@@ -589,7 +596,7 @@ function render(){
   const oldList = document.querySelector('.scroll'), keepList = oldList && !ui.resetScroll ? oldList.scrollTop : 0; ui.resetScroll = false;
   let html = ui.view === 'home' ? viewHome() : ui.view === 'new' ? viewNew() : viewTrip();
   if (ui.sheet) html += viewSheet();
-  if (ui.toast) html += '<div class="toast" role="status">' + esc(ui.toast) + '</div>';
+  if (ui.toast) html += '<div class="toast" role="status">' + esc(ui.toast) + (ui.undo ? '<button data-a="undo">元に戻す</button>' : '') + '</div>';
   app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : '';
   app.innerHTML = html;
   document.body.style.overflow = ui.sheet ? 'hidden' : '';
@@ -597,7 +604,8 @@ function render(){
   const sh = document.querySelector('.sheet-body');
   if (sh) sh.scrollTop = keep;
 }
-function flash(msg){ ui.toast = msg; render(); setTimeout(() => { ui.toast = null; render(); }, 1700); }
+let toastN = 0;
+function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
 function viewHome(){
   let h = '<div class="brand">たびわり</div><div class="sub">旅行のお金を、みんなで見える化</div>' + installBanner() + lineCard();
@@ -682,11 +690,13 @@ function usageBar(t){
   return '<div class="usage"><div class="seg">' + cs.map(c => '<i style="--h:' + c[3] + ';width:' + (by[c[0]] / sp * 100) + '%"></i>').join('') + '</div><div class="legend2">' +
     cs.map(c => '<span><span class="dot" style="--h:' + c[3] + '"></span>' + c[2] + ' <b>' + by[c[0]].toLocaleString('ja-JP') + '</b></span>').join('') + '</div></div>';
 }
-function tabExp(t){
-  if (!t.expenses.length) return '<div class="empty"><b>最初の支出を記録しましょう</b>中央の ＋ ボタンから、金額と払った人を入力します。</div>';
-  let h = '';
+function expLabel(t, e){ return { cat: (CAT[e.cat] || CAT.other)[2], payer: nameOf(t, e.payer), split: e.split.map(id => nameOf(t, id)) }; }
+function expList(t, q){
+  const list = q.trim() ? t.expenses.filter(e => matchExpense(e, q, expLabel(t, e))) : t.expenses;
+  if (!list.length) return '<div class="empty"><b>見つかりませんでした</b>別の言葉で、探してみてください。</div>';
+  let h = q.trim() ? '<div class="sub sm" style="margin-top:8px">' + list.length + '件・合計 ' + yen(list.reduce((n, e) => n + e.amount, 0)) + '</div>' : '';
   const days = {};
-  t.expenses.forEach(e => { (days[e.date] = days[e.date] || []).push(e); });
+  list.forEach(e => { (days[e.date] = days[e.date] || []).push(e); });
   Object.keys(days).sort().reverse().forEach(d => {
     const sub = days[d].reduce((s, e) => s + e.amount, 0);
     h += '<div class="sec"><h2>' + fmtDay(d) + '<span>' + yen(sub) + '</span></h2><div class="list">';
@@ -700,6 +710,11 @@ function tabExp(t){
     h += '</div></div>';
   });
   return h;
+}
+function tabExp(t){
+  if (!t.expenses.length) return '<div class="empty"><b>最初の支出を記録しましょう</b>中央の ＋ ボタンから、金額と払った人を入力します。</div>';
+  const box = t.expenses.length >= 6 ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '';
+  return box + '<div id="exp-list">' + expList(t, box ? ui.q : '') + '</div>';
 }
 
 function tabSettle(t){
@@ -839,6 +854,7 @@ function readSheet(){
 }
 
 document.addEventListener('input', e => {
+  if (e.target.id === 'q-exp'){ ui.q = e.target.value; const t = trip(), box = document.getElementById('exp-list'); if (t && box) box.innerHTML = expList(t, ui.q); return; }
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
@@ -851,8 +867,8 @@ document.addEventListener('click', e => {
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
   if (a === 'bg'){ if (e.target !== el) return; ui.sheet = null; render(); return; }
 
-  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.copyText = null; }
-  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.copyText = null; }
+  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.copyText = null; ui.q = ''; }
+  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.copyText = null; ui.q = ''; }
   else if (a === 'install'){ if (deferredInstall){ deferredInstall.prompt(); deferredInstall = null; } }
   else if (a === 'dismiss-install'){ try { localStorage.setItem('tabiwari.noinstall', '1'); } catch(err){} }
   else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
@@ -946,7 +962,7 @@ document.addEventListener('click', e => {
       state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
     }
   }
-  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.copyText = null; ui.resetScroll = true; }
+  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.copyText = null; ui.q = ''; ui.resetScroll = true; }
 
   else if (a === 'add-exp'){
     const today = todayStr();
@@ -977,7 +993,14 @@ document.addEventListener('click', e => {
     }
   }
   else if (a === 'ask-del'){ readSheet(); s.confirmDel = true; }
-  else if (a === 'del-exp'){ t.expenses = t.expenses.filter(q => q.id !== s.editId); save(); ui.sheet = null; render(); flash('削除しました'); return; }
+  else if (a === 'del-exp'){
+    const ix = t.expenses.findIndex(q => q.id === s.editId), gone = t.expenses[ix], tid = t.id;
+    if (ix < 0){ ui.sheet = null; render(); return; }
+    t.expenses = t.expenses.filter(q => q.id !== s.editId); save(); ui.sheet = null; render();
+    flash('削除しました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt || tt.expenses.some(q => q.id === gone.id)) return; tt.expenses.splice(Math.min(ix, tt.expenses.length), 0, gone); save(); render(); flash('元に戻しました'); });
+    return;
+  }
+  else if (a === 'undo'){ const f = ui.undo; ui.toast = null; ui.undo = null; toastN++; if (f) f(); else render(); return; }
 
   else if (a === 'toggle-paid'){ const k = el.getAttribute('data-k'); if (t.paid[k]) delete t.paid[k]; else t.paid[k] = true; save(); }
   else if (a === 'copy-settle'){
@@ -1005,7 +1028,12 @@ document.addEventListener('click', e => {
     }
   }
   else if (a === 'ask-del-trip'){ readSheet(); s.confirmDel = true; }
-  else if (a === 'del-trip'){ state.trips = state.trips.filter(x => x.id !== t.id); save(); ui.sheet = null; ui.view = 'home'; ui.tripId = null; }
+  else if (a === 'del-trip'){
+    const ix = state.trips.findIndex(x => x.id === t.id), gone = t;
+    state.trips = state.trips.filter(x => x.id !== t.id); save(); ui.sheet = null; ui.view = 'home'; ui.tripId = null; render();
+    flash('旅行を削除しました', () => { if (state.trips.some(x => x.id === gone.id)) return; state.trips.splice(Math.min(ix, state.trips.length), 0, gone); save(); render(); flash('元に戻しました'); });
+    return;
+  }
   else if (a === 'close-sheet'){ ui.sheet = null; }
   render();
 });
