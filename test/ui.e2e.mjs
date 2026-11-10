@@ -40,6 +40,12 @@ try {
   await p.click('[data-a=close-sheet]');
   assert.strictEqual(await p.getAttribute('.tab.on', 'aria-current'), 'page');
 
+  // home with trips: the links sit at the bottom (just above the main button) while the list is short, with no extra scrolling; they follow the list when it is long
+  await p.click('[data-a=home]'); await p.waitForSelector('.home1');
+  { const m = await p.evaluate(() => { const f = document.querySelector('.home1-foot').getBoundingClientRect(), fab = document.querySelector('.fab').getBoundingClientRect(); return { gap: fab.top - f.bottom, scrolls: document.documentElement.scrollHeight - innerHeight }; });
+    assert.ok(m.gap >= 0 && m.gap < 40 && m.scrolls <= 1, 'the links are pinned just above the main button: ' + JSON.stringify(m)); }
+  await p.locator('.trip').first().click(); await p.waitForSelector('[data-a=add-exp]');
+
   // the search box appears only once there are enough expenses
   for (const [a, t] of [[1000, '朝食'], [2000, '昼食'], [3000, '夕食'], [4000, 'お土産'], [5000, 'ロープウェイ']]) await add(a, t);
   assert.strictEqual(await p.locator('#q-exp').count(), 0, 'no search box for a short list');
