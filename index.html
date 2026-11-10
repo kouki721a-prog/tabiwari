@@ -97,6 +97,18 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .install .btn{width:auto;padding:8px 14px;font-size:14px;flex:none}
 .install .x{width:32px;height:32px;display:grid;place-items:center;color:var(--sub);flex:none}
 .empty{text-align:center;padding:34px 12px;color:var(--sub)}
+.home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
+.home0>*{flex:none}
+.home0-intro{text-align:center;color:var(--sub);font-size:14px;line-height:1.6;padding:18px 8px 16px}
+.home0-intro b{display:block;color:var(--ink);font-size:20px;font-weight:700;margin-bottom:4px}
+@media (max-height:700px){.home0-intro{padding:8px 8px 10px}.home0-steps{gap:10px;padding:10px 4px}.home0 .legal{margin-top:8px}.home0-line{padding:8px 12px}}
+.home0-steps{list-style:none;margin:0;padding:0;flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:18px 4px}
+.home0-steps li{display:flex;gap:14px;align-items:center}
+.home0-steps .n{width:32px;height:32px;border-radius:50%;background:var(--soft);color:var(--ink);font-weight:700;display:grid;place-items:center;flex:none}
+.home0-steps b{display:block;font-size:15px}.home0-steps span:not(.n){display:block;color:var(--sub);font-size:13px}
+.home0-line{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.home0 .legal{margin-top:12px}
+.lineg.sm{height:40px;font-size:15px}.lineg.sm img{width:40px;height:40px}.lineg.sm span{padding:0 29px}
 .empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
 
 /* ticket */
@@ -685,7 +697,7 @@ function render(){
   let html = ui.view === 'home' ? viewHome() : ui.view === 'new' ? viewNew() : viewTrip();
   if (ui.sheet) html += viewSheet();
   if (ui.toast) html += '<div class="toast" role="status">' + esc(ui.toast) + (ui.undo ? '<button data-a="undo">元に戻す</button>' : '') + '</div>';
-  app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : '';
+  app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : (ui.view === 'home' && !state.trips.length) ? 'fit nonav' : '';
   app.innerHTML = html;
   document.body.style.overflow = ui.sheet ? 'hidden' : '';
   const nl = document.querySelector('.scroll'); if (nl) nl.scrollTop = keepList;
@@ -697,21 +709,32 @@ function render(){
 let sheetWasOpen = false, toastN = 0;
 function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
+/* the first screen (no trips yet): one screen, no scrolling. Order: intro, the main button, join by link, the 3 steps, LINE login (small), legal links at the very bottom */
+function viewHomeEmpty(){
+  const steps = [['旅行をつくる', '日程と、予算を決めます。'], ['支出を記録する', '誰が払ったか、誰の分かを選びます。'], ['精算する', '誰が誰にいくら払うかが、自動で出ます。']];
+  let line = '';
+  if (lineAcct.waiting) line = lineCard();
+  else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">LINEでログインすると、旅行をバックアップできます。</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
+  else if (lineAcct.user) line = '<div style="text-align:center"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
+  return '<div class="home0"><h1 class="brand">たびわり</h1>' + installBanner() +
+    '<div class="home0-intro"><b>最初の旅行をつくりましょう</b>予算を決めて、支出を記録すると、割り勘が自動で計算されます。</div>' +
+    '<button class="btn" data-a="new">旅行をつくる</button>' +
+    '<button class="btn line" data-a="join-paste" style="margin-top:10px">共有リンクで参加する</button>' +
+    '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol>' +
+    line + legalLinks() + '</div>';
+}
 function viewHome(){
+  if (!state.trips.length) return viewHomeEmpty();
   let h = '<h1 class="brand">たびわり</h1>' + installBanner() + lineCard();
-  if (!state.trips.length){
-    h += '<div class="empty"><b>最初の旅行をつくりましょう</b>予算を決めて、支出を記録すると、割り勘が自動で計算されます。</div>';
-  } else {
-    const order = { '旅行中': 0, '準備中': 1, '終了': 2 };
-    state.trips.slice().sort((a, b) => order[status(a)[0]] - order[status(b)[0]] || (a.start < b.start ? -1 : 1)).forEach(t => {
-      const sp = total(t), left = t.budget - sp, pct = Math.min(100, Math.round(sp / t.budget * 100));
-      h += '<button class="trip" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
-        '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + '</div>' +
-        '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
-        '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>' +
-        '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="予算の ' + pct + '%を使用"><i style="width:' + pct + '%"></i></div></button>';
-    });
-  }
+  const order = { '旅行中': 0, '準備中': 1, '終了': 2 };
+  state.trips.slice().sort((a, b) => order[status(a)[0]] - order[status(b)[0]] || (a.start < b.start ? -1 : 1)).forEach(t => {
+    const sp = total(t), left = t.budget - sp, pct = Math.min(100, Math.round(sp / t.budget * 100));
+    h += '<button class="trip" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
+      '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + '</div>' +
+      '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
+      '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>' +
+      '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="予算の ' + pct + '%を使用"><i style="width:' + pct + '%"></i></div></button>';
+  });
   h += legalLinks();
   if (lineAcct.user) h += '<div style="text-align:center;margin-top:8px"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
   h += '<div style="text-align:center;margin-top:10px"><button class="link" data-a="join-paste" style="width:auto;padding:8px 12px;text-decoration:underline">共有リンクで参加する</button></div>';
