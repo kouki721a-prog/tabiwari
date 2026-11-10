@@ -122,6 +122,16 @@ try {
   assert.strictEqual(await g.p.locator('[data-a=remote-open]').count(), 0); await comeBack(g.p); await g.p.waitForTimeout(1500);
   assert.strictEqual(await g.p.locator('[data-a=remote-open]').count(), 0, '"later" is remembered');
 
+  // ---------- one trip the server refuses must not block the others, and the failure is shown (not silent)
+  line.setIdentity('U-err', 'エラーさん');
+  const m = await device(); await m.p.goto(base + '/'); await see(m.p, 'LINEでログインすると'); await newTrip(m.p, 'ふつう'); await m.p.click('[data-a=home]');
+  await m.p.evaluate(() => { state.trips.push({ id: 'big1', name: 'おおきい', start: '2026-11-10', end: '2026-11-11', budget: 1000, members: [{ id: 'a', name: 'あ' }], paid: {}, savings: {}, expenses: [{ id: 'e1', title: 'x'.repeat(250000), amount: 1, payer: 'a', cat: 'food', date: '2026-11-10', split: ['a'] }] }); persist(); render(); });
+  await loginFlow(m); await backupHas(m.p, it => it.some(x => x.name === 'ふつう'));
+  await m.p.waitForFunction(() => lineAcct.bkErr && lineAcct.bkErr.includes('おおきい'), null, { timeout: 12000 });
+  assert.ok(!(await backupHas(m.p, () => true)).some(x => x.name === 'おおきい'), 'the refused trip is not on the server');
+  await m.p.click('[data-a=line-account]'); await see(m.p, '「おおきい」は、バックアップできませんでした');
+  await m.p.click('[data-a=bk-now]'); await see(m.p, '「おおきい」は、バックアップできませんでした'); assert.strictEqual(await m.p.locator('text=バックアップしました').count(), 0, 'no false "done" message');
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('account e2e passed');
 } finally { await b.close(); srv.stop(); line.stop(); }
