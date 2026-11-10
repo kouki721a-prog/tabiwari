@@ -109,6 +109,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .home0-steps li{display:flex;gap:14px;align-items:center}
 .home0-steps .n{width:32px;height:32px;border-radius:50%;background:var(--soft);color:var(--ink);font-weight:700;display:grid;place-items:center;flex:none}
 .home0-steps b{display:block;font-size:15px}.home0-steps span:not(.n){display:block;color:var(--sub);font-size:13px}
+.home1{display:flex;flex-direction:column;min-height:calc(100vh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}
+@supports (height:100dvh){.home1{min-height:calc(100dvh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}}
+.home1-foot{margin-top:auto;padding-top:16px}
 .home0-mid,.home0-bottom{display:contents}   /* in the browser the two groups are transparent: the layout is the one with the steps stretching */
 /* opened from the home screen: no banner space to fill, so the buttons and steps sit close together, centred between the title and the LINE row; LINE and the legal links stay at the bottom */
 .home0.sa>.home0-mid{display:flex;flex-direction:column;flex:1 0 auto;justify-content:center;padding-bottom:8px}
@@ -792,10 +795,11 @@ function viewHome(){
       '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>' +
       '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="予算の ' + pct + '%を使用"><i style="width:' + pct + '%"></i></div></button>';
   });
-  h += legalLinks();
-  if (lineAcct.user) h += '<div style="text-align:center;margin-top:8px"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
-  h += '<div style="text-align:center;margin-top:10px"><button class="link" data-a="join-paste" style="width:auto;padding:8px 12px;text-decoration:underline">共有リンクで参加する</button></div>';
-  return h + '<button class="btn fab" data-a="new">旅行をつくる</button>';
+  /* the links go to the bottom of the screen (above the main button) when the list is short, and follow the list when it is long */
+  let foot = legalLinks();
+  if (lineAcct.user) foot += '<div style="text-align:center;margin-top:6px"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
+  foot += '<div style="text-align:center;margin-top:2px"><button class="link" data-a="join-paste" style="width:auto;padding:8px 12px;text-decoration:underline">共有リンクで参加する</button></div>';
+  return '<div class="home1"><div>' + h + '</div><div class="home1-foot">' + foot + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
 function legalLinks(){
