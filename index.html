@@ -91,7 +91,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .lineg img{display:block;width:44px;height:44px;flex:none;border-right:1px solid rgba(0,0,0,.08);box-sizing:border-box}
 .lineg span{flex:1;display:flex;align-items:center;justify-content:center;padding:0 32px}
 .lineg::after{content:"";position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
-.lineg:hover::after{opacity:.1}.lineg:active::after{opacity:.3}
+.lineg:active::after{opacity:.3}
+@media (hover:hover) and (pointer:fine){.lineg:hover::after{opacity:.1}}   /* never leave a touch screen stuck on the darker "hover" shade */
 .lineg:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .install{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-top:10px;font-size:13px}
 .install .btn{width:auto;padding:8px 14px;font-size:14px;flex:none}
@@ -99,16 +100,17 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .empty{text-align:center;padding:34px 12px;color:var(--sub)}
 .home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
 .home0>*{flex:none}
-.home0-intro{text-align:center;color:var(--sub);font-size:14px;line-height:1.6;padding:18px 8px 16px}
+.home0-intro{text-align:center;color:var(--sub);font-size:min(14px, calc((100vw - 36px) / 27.5));line-height:1.6;padding:18px 0 16px;white-space:nowrap}
 .home0-intro b{display:block;color:var(--ink);font-size:20px;font-weight:700;margin-bottom:4px}
-@media (max-height:700px){.home0-intro{padding:8px 8px 10px}.home0-steps{gap:10px;padding:10px 4px}.home0 .legal{margin-top:8px}.home0-line{padding:8px 12px}}
+@media (max-height:700px){.home0-intro{padding:8px 0 10px}.home0-steps{gap:10px;padding:10px 4px}.home0 .legal{margin-top:8px}}
 .home0-steps{list-style:none;margin:0;padding:0;flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:18px 4px}
 .home0-steps li{display:flex;gap:14px;align-items:center}
 .home0-steps .n{width:32px;height:32px;border-radius:50%;background:var(--soft);color:var(--ink);font-weight:700;display:grid;place-items:center;flex:none}
 .home0-steps b{display:block;font-size:15px}.home0-steps span:not(.n){display:block;color:var(--sub);font-size:13px}
-.home0-line{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.home0-line{display:flex;flex-direction:column;gap:6px;padding:0 2px}
+.home0-line .sub{text-align:center}
 .home0 .legal{margin-top:12px}
-.lineg.sm{height:40px;font-size:15px}.lineg.sm img{width:40px;height:40px}.lineg.sm span{padding:0 29px}
+.lineg.sm{height:36px;font-size:14px}.lineg.sm img{width:36px;height:36px}.lineg.sm span{padding:0 26px}
 .empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
 
 /* ticket */
@@ -717,7 +719,7 @@ function viewHomeEmpty(){
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">LINEでログインすると、旅行をバックアップできます。</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   else if (lineAcct.user) line = '<div style="text-align:center"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
   return '<div class="home0"><h1 class="brand">たびわり</h1>' + installBanner() +
-    '<div class="home0-intro"><b>最初の旅行をつくりましょう</b>予算を決めて、支出を記録すると、割り勘が自動で計算されます。</div>' +
+    '<div class="home0-intro"><b>最初の旅行をつくりましょう</b>予算を決めて記録するだけ。割り勘は自動で計算します。</div>' +
     '<button class="btn" data-a="new">旅行をつくる</button>' +
     '<button class="btn line" data-a="join-paste" style="margin-top:10px">共有リンクで参加する</button>' +
     '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol>' +
