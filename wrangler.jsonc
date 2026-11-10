@@ -1,6 +1,11 @@
 {
-  // Cloudflare Workers (static assets). Build with `npm run build`, then `npx wrangler deploy` publishes dist/.
+  // Cloudflare Worker: serves the app (dist/) and the sharing API (/api/*), with a D1 database for shared trips.
+  // Build with `npm run build`, then `npx wrangler deploy`.
   "name": "tabiwari",
+  "main": "worker/index.js",
   "compatibility_date": "2026-11-01",
-  "assets": { "directory": "./dist" }
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+  // No database_id on purpose: Wrangler creates the database on first deploy (see docs/SHARING.md if it asks for an id).
+  "d1_databases": [{ "binding": "DB", "database_name": "tabiwari" }],
+  "triggers": { "crons": ["17 3 * * *"] }
 }

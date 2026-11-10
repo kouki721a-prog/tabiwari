@@ -5,7 +5,7 @@ const root = path.join(__dirname, '..'), out = path.join(root, 'dist');
 global.window = {}; eval(fs.readFileSync(path.join(root, 'config.js'), 'utf8'));
 const shared = !!(window.TABIWARI && window.TABIWARI.supabaseUrl);
 
-const files = ['index.html', 'manifest.json', 'sw.js', 'config.js', 'cloud.js', 'vendor/supabase.js',
+const files = ['index.html', 'manifest.json', 'sw.js', 'config.js', 'cloud.js', 'share.js', 'vendor/supabase.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
 if (shared) files.push('terms.html', 'privacy.html', 'legal.html', 'legal.css');
 

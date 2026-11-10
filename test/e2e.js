@@ -22,7 +22,9 @@ const root = path.join(__dirname, '..');
   assert.strictEqual(await p.locator('text=ログイン').count(), 0);
   await p.click('[data-a=new]'); await p.fill('#d-name', 'ローカル旅'); await p.fill('#d-budget', '30000'); await p.click('[data-a=save-trip]');
   await p.click('[data-a=add-exp]'); await p.fill('#f-amount', '500'); await p.click('[data-a=save-exp]'); await txt(p, '記録しました');
-  await p.click('[data-a=settings]'); assert.ok(await p.locator('text=ログインすると、招待リンクで友だちを誘えます').count() === 1);
+  await p.click('[data-a=settings]'); assert.ok(await p.locator('text=友だちと共有').count() >= 1);
+  assert.strictEqual(await p.locator('text=（プレミアム）').count(), 0, 'no premium wording without accounts');
+  { const [dl0] = await Promise.all([p.waitForEvent('download'), p.click('[data-a=export-csv]')]); const t0 = fs.readFileSync(await dl0.path(), 'utf8'); assert.ok(t0.indexOf('日付,内容,カテゴリ,金額') > 0 && t0.indexOf('500') > 0, 'free CSV backup works in local mode'); }
   await ctx.close();
 
   // 2. cloud mode

@@ -206,6 +206,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="cloud.js"></script>
+<script src="share.js"></script>
 <script>
 /* ===== LOGIC_START (pure functions; tested separately) ===== */
 function splitShares(amount, ids){
@@ -312,7 +313,7 @@ function load(){
   return s;
 }
 function persist(){ memories[KEY] = state; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
-function save(){ persist(); if (cloud.user){ cloud.rev++; pushSoon(); } }
+function save(){ persist(); if (cloud.user){ cloud.rev++; pushSoon(); } if (state.trips.some(t => t.share)) shareSoon(); }
 
 let state = load();
 
@@ -328,7 +329,10 @@ const JOIN_KEY = 'tabiwari.join', LAST_KEY = 'tabiwari.lastuser';
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
 const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch(e){} };
 const isOwner = t => !cloud.user || t.owner === cloud.user.id;
-const meId = t => { const m = cloud.user && t.members.filter(x => x.userId === cloud.user.id)[0]; return (m || t.members[0]).id; };
+const meId = t => {
+  if (t.share && t.members.some(x => x.id === t.share.me)) return t.share.me;
+  const m = cloud.user && t.members.filter(x => x.userId === cloud.user.id)[0]; return (m || t.members[0]).id;
+};
 function localTrips(){
   let s = null; try { s = JSON.parse(localStorage.getItem(LOCAL_KEY)); } catch(e){}
   s = s || memories[LOCAL_KEY]; return (s && s.trips || []).filter(t => !t.sample);
@@ -472,6 +476,83 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferr
 window.addEventListener('appinstalled', () => { deferredInstall = null; render(); });
 if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0){ window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); }); }
 
+/* ---- sharing by link: Cloudflare Worker + D1 (worker/index.js). No accounts: the link is the key. ---- */
+const SHARE_POLL_MS = 8000;
+const shared = () => state.trips.filter(t => t.share);
+const shareBusy = {}, shareAgain = {};
+function shareSoon(){ clearTimeout(shareSoon.t); shareSoon.t = setTimeout(() => shared().forEach(t => shareSync(t)), 80); }
+function unshare(t){ delete t.share; persist(); }
+function applyRemote(t, r, rev){
+  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; t.expenses = r.expenses; t.paid = r.paid; t.savings = r.savings;
+  t.share.rev = rev; t.share.snap = Sync.flatten([t]); persist();
+}
+/* push local changes (diff against what the server last had), then pull if somebody else changed it. Resolves 'ok' | 'offline' | 'gone'. */
+async function shareSync(t){
+  const sh = t.share; if (!sh) return 'ok';
+  if (shareBusy[t.id]){ shareAgain[t.id] = true; return 'busy'; }
+  shareBusy[t.id] = true;
+  let result = 'ok';
+  try {
+    const rows = Sync.flatten([t]), ops = Sync.diff(sh.snap, rows);
+    if (ops.length){ const r = await Share.ops(sh.token, ops); sh.snap = rows; sh.rev = r.rev; persist(); }
+    const g = await Share.get(sh.token, sh.rev);
+    if (!g.unchanged){
+      if (ui.sheet) shareSync.later = true;                                  // do not swap data under an open form
+      else if (!Sync.diff(sh.snap, Sync.flatten([t])).length) { applyRemote(t, Sync.assemble([g.trip])[0], g.rev); render(); }
+    }
+    if (sh.dirty){ sh.dirty = false; render(); }
+  } catch(e){
+    if (e && e.status === 404){ result = 'gone'; unshare(t); flash('共有が終了しました。この端末には残っています。'); render(); }
+    else { result = 'offline'; if (!sh.dirty){ sh.dirty = true; render(); } }
+  } finally {
+    shareBusy[t.id] = false;
+    if (shareAgain[t.id]){ shareAgain[t.id] = false; shareSoon(); }
+  }
+  return result;
+}
+async function startShare(t){
+  const oldId = t.id, token = Share.newToken(), id = await Share.sha256hex(token);
+  t.id = id; ui.tripId = id; t.members.forEach(m => { delete m.pending; });
+  t.share = { token: token, me: meId(t), rev: 0, snap: Sync.empty(), dirty: false };
+  persist();
+  let ok = false, why = null;
+  try { const rows = Sync.flatten([t]), r = await Share.ops(token, Sync.diff(t.share.snap, rows)); t.share.snap = rows; t.share.rev = r.rev; ok = true; } catch(e){ why = e; }
+  if (!ok){ t.id = oldId; ui.tripId = oldId; delete t.share; persist(); render(); flash(Share.errText(why)); return; }
+  persist(); render(); flash('共有を始めました');
+}
+async function beginJoin(token){
+  const id = await Share.sha256hex(token), have = state.trips.filter(x => x.id === id)[0];
+  if (have){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.resetScroll = true; render(); flash('この旅行には、すでに参加しています'); return null; }
+  const g = await Share.get(token);
+  return { type: 'join-share', token: token, rev: g.rev, trip: Sync.assemble([g.trip])[0], pick: null, name: '', err: '' };
+}
+async function captureShareHash(){
+  const m = /[#&]t=([A-Za-z0-9_-]{32,64})/.exec(location.hash); if (!m) return;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+  try { const sh = await beginJoin(m[1]); if (sh){ ui.sheet = sh; render(); } } catch(e){ flash(Share.errText(e)); }
+}
+function bootShare(){
+  captureShareHash();
+  window.addEventListener('hashchange', captureShareHash);
+  shared().forEach(t => shareSync(t));
+  setInterval(() => { if (!document.hidden) shared().forEach(t => shareSync(t)); }, SHARE_POLL_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) shared().forEach(t => shareSync(t)); });
+  window.addEventListener('online', () => shared().forEach(t => shareSync(t)));
+}
+function shareSection(t, s){
+  if (CLOUD) return '';
+  const tip = 'LINEなどで、旅行に行く人にだけ送ってください。ホーム画面のアプリに入れている人は、リンクをコピーして、アプリのホームにある「共有リンクで参加する」に貼り付けてもらいます。';
+  if (!t.share) return '<span class="lab">友だちと共有</span><div class="panel"><div class="sub">共有すると、リンクを知っている人が、この旅行を見て、記録できます。' + tip +
+    '</div><button class="btn line" data-a="share-start" style="margin-top:10px"' + (s.sharing ? ' disabled' : '') + '>' + (s.sharing ? '準備しています…' : '友だちと共有する') + '</button></div>';
+  const url = Share.linkFor(t.share.token, location);
+  return '<span class="lab">友だちと共有</span><div class="panel"><b>共有中</b>' + (t.share.dirty ? '<span class="sub">（同期待ち）</span>' : '') +
+    '<div class="row" style="margin-top:8px"><input class="field" id="s-sharelink" type="text" readonly aria-label="共有リンク" value="' + esc(url) + '" style="flex:1"><button class="btn line" data-a="share-copy" style="width:auto;white-space:nowrap;padding:10px 14px">送る</button></div>' +
+    '<div class="sub sm" style="margin-top:8px">リンクを知っている人は、誰でも見て、記録できます。' + tip + '</div>' +
+    (s.confirm === 'stop' ? '<div class="sub" style="margin:8px 0">この端末での同期をやめます。旅行はこの端末に残り、ほかの人は、そのまま使えます。</div><button class="btn bad" data-a="share-stop-go">この端末の共有をやめる</button>' :
+     s.confirm === 'erase' ? '<div class="sub" style="margin:8px 0">共有しているデータを、サーバーから削除します。リンクを持つ全員が、同期できなくなります（各自の端末には残ります）。元に戻せません。</div><button class="btn bad" data-a="share-erase-go">サーバーから削除する</button>' :
+     '<button class="link" data-a="share-stop" style="padding:8px 0 0">この端末の共有をやめる</button><button class="link bad" data-a="share-erase" style="padding:2px 0 0">みんなの共有を終了（サーバーから削除）</button>') + '</div>';
+}
+
 /* ---- render ---- */
 function render(){
   const app = document.getElementById('app');
@@ -506,6 +587,7 @@ function viewHome(){
   }
   if (cloud.user) h += '<div class="sub sm" style="text-align:center;margin-top:16px">' + esc(cloud.user.email || '') + ' でログイン中' + (cloud.premium ? '（プレミアム）' : '') + ' ・ <button class="sub sm" data-a="account" style="text-decoration:underline">アカウント</button></div>';
   if (CLOUD) h += legalLinks();
+  h += '<div style="text-align:center;margin-top:10px"><button class="link" data-a="join-paste" style="width:auto;padding:8px 12px;text-decoration:underline">共有リンクで参加する</button></div>';
   return h + '<button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
@@ -563,7 +645,7 @@ function viewTrip(){
     a = ['使った合計', sp]; b = ['1人あたり', Math.round(sp / t.members.length)];
   }
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1>' + pill(st) + '</div>' +
-    '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.members.some(m => m.pending) ? '・参加待ち ' + t.members.filter(m => m.pending).length + '人' : '') + (cloud.dirty ? '・同期待ち' : '') + '</div>';
+    '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (CLOUD && t.members.some(m => m.pending) ? '・参加待ち ' + t.members.filter(m => m.pending).length + '人' : '') + (t.share ? '・共有中' : '') + (cloud.dirty || (t.share && t.share.dirty) ? '・同期待ち' : '') + '</div>';
   h += '<i class="sp"></i><div class="ticket"><div class="t-top"><div class="t-label">' + (over ? '予算オーバー' : '予算の残り') + '</div>' +
     '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>' +
     '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>' +
@@ -671,16 +753,32 @@ function viewSheet(){
       '<div><label class="lab" for="s-end">帰着日</label><input class="field" id="s-end" type="date" value="' + d.end + '"></div></div>' +
       '<label class="lab" for="s-budget">全体の予算（円）</label><input class="field" id="s-budget" type="text" inputmode="numeric" value="' + esc(d.budget) + '">' +
       '<span class="lab">メンバー</span><div class="list">' + t.members.map((m, i) => '<div class="item slim">' + av(t, m.id) + '<div class="grow t">' + esc(m.name) + '</div>' +
-        (m.id === meId(t) ? '<span class="pill">あなた</span>' : m.pending ? '<span class="pill wait">参加待ち</span>' : '<span class="pill">参加中</span>') +
+        (m.id === meId(t) ? '<span class="pill">あなた</span>' : !CLOUD ? '' : m.pending ? '<span class="pill wait">参加待ち</span>' : '<span class="pill">参加中</span>') +
         (cloud.user && isOwner(t) && m.pending ? '<button class="sub" data-a="invite-link" data-id="' + m.id + '" style="font-weight:500;padding:6px 0 6px 6px;text-decoration:underline">招待リンク</button>' : '') +
-        (m.pending && !used(m.id) ? '<button class="sub" data-a="rm-tmember" data-id="' + m.id + '" style="font-weight:500;padding:6px 0 6px 6px">取り消す</button>' : '') + '</div>').join('') + '</div>' +
+        ((CLOUD ? m.pending : m.id !== meId(t)) && !used(m.id) ? '<button class="sub" data-a="rm-tmember" data-id="' + m.id + '" style="font-weight:500;padding:6px 0 6px 6px">取り消す</button>' : '') + '</div>').join('') + '</div>' +
       (s.link ? '<div class="row" style="margin-top:8px"><input class="field" id="s-link" type="text" readonly aria-label="招待リンク" value="' + esc(s.link) + '" style="flex:1"><button class="btn line" data-a="share-link" style="width:auto;white-space:nowrap;padding:10px 14px">共有する</button></div>' : '') +
-      '<div class="row" style="margin-top:8px"><input class="field" id="s-newmember" type="text" aria-label="友だちを招待" placeholder="友だちを招待（名前を入力）" style="flex:1"><button class="btn line" data-a="add-tmember" style="width:auto;white-space:nowrap;padding:10px 14px">招待する</button></div>' +
-      '<div class="sub sm" style="margin-top:5px">' + (cloud.user ? '名前を入れて招待し、「招待リンク」を相手に送ります。リンクは7日間有効で、1回だけ使えます。' : '名前だけの枠として、先に割り勘に使えます。ログインすると、招待リンクで友だちを誘えます。') + ' 支出に使われているメンバーは取り消せません。</div>' +
-      '<button class="link" data-a="export-csv" style="padding:8px 0 0">CSVで書き出す' + (cloud.premium ? '' : '（プレミアム）') + '</button>' +
-      (isOwner(t) ? (s.confirmDel ? '<div style="margin-top:8px"><button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button></div>' : '<button class="link bad" data-a="ask-del-trip" style="padding:6px 0 0">この旅行を削除</button>')
+      '<div class="row" style="margin-top:8px"><input class="field" id="s-newmember" type="text" aria-label="メンバーを追加" placeholder="' + (CLOUD ? '友だちを招待（名前を入力）' : 'メンバーを追加（名前を入力）') + '" style="flex:1"><button class="btn line" data-a="add-tmember" style="width:auto;white-space:nowrap;padding:10px 14px">' + (CLOUD ? '招待する' : '追加する') + '</button></div>' +
+      '<div class="sub sm" style="margin-top:5px">' + (cloud.user ? '名前を入れて招待し、「招待リンク」を相手に送ります。リンクは7日間有効で、1回だけ使えます。' : CLOUD ? '名前だけの枠として、先に割り勘に使えます。ログインすると、招待リンクで友だちを誘えます。' : '名前を入れて、メンバーを追加します。友だちと同じ旅行を見るときは、下の「友だちと共有」を使います。') + ' 支出に使われているメンバーは取り消せません。</div>' +
+      shareSection(t, s) +
+      '<button class="link" data-a="export-csv" style="padding:8px 0 0">CSVで書き出す' + (!CLOUD || cloud.premium ? '' : '（プレミアム）') + '</button>' +
+      (isOwner(t) ? (s.confirmDel ? '<div style="margin-top:8px">' + (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button></div>' : '<button class="link bad" data-a="ask-del-trip" style="padding:6px 0 0">この旅行を削除</button>')
         : (s.confirmDel ? '<div style="margin-top:8px"><button class="btn bad" data-a="leave-trip">本当にこの旅行から抜ける</button></div>' : '<button class="link bad" data-a="ask-del-trip" style="padding:6px 0 0">この旅行から抜ける</button>'));
     foot = err + '<button class="btn" data-a="save-settings">保存する</button>';
+  }
+  if (s.type === 'join-share'){
+    const jt = s.trip; ttl = '共有された旅行';
+    body = '<div class="panel" style="margin-top:12px"><div class="num">' + esc(jt.name) + '</div><div class="sub">' + fmtDate(jt.start) + ' - ' + fmtDate(jt.end) + '・メンバー ' + jt.members.length + '人・支出 ' + jt.expenses.length + '件</div></div>' +
+      '<span class="lab">あなたは誰ですか？</span><div class="chips">' + jt.members.map(m => '<button class="chip ' + (s.pick === m.id ? 'on' : '') + '" data-a="join-pick" data-v="' + m.id + '" aria-pressed="' + (s.pick === m.id) + '">' + av(jt, m.id) + esc(m.name) + '</button>').join('') + '</div>' +
+      '<label class="lab" for="j-name">リストにいない人は、名前を入力</label><input class="field" id="j-name" type="text" value="' + esc(s.name) + '" placeholder="例：みく">' +
+      '<div class="sub sm" style="margin-top:8px">参加すると、この旅行の支出と精算を、見て、記録できます。</div>';
+    foot = err + '<button class="btn" data-a="join-share-go"' + (s.busy ? ' disabled' : '') + '>参加する</button><button class="link" data-a="close-sheet">やめる</button>';
+  }
+  if (s.type === 'join-paste'){
+    ttl = '共有リンクで参加';
+    body = '<div class="sub" style="margin-top:12px">友だちから届いたリンク（またはメッセージ）を、そのまま貼り付けてください。</div>' +
+      '<label class="lab" for="p-link">共有リンク</label><textarea class="field" id="p-link" rows="3" placeholder="https://…/#t=…" style="resize:none">' + esc(s.text || '') + '</textarea>' +
+      '<div class="sub sm" style="margin-top:8px">LINEのリンクを開くと、ホーム画面のアプリとは別の場所（Safari）で開いてしまいます。アプリの中で参加したいときは、リンクをコピーして、ここに貼り付けます。</div>';
+    foot = err + '<button class="btn" data-a="join-paste-go"' + (s.busy ? ' disabled' : '') + '>確認する</button>';
   }
   if (s.type === 'upgrade'){
     ttl = 'プレミアム';
@@ -734,6 +832,8 @@ function readSheet(){
     if (g('f-amount')) s.data.amount = g('f-amount').value;
     if (g('f-title')) s.data.title = g('f-title').value;
     if (g('f-date')) s.data.date = g('f-date').value;
+  } else if (s.type === 'join-share'){
+    if (g('j-name')) s.name = g('j-name').value;
   } else if (s.type === 'settings'){
     ['name', 'start', 'end', 'budget'].forEach(k => { const el = g('s-' + k); if (el) s.data[k] = el.value; });
   }
@@ -809,6 +909,42 @@ document.addEventListener('click', e => {
     if (cloud.user && !cloud.premium && ownedCount() >= FREE_TRIP_LIMIT) ui.sheet = { type: 'upgrade', reason: 'limit', err: '' };
     else { ui.view = 'new'; ui.draft = newDraft(); }
   }
+  else if (a === 'join-paste'){ ui.sheet = { type: 'join-paste', err: '', text: '', busy: false }; }
+  else if (a === 'join-paste-go'){
+    const text = document.getElementById('p-link').value, tok = Share.parseToken(text); s.text = text;
+    if (!tok) s.err = 'リンクの形式を確認してください。「#t=」から始まる部分まで、そのまま貼り付けます。';
+    else { s.err = ''; s.busy = true; beginJoin(tok).then(sh => { if (sh) ui.sheet = sh; else if (ui.sheet && ui.sheet.type === 'join-paste') ui.sheet = null; render(); },
+      er => { if (ui.sheet && ui.sheet.type === 'join-paste'){ ui.sheet.busy = false; ui.sheet.err = Share.errText(er); render(); } }); }
+  }
+  else if (a === 'join-pick'){ readSheet(); s.pick = el.getAttribute('data-v'); s.name = ''; }
+  else if (a === 'join-share-go'){
+    readSheet(); const jt = s.trip, nm = (s.name || '').trim();
+    if (!s.pick && !nm) s.err = '「あなたは誰ですか？」で自分を選ぶか、名前を入力してください。';
+    else if (!s.pick && jt.members.some(m => m.name === nm)) s.err = '同じ名前のメンバーがいます。リストから選んでください。';
+    else if (!s.pick && jt.members.length >= 12) s.err = 'メンバーは12人までです。リストから選んでください。';
+    else {
+      let me = s.pick;
+      jt.share = { token: s.token, me: null, rev: s.rev, snap: Sync.flatten([jt]), dirty: false };   // what the server has right now
+      if (!me){ me = uid(); jt.members.push({ id: me, name: nm, pos: nextPos(jt) }); }
+      jt.share.me = me; state.trips.push(jt); ui.sheet = null; ui.view = 'trip'; ui.tripId = jt.id; ui.tab = 'exp'; ui.resetScroll = true;
+      save(); render(); flash('参加しました'); return;
+    }
+  }
+  else if (a === 'share-start'){ readSheet(); s.sharing = true; startShare(t).then(() => { if (ui.sheet) ui.sheet.sharing = false; render(); }); }
+  else if (a === 'share-copy'){
+    const url = Share.linkFor(t.share.token, location), text = '「' + t.name + '」の割り勘に参加してね。';
+    if (navigator.share){ navigator.share({ title: 'たびわり', text: text, url: url }).catch(() => {}); }
+    else { try { navigator.clipboard.writeText(text + '\n' + url).then(() => flash('コピーしました'), () => {}); } catch(err){} const el2 = document.getElementById('s-sharelink'); if (el2) el2.select(); }
+    return;
+  }
+  else if (a === 'share-stop'){ readSheet(); s.confirm = 'stop'; }
+  else if (a === 'share-erase'){ readSheet(); s.confirm = 'erase'; }
+  else if (a === 'share-stop-go'){ unshare(t); s.confirm = null; flash('この端末の共有をやめました'); }
+  else if (a === 'share-erase-go'){
+    const tk = t.share.token; s.confirm = null;
+    Share.remove(tk).then(() => { const x = state.trips.filter(q => q.share && q.share.token === tk)[0]; if (x) unshare(x); render(); flash('共有を終了しました'); }, er => flash(Share.errText(er)));
+    return;
+  }
   else if (a === 'account'){ ui.sheet = { type: 'account', err: '', confirm: false, push: null }; pushState().then(v => { if (ui.sheet && ui.sheet.type === 'account'){ ui.sheet.push = v; render(); } }); }
   else if (a === 'upgrade'){ ui.sheet = { type: 'upgrade', reason: 'plan', err: '' }; }
   else if (a === 'upgrade-go'){ s.busy = true; s.err = ''; Cloud.checkout().then(url => { location.href = url; }, er => { s.busy = false; s.err = Cloud.errText(er); render(); }); }
@@ -829,6 +965,7 @@ document.addEventListener('click', e => {
   }
   else if (a === 'export-csv'){
     readSheet();
+    if (!CLOUD){ downloadCsv(t); flash('CSVを書き出しました'); return; }   // account mode off: a free backup for everyone
     if (!cloud.user){ flash('CSVの書き出しは、ログインしたプレミアム会員が使えます。'); return; }
     if (!cloud.premium) ui.sheet = { type: 'upgrade', reason: 'csv', err: '' };
     else { downloadCsv(t); flash('CSVを書き出しました'); return; }
@@ -897,7 +1034,7 @@ document.addEventListener('click', e => {
   else if (a === 'settings'){ ui.sheet = { type: 'settings', err: '', confirmDel: false, data: { name: t.name, start: t.start, end: t.end, budget: String(t.budget) } }; }
   else if (a === 'add-tmember'){
     readSheet(); const inp = document.getElementById('s-newmember'), v = inp.value.trim();
-    if (v && !t.members.some(m => m.name === v) && t.members.length < 12){ t.members.push({ id: uid(), name: v, pending: true, pos: nextPos(t) }); save(); }
+    if (v && !t.members.some(m => m.name === v) && t.members.length < 12){ t.members.push({ id: uid(), name: v, pending: CLOUD, pos: nextPos(t) }); save(); }
   }
   else if (a === 'rm-tmember'){ readSheet(); t.members = t.members.filter(m => m.id !== id); save(); }
   else if (a === 'save-settings'){
@@ -906,7 +1043,7 @@ document.addEventListener('click', e => {
     else if (d.end < d.start) s.err = '帰着日は、出発日と同じか、それ以降にしてください。';
     else if (!(b > 0)) s.err = '予算を、1以上の数字で入力してください。';
     else {
-      if (extra && !t.members.some(m => m.name === extra) && t.members.length < 12) t.members.push({ id: uid(), name: extra, pending: true, pos: nextPos(t) });
+      if (extra && !t.members.some(m => m.name === extra) && t.members.length < 12) t.members.push({ id: uid(), name: extra, pending: CLOUD, pos: nextPos(t) });
       t.name = d.name.trim(); t.start = d.start; t.end = d.end; t.budget = b; save(); ui.sheet = null; render(); flash('保存しました'); return;
     }
   }
@@ -917,6 +1054,7 @@ document.addEventListener('click', e => {
 });
 
 render();
+bootShare();
 </script>
 </body>
 </html>
