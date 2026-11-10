@@ -46,6 +46,14 @@ try {
     assert.ok(m.gap >= 0 && m.gap < 40 && m.scrolls <= 1, 'the links are pinned just above the main button: ' + JSON.stringify(m)); }
   await p.locator('.trip').first().click(); await p.waitForSelector('[data-a=add-exp]');
 
+  // trip screen, no expenses yet: short guidance without an orphaned "す。", a button that opens the same sheet as the + button, members row with an invite button, "残りN日" label
+  await see(p, '最初の支出を記録しましょう'); await see(p, '＋ボタンから入力できます');
+  { const m = await p.evaluate(() => { const e = document.querySelector('.exp0'), lines = Array.from(e.querySelectorAll('b,span')).map(x => { const r = document.createRange(); r.selectNodeContents(x); return r.getClientRects().length; });
+      const lab = Array.from(document.querySelectorAll('.t-bot .t-label')).map(x => x.textContent); return { lines, lab, hasBtn: !!e.querySelector('[data-a=add-exp]'), mem: !!document.querySelector('.mem-row [data-a=invite]'), avs: document.querySelectorAll('.mem-row .av').length }; });
+    assert.deepStrictEqual(m.lines, [1, 1], 'each guidance line stays on one line: ' + JSON.stringify(m)); assert.ok(m.hasBtn && m.mem && m.avs === 1, JSON.stringify(m));
+    assert.ok(/^1日あたりの目安（残り\d+日）$/.test(m.lab[0]), 'label: ' + m.lab[0]); assert.ok(!(await p.textContent('.ticket')).includes('今日からの1日目安')); }
+  await p.click('.exp0 [data-a=add-exp]'); await p.waitForSelector('#f-amount'); await p.click('[data-a=close-sheet]');
+
   // the search box appears only once there are enough expenses
   for (const [a, t] of [[1000, '朝食'], [2000, '昼食'], [3000, '夕食'], [4000, 'お土産'], [5000, 'ロープウェイ']]) await add(a, t);
   assert.strictEqual(await p.locator('#q-exp').count(), 0, 'no search box for a short list');
