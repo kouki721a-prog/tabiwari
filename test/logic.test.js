@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -78,3 +78,27 @@ assert.ok(L.matchExpense(ex, '', lb), 'empty query matches everything');
 assert.ok(L.matchExpense(ex, 'ロープ', lb) && L.matchExpense(ex, '交通 けんた', lb) && L.matchExpense(ex, '３２００', lb) && L.matchExpense(ex, '2026-11', lb));
 assert.ok(!L.matchExpense(ex, 'ロープ 宿泊', lb) && !L.matchExpense(ex, '9999', lb));
 console.log('search tests passed');
+
+// CSV import: what tripCsv writes comes back; the settlement block is ignored; unknown names and bad rows are skipped, not guessed
+{
+  const catBy = { '食事': 'food', 'お土産': 'gift', '交通': 'transport' }, catName = c => ({ food: '食事', gift: 'お土産', transport: '交通' })[c] || 'その他';
+  const members = [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'けんた' }];
+  const src = { members, expenses: [
+    { id: '1', title: '夕食, 2軒目', amount: 3000, payer: 'b', cat: 'food', date: '2026-11-10', split: ['a', 'b'] },
+    { id: '2', title: '=HYPERLINK("x")', amount: 1000, payer: 'a', cat: 'gift', date: '2026-11-09', split: ['a'] },
+    { id: '3', title: '"引用"と\n改行', amount: 500, payer: 'a', cat: 'transport', date: '2026-11-09', split: ['b', 'a'] }] };
+  const csv = L.tripCsv(src, catName);
+  assert.deepStrictEqual(L.parseCsv('a,"b,c"\r\n"d""e",f\n').map(r => r.join('|')), ['a|b,c', 'd"e|f']);
+  let n = 0; const empty = { members, expenses: [] }, res = L.importCsv(empty, '\ufeff' + csv, () => 'n' + (++n), catBy);
+  assert.strictEqual(res.skipped.length, 0, JSON.stringify(res.skipped)); assert.strictEqual(res.add.length, 3);
+  const by = t => res.add.find(e => e.title === t);
+  assert.deepStrictEqual([by('夕食, 2軒目').amount, by('夕食, 2軒目').payer, by('夕食, 2軒目').split, by('夕食, 2軒目').cat, by('夕食, 2軒目').date], [3000, 'b', ['a', 'b'], 'food', '2026-11-10']);
+  assert.ok(by('=HYPERLINK("x")'), 'the leading quote added against formulas is removed'); assert.strictEqual(by('=HYPERLINK("x")').cat, 'gift');
+  assert.ok(by('"引用"と\n改行'));
+  // importing the same file again adds nothing; a partly matching trip skips only the bad rows
+  const again = L.importCsv({ members, expenses: res.add }, csv, () => 'x', catBy); assert.strictEqual(again.add.length, 0); assert.strictEqual(again.dup, 3);
+  const mixed = L.importCsv(empty, '日付,内容,カテゴリ,金額,払った人,割り勘の対象\n2026/11/3,朝食,食事,１，２００円,あおい,あおい・けんた\n2026-11-04,x,食事,100,たろう,あおい\n2026-11-05,y,食事,abc,あおい,あおい\nbad,z,食事,100,あおい,あおい\n2026-11-06,w,食事,100,あおい,あおい・たろう\n2026-11-07,q,不明,100,あおい,\n\n精算,払う人,受け取る人,金額\n,あおい,けんた,1500', () => 'm', catBy);
+  assert.deepStrictEqual(mixed.add.map(e => [e.date, e.amount, e.cat]), [['2026-11-03', 1200, 'food']]);
+  assert.strictEqual(mixed.skipped.length, 5, JSON.stringify(mixed.skipped)); assert.deepStrictEqual(mixed.skipped.map(x => x.line), [3, 4, 5, 6, 7]);
+}
+console.log('csv import tests passed');

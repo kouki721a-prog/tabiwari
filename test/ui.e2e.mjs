@@ -17,6 +17,14 @@ try {
   await p.click('[data-a=new]'); await p.fill('#d-name', '箱根'); await p.fill('#d-budget', '100000'); await p.fill('#d-me', 'あおい'); await p.click('[data-a=save-trip]');
   const add = async (amount, title) => { await p.click('[data-a=add-exp]'); await p.fill('#f-amount', String(amount)); await p.fill('#f-title', title); await p.click('[data-a=save-exp]'); await see(p, title); };
 
+  // screen-reader basics: one main landmark, a level-1 heading, a named dialog that takes focus, the current tab marked, decorative letters hidden
+  assert.strictEqual(await p.locator('main#app').count(), 1);
+  await p.click('[data-a=add-exp]'); await p.waitForSelector('.sheet');
+  assert.strictEqual(await p.getAttribute('.sheet', 'aria-labelledby'), 'sheet-title'); assert.ok((await p.textContent('#sheet-title')).length > 0);
+  assert.strictEqual(await p.evaluate(() => document.activeElement && document.activeElement.className), 'sheet', 'the dialog gets focus when it opens (without opening the keyboard)');
+  await p.click('[data-a=close-sheet]');
+  assert.strictEqual(await p.getAttribute('.tab.on', 'aria-current'), 'page');
+
   // the search box appears only once there are enough expenses
   for (const [a, t] of [[1000, '朝食'], [2000, '昼食'], [3000, '夕食'], [4000, 'お土産'], [5000, 'ロープウェイ']]) await add(a, t);
   assert.strictEqual(await p.locator('#q-exp').count(), 0, 'no search box for a short list');
@@ -39,10 +47,18 @@ try {
   assert.deepStrictEqual(await names(), before, 'restored in the same order');
   assert.strictEqual(await p.locator('[data-a=undo]').count(), 0, 'the undo button is gone after use');
 
+  // CSV import: preview first, bad rows are skipped, duplicates are not added twice, and the whole import can be undone
+  const csv = '日付,内容,カテゴリ,金額,払った人,割り勘の対象\n2026-11-02,ラーメン,食事,900,あおい,あおい\n2026-11-02,朝食,食事,1000,あおい,あおい\n2026-11-03,誰か,食事,500,たろう,あおい\n';
+  await p.click('[data-a=settings]'); await p.setInputFiles('#csv-file', { name: 'trip.csv', mimeType: 'text/csv', buffer: Buffer.from(csv, 'utf8') });
+  await see(p, 'CSVを取り込む'); await see(p, '追加する支出：'); await see(p, '2件を取り込む'); await see(p, '4行目'); await see(p, '「たろう」は、この旅行のメンバーにいません');
+  await p.click('[data-a=csv-import-go]'); await see(p, '2件を取り込みました'); await see(p, 'ラーメン'); assert.strictEqual((await names()).length, 8);
+  await p.click('[data-a=undo]'); await see(p, '取り込みを取り消しました'); assert.deepStrictEqual(await names(), before);
+
   // undo after deleting a whole trip
   await p.click('[data-a=settings]'); await p.click('[data-a=ask-del-trip]'); await p.click('[data-a=del-trip]');
   await see(p, '旅行を削除しました'); await see(p, '最初の旅行をつくりましょう');
   await p.click('[data-a=undo]'); await see(p, '元に戻しました'); await see(p, '箱根');
+  assert.strictEqual(await p.locator('h1').count(), 1, 'the home page has one level-1 heading'); assert.ok(/箱根/.test(await p.textContent('.trip .sr') + await p.textContent('.trip')) && /メンバー：あおい/.test(await p.textContent('.trip .sr')));
   await p.click('.trip'); await see(p, '夕食');
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);

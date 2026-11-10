@@ -16,7 +16,7 @@
 /* Layout idea: one column phone app. A navy boarding-pass card shows what is left; amber is the single action colour; bottom tab bar. */
 :root{
   --paper:#eef2f7; --card:#ffffff; --ink:#0e2238; --sub:#5b6b80; --line:#dde4ee; --soft:#e6ecf5;
-  --navy:#0f2742; --sun:#ffc83d; --sun-ink:#2a1d00; --good:#17895c; --bad:#d6403a; --focus:#2f6fed;
+  --navy:#0f2742; --sun:#ffc83d; --sun-ink:#2a1d00; --good:#17895c; --bad:#c2332d; --focus:#2f6fed;
   --tbs:85%; --tbl:92%; --tfs:55%; --tfl:30%;
   --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
   color-scheme:light;
@@ -50,6 +50,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 
 /* header */
 .brand{font-size:30px;font-weight:700;letter-spacing:.02em;margin:6px 0 2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #app.fit{height:100%;overflow:hidden;display:flex;flex-direction:column;padding-bottom:0}
 #app.fit>*{flex:none}
 #app.fit>.sp{display:block;flex:10 1 0;min-height:6px;max-height:24px}
@@ -174,6 +175,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 
 /* sheet */
 .sheet-bg{position:fixed;inset:0;background:rgba(5,12,22,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet:focus{outline:none}
 .sheet{background:var(--paper);width:100%;max-width:520px;max-height:97%;display:flex;flex-direction:column;border-radius:26px 26px 0 0;padding:16px 16px 0;overflow:hidden}
 .sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:6px}
 .sheet-foot{flex:none;padding:8px 0 calc(env(safe-area-inset-bottom) + 14px)}
@@ -212,7 +214,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
 </style>
 </head>
 <body>
-<div id="app"></div>
+<main id="app"></main>
 <script src="config.js"></script>
 <script src="sync.js"></script>
 <script src="share.js"></script>
@@ -291,6 +293,53 @@ function tripCsv(trip, catName){
   rows.push([], ['精算', '払う人', '受け取る人', '金額']);
   settle(calcBalances(trip).net).forEach(function(p){ rows.push(['', nm(p.from), nm(p.to), p.amount]); });
   return rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+}
+/* CSV import (the file tripCsv writes, or anything shaped like it): 日付, 内容, カテゴリ, 金額, 払った人, 割り勘の対象. Stops at the first blank row (the settlement block follows it). */
+function parseCsv(text){
+  var rows = [], row = [], cell = '', q = false, i = 0, n;
+  text = String(text).replace(/^\ufeff/, '');
+  for (; i < text.length; i++){
+    var c = text[i];
+    if (q){ if (c === '"'){ if (text[i + 1] === '"'){ cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true;
+    else if (c === ','){ row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r'){ if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); cell = ''; rows.push(row); row = []; }
+    else cell += c;
+  }
+  if (cell !== '' || row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+/* -> { add: [expense], skipped: [{ line, why }], dup: number }. `catByLabel` maps the category names ("食事") to keys. */
+function importCsv(trip, text, newId, catByLabel){
+  var rows = parseCsv(text), add = [], skipped = [], dup = 0, byName = {};
+  trip.members.forEach(function(m){ byName[m.name] = m.id; });
+  var seen = {}, key = function(d, t, a, p){ return [d, t, a, p].join('|'); };
+  trip.expenses.forEach(function(e){ seen[key(e.date, e.title, e.amount, e.payer)] = 1; });
+  var room = Math.max(0, 2000 - trip.expenses.length);
+  for (var r = 0; r < rows.length; r++){
+    var c = rows[r].map(function(x){ return x.trim(); });
+    if (c.every(function(x){ return x === ''; })) break;
+    if (r === 0 && c[0] === '日付') continue;
+    var line = r + 1, date = c[0].replace(/\//g, '-').replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
+    var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(date);
+    if (m) date = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+    var amount = parseYen(c[3] || '');
+    var title = (c[1] || '').replace(/^'(?=[=+\-@\t\r])/, '').slice(0, 100);
+    if (!m || isNaN(new Date(date).getTime())){ skipped.push({ line: line, why: '日付が読めません' }); continue; }
+    if (!(amount >= 1 && amount <= 1e9)){ skipped.push({ line: line, why: '金額が読めません' }); continue; }
+    var payer = byName[c[4]];
+    if (!payer){ skipped.push({ line: line, why: '「' + (c[4] || '') + '」は、この旅行のメンバーにいません' }); continue; }
+    var names = (c[5] || '').split(/[・,、\/]/).map(function(x){ return x.trim(); }).filter(Boolean), split = [], bad = null;
+    names.forEach(function(nm){ if (byName[nm]){ if (split.indexOf(byName[nm]) < 0) split.push(byName[nm]); } else bad = nm; });
+    if (bad){ skipped.push({ line: line, why: '「' + bad + '」は、この旅行のメンバーにいません' }); continue; }
+    if (!split.length){ skipped.push({ line: line, why: '割り勘の対象がありません' }); continue; }
+    var k = key(date, title, amount, payer);
+    if (seen[k]){ dup++; continue; }
+    if (add.length >= room){ skipped.push({ line: line, why: '1つの旅行に記録できるのは、2,000件までです' }); continue; }
+    seen[k] = 1;
+    add.push({ id: newId(), title: title, amount: amount, payer: payer, cat: (catByLabel && catByLabel[c[2]]) || 'other', date: date, split: split });
+  }
+  return { add: add, skipped: skipped, dup: dup };
 }
 /* The demo trip older versions put on first launch. True only while it is exactly as it was installed. */
 function isUntouchedSample(t){
@@ -390,8 +439,8 @@ const pill = st => '<span class="pill ' + st[1] + '">' + st[0] + '</span>';
 const midx = (t, id) => Math.max(0, t.members.findIndex(m => m.id === id));
 const nameOf = (t, id) => { const m = t.members.filter(x => x.id === id)[0]; return m ? m.name : '(削除済み)'; };
 const total = t => t.expenses.reduce((s, e) => s + e.amount, 0);
-function av(t, id){ const nm = nameOf(t, id), mm = t.members.filter(x => x.id === id)[0]; return '<span class="av" style="--h:' + HUES[midx(t, id) % HUES.length] + '">' + esc(Array.from(nm)[0] || '?') + '</span>'; }
-function tag(c){ return '<span class="tag" style="--h:' + c[3] + '">' + c[1] + '</span>'; }
+function av(t, id){ const nm = nameOf(t, id), mm = t.members.filter(x => x.id === id)[0]; return '<span class="av" aria-hidden="true" style="--h:' + HUES[midx(t, id) % HUES.length] + '">' + esc(Array.from(nm)[0] || '?') + '</span>'; }
+function tag(c){ return '<span class="tag" aria-hidden="true" style="--h:' + c[3] + '">' + c[1] + '</span>'; }
 
 /* ---- install guidance (home screen) ---- */
 let deferredInstall = null;
@@ -603,12 +652,14 @@ function render(){
   const nl = document.querySelector('.scroll'); if (nl) nl.scrollTop = keepList;
   const sh = document.querySelector('.sheet-body');
   if (sh) sh.scrollTop = keep;
+  if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
+  sheetWasOpen = !!ui.sheet;
 }
-let toastN = 0;
+let sheetWasOpen = false, toastN = 0;
 function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
 function viewHome(){
-  let h = '<div class="brand">たびわり</div><div class="sub">旅行のお金を、みんなで見える化</div>' + installBanner() + lineCard();
+  let h = '<h1 class="brand">たびわり</h1><div class="sub">旅行のお金を、みんなで見える化</div>' + installBanner() + lineCard();
   if (!state.trips.length){
     h += '<div class="empty"><b>最初の旅行をつくりましょう</b>予算を決めて、支出を記録すると、割り勘が自動で計算されます。</div>';
   } else {
@@ -617,9 +668,9 @@ function viewHome(){
       const sp = total(t), left = t.budget - sp, pct = Math.min(100, Math.round(sp / t.budget * 100));
       h += '<button class="trip" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
         '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + '</div>' +
-        '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '</div>' +
+        '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
         '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>' +
-        '<div class="bar ' + (left < 0 ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div></button>';
+        '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="予算の ' + pct + '%を使用"><i style="width:' + pct + '%"></i></div></button>';
     });
   }
   h += legalLinks();
@@ -676,7 +727,7 @@ function viewTrip(){
     '<div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
   if (ui.tab === 'exp') h += '<i class="sp"></i>' + usageBar(t);
   h += '<i class="sp"></i><div class="scroll">' + (ui.tab === 'exp' ? tabExp(t) : ui.tab === 'settle' ? tabSettle(t) : tabSave(t)) + '</div>';
-  const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '">' + icon(ic) + lb + '</button>';
+  const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
   return h + '<nav class="nav"><div class="nav-in">' + tb('exp', 'list', '記録') + tb('settle', 'swap', '精算') +
     '<button class="plus" data-a="add-exp" aria-label="支出を追加">' + icon('plus', 28) + '</button>' + tb('save', 'coin', '積立') +
     '<button class="tab" data-a="settings" aria-label="設定">' + icon('sliders') + '設定</button></div></nav>';
@@ -783,8 +834,9 @@ function viewSheet(){
       '<label class="lab" for="s-budget">全体の予算（円）</label><input class="field" id="s-budget" type="text" inputmode="numeric" value="' + esc(d.budget) + '">' +
       '<span class="lab">メンバー</span>' + memberChips(t, used) +
       shareSection(t, s) +
-      '<div class="row" style="justify-content:center;gap:22px;margin-top:2px"><button class="link" data-a="export-csv" style="width:auto;padding:8px 0">CSVで書き出す</button>' +
-      (s.confirmDel ? '' : '<button class="link bad" data-a="ask-del-trip" style="width:auto;padding:8px 0">この旅行を削除</button>') + '</div>' +
+      '<div class="row" style="justify-content:center;gap:14px;margin-top:2px"><button class="link" data-a="export-csv" style="width:auto;padding:8px 0">CSV書き出し</button>' +
+      '<button class="link" data-a="import-csv" style="width:auto;padding:8px 0">CSV取り込み</button><input type="file" id="csv-file" accept=".csv,text/csv,text/plain" hidden>' +
+      (s.confirmDel ? '' : '<button class="link bad" data-a="ask-del-trip" style="width:auto;padding:8px 0">旅行を削除</button>') + '</div>' +
       (s.confirmDel ? '<div style="margin-top:4px">' + (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button>' + '</div>' : '');
     foot = err + '<button class="btn" data-a="save-settings">保存する</button>';
   }
@@ -818,6 +870,13 @@ function viewSheet(){
       '<div class="sub sm" style="margin-top:8px">参加すると、この旅行の支出と精算を、見て、記録できます。</div>';
     foot = err + '<button class="btn" data-a="join-share-go"' + (s.busy ? ' disabled' : '') + '>参加する</button><button class="link" data-a="close-sheet">やめる</button>';
   }
+  if (s.type === 'csv-import'){
+    const r = s.res; ttl = 'CSVを取り込む';
+    body = '<div class="panel" style="margin-top:12px"><b>' + esc(s.file) + '</b><div class="sub" style="margin-top:4px">追加する支出：<b>' + r.add.length + '件</b>' + (r.add.length ? '（合計 ' + yen(r.add.reduce((n, e) => n + e.amount, 0)) + '）' : '') + (r.dup ? '<br>すでにある支出（同じ日・内容・金額・払った人）：' + r.dup + '件は、飛ばします' : '') + (r.skipped.length ? '<br>取り込めない行：' + r.skipped.length + '件' : '') + '</div></div>' +
+      (r.skipped.length ? '<div class="sub sm" style="margin-top:10px">取り込めない行は、飛ばします。</div><ul class="sub sm" style="margin:4px 0 0;padding-left:20px">' + r.skipped.slice(0, 5).map(x => '<li>' + x.line + '行目：' + esc(x.why) + '</li>').join('') + (r.skipped.length > 5 ? '<li>ほか ' + (r.skipped.length - 5) + '件</li>' : '') + '</ul>' : '') +
+      (!r.add.length ? '<div class="sub" style="margin-top:12px">追加できる支出が、ありませんでした。「日付, 内容, カテゴリ, 金額, 払った人, 割り勘の対象」の順で、1行に1件ずつ書いてください。名前は、この旅行のメンバーと同じにします。</div>' : '<div class="sub sm" style="margin-top:10px">取り込んだあとは、「元に戻す」を押すと、すべて取り消せます。</div>');
+    foot = err + (r.add.length ? '<button class="btn" data-a="csv-import-go">' + r.add.length + '件を取り込む</button>' : '') + '<button class="link" data-a="close-sheet">やめる</button>';
+  }
   if (s.type === 'join-paste'){
     ttl = '共有リンクで参加';
     body = '<div class="sub" style="margin-top:12px">友だちから届いたリンク（またはメッセージ）を、そのまま貼り付けてください。</div>' +
@@ -825,7 +884,7 @@ function viewSheet(){
       '<div class="sub sm" style="margin-top:8px">LINEのリンクを開くと、ホーム画面のアプリとは別の場所（Safari）で開いてしまいます。アプリの中で参加したいときは、リンクをコピーして、ここに貼り付けます。</div>';
     foot = err + '<button class="btn" data-a="join-paste-go"' + (s.busy ? ' disabled' : '') + '>確認する</button>';
   }
-  return '<div class="sheet-bg" data-a="bg"><div class="sheet" role="dialog" aria-modal="true"><div class="row between"><h2>' + ttl + '</h2><button class="iconbtn" data-a="close-sheet" aria-label="閉じる">' + icon('close') + '</button></div>' +
+  return '<div class="sheet-bg" data-a="bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1"><div class="row between"><h2 id="sheet-title">' + ttl + '</h2><button class="iconbtn" data-a="close-sheet" aria-label="閉じる">' + icon('close') + '</button></div>' +
     '<div class="sheet-body">' + body + '</div><div class="sheet-foot">' + foot + '</div></div></div>';
 }
 function splitHint(d){
@@ -859,6 +918,17 @@ document.addEventListener('input', e => {
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
   if (e.target.id === 'f-amount' && ui.sheet){ ui.sheet.data.amount = e.target.value; document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); }
+});
+
+document.addEventListener('change', e => {
+  if (e.target.id !== 'csv-file' || !e.target.files || !e.target.files[0]) return;
+  const f = e.target.files[0], t = trip(); if (!t) return;
+  if (f.size > 1024 * 1024){ flash('ファイルが大きすぎます（1MBまで）。'); return; }
+  f.arrayBuffer().then(buf => {
+    let text; try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch(er){ try { text = new TextDecoder('shift_jis').decode(buf); } catch(er2){ text = ''; } }   // Excel in Japan often saves Shift_JIS
+    const byLabel = {}; CATS.forEach(c => { byLabel[c[2]] = c[0]; });
+    ui.sheet = { type: 'csv-import', err: '', file: f.name, res: importCsv(t, text, uid, byLabel) }; render();
+  }, () => flash('ファイルを読み込めませんでした。'));
 });
 
 document.addEventListener('click', e => {
@@ -943,6 +1013,13 @@ document.addEventListener('click', e => {
   else if (a === 'share-erase-go'){
     const tk = t.share.token; s.confirm = null;
     Share.remove(tk).then(() => { const x = state.trips.filter(q => q.share && q.share.token === tk)[0]; if (x) unshare(x); render(); flash('共有を終了しました'); }, er => flash(Share.errText(er)));
+    return;
+  }
+  else if (a === 'import-csv'){ readSheet(); const f = document.getElementById('csv-file'); if (f){ f.value = ''; f.click(); } return; }
+  else if (a === 'csv-import-go'){
+    const add = s.res.add, tid = t.id, n = add.length, ids = {}; add.forEach(e => { ids[e.id] = 1; });
+    t.expenses = t.expenses.concat(add); save(); ui.sheet = null; ui.tab = 'exp'; render();
+    flash(n + '件を取り込みました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(e => !ids[e.id]); save(); render(); flash('取り込みを取り消しました'); });
     return;
   }
   else if (a === 'export-csv'){
