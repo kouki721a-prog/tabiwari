@@ -100,6 +100,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .ic-inline{display:inline-block;vertical-align:-3px}
 .install .x{width:32px;height:32px;display:grid;place-items:center;color:var(--sub);flex:none}
 .empty{text-align:center;padding:34px 12px;color:var(--sub)}
+.exp0{padding:6px 12px 0;white-space:nowrap}.exp0 b{display:block;font-size:16px;margin-bottom:2px}.exp0 span{display:block;font-size:14px}.exp0 .btn{width:min(100%,280px);margin:16px auto 0;padding:13px 18px;font-size:15px}
+.mem-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+.mem-row .btn.sm{width:auto;flex:none;padding:7px 14px;font-size:14px;border-radius:12px}
 .home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
 .home0>*{flex:none}
 .home0-intro{text-align:center;color:var(--sub);font-size:min(14px, calc((100vw - 36px) / 27.5));line-height:1.6;padding:18px 0 16px;white-space:nowrap}
@@ -140,7 +143,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .t-perf::before,.t-perf::after{content:"";position:absolute;top:-13px;width:24px;height:24px;border-radius:50%;background:var(--paper)}
 .t-perf::before{left:-30px}
 .t-perf::after{right:-30px}
-.t-bot{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:10px 20px 12px}
+.t-bot{display:grid;grid-template-columns:auto 1fr;gap:16px;padding:10px 20px 12px}
+.t-bot .t-label{white-space:nowrap}
 .t-bot b{display:block;font-size:18px;font-weight:700}
 .t-bot .warn{color:#ff9a92}
 
@@ -839,7 +843,7 @@ function viewTrip(){
   if (st[0] === '旅行中'){
     const dl = dayDiff(today, t.end) + 1, per = Math.max(0, Math.floor(left / dl));
     const ts = t.expenses.filter(e => e.date === today).reduce((s, e) => s + e.amount, 0);
-    a = ['今日からの1日目安', per]; b = ['今日使った額', ts]; bWarn = ts > per;
+    a = ['1日あたりの目安（残り' + dl + '日）', per]; b = ['今日使った額', ts]; bWarn = ts > per;
   } else if (st[0] === '準備中'){
     a = ['1日の目安', Math.floor(t.budget / (dayDiff(t.start, t.end) + 1))]; b = ['1人あたりの予算', Math.floor(t.budget / t.members.length)];
   } else {
@@ -853,6 +857,8 @@ function viewTrip(){
     '<div class="t-label" style="margin-top:8px">' + yen(sp) + ' 使用 / 予算 ' + yen(t.budget) + '</div></div>' +
     '<div class="t-perf"></div><div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div>' +
     '<div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
+  h += '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
+    '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
   if (ui.tab === 'exp') h += '<i class="sp"></i>' + usageBar(t);
   h += '<i class="sp"></i><div class="scroll">' + (ui.tab === 'exp' ? tabExp(t) : ui.tab === 'settle' ? tabSettle(t) : tabSave(t)) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
@@ -891,7 +897,7 @@ function expList(t, q){
   return h;
 }
 function tabExp(t){
-  if (!t.expenses.length) return '<div class="empty"><b>最初の支出を記録しましょう</b>中央の ＋ ボタンから、金額と払った人を入力します。</div>';
+  if (!t.expenses.length) return '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const box = t.expenses.length >= 6 ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '';
   return box + '<div id="exp-list">' + expList(t, box ? ui.q : '') + '</div>';
 }
@@ -1078,13 +1084,13 @@ document.addEventListener('click', e => {
   else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.copyText = null; ui.q = ''; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
-    ui.inviting = tr.id; render();
+    const keep = ui.view === 'trip'; ui.inviting = tr.id; render();
     (async () => {
       let url = null;
       try {
         if (!tr.share) await startShare(tr);   // makes the share link first (the trip keeps working offline until then)
-        if (tr.share){ ui.tripId = null; url = 'https://line.me/R/msg/text/?' + encodeURIComponent('「' + tr.name + '」の割り勘に参加してね。\n' + Share.linkFor(tr.share.token, location)); }
-      } finally { ui.inviting = null; ui.view = 'home'; ui.tripId = null; render(); }
+        if (tr.share){ url = 'https://line.me/R/msg/text/?' + encodeURIComponent('「' + tr.name + '」の割り勘に参加してね。\n' + Share.linkFor(tr.share.token, location)); }
+      } finally { ui.inviting = null; if (keep){ ui.view = 'trip'; ui.tripId = tr.id; } else { ui.view = 'home'; ui.tripId = null; } render(); }   // startShare gives the trip a new id
       if (url) location.href = url;   // opens LINE with the message ready to send
     })();
     return;

@@ -92,6 +92,13 @@ try {
   await A.p.click('[data-a=invite]'); const sent = decodeURIComponent((await lineReq).url().split('?')[1]);
   assert.ok(sent.includes('「招待旅行」の割り勘に参加してね。') && /#t=[A-Za-z0-9_-]{32}/.test(sent), 'the LINE message carries the trip name and the share link: ' + sent);
 
+  // the same invite button on the trip screen ("＋招待"): stays on the trip screen and opens LINE
+  await A.p.goto(base + '/'); await A.p.waitForSelector('.home1');   // the first invite left the app for LINE
+  await A.p.locator('.trip', { hasText: '招待旅行' }).click(); await A.p.waitForSelector('.mem-row');
+  const lineReq2 = A.p.waitForRequest(r => r.url().startsWith('https://line.me/R/msg/text/?'), { timeout: 12000 });
+  await A.p.click('.mem-row [data-a=invite]'); const sent2 = decodeURIComponent((await lineReq2).url().split('?')[1]);
+  assert.ok(sent2.includes('「招待旅行」') && /#t=[A-Za-z0-9_-]{32}/.test(sent2), sent2);
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('share e2e passed');
 } finally { await b.close(); srv.stop(); }
