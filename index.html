@@ -84,7 +84,14 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .bar.over>i{background:var(--bad)}
 .legal a{color:var(--sub)}
 .chip .x{width:24px;height:24px;display:grid;place-items:center;color:var(--sub);font-size:18px;line-height:1;margin-left:2px}
-.btn.lineg{background:#06c755;color:#fff;width:auto;padding:10px 14px;font-size:14px;flex:none}
+.install.col{flex-direction:column;align-items:stretch;gap:8px}
+/* LINE Login button, built to LINE's design guidelines: #06C755, white text, official icon (icons/line-login-icon.png, unmodified), 8% black divider, hover +10% / press +30% black */
+.lineg{position:relative;display:flex;align-items:stretch;width:100%;height:44px;padding:0;border-radius:6px;overflow:hidden;background:#06c755;color:#fff;font-size:16px;font-weight:700;white-space:nowrap}
+.lineg img{display:block;width:44px;height:44px;flex:none;border-right:1px solid rgba(0,0,0,.08);box-sizing:border-box}
+.lineg span{flex:1;display:flex;align-items:center;justify-content:center;padding:0 32px}
+.lineg::after{content:"";position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
+.lineg:hover::after{opacity:.1}.lineg:active::after{opacity:.3}
+.lineg:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .install{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-top:10px;font-size:13px}
 .install .btn{width:auto;padding:8px 14px;font-size:14px;flex:none}
 .install .x{width:32px;height:32px;display:grid;place-items:center;color:var(--sub);flex:none}
@@ -619,7 +626,7 @@ function legalLinks(){
 function lineCard(){
   if (!lineAcct.login) return '';
   if (lineAcct.waiting) return '<div class="install"><div class="grow">LINEでのログインを待っています。LINEの画面で、許可してください。</div><button class="btn line" data-a="line-cancel" style="font-size:14px;padding:8px 12px">やめる</button></div>';
-  if (!lineAcct.user) return '<div class="install"><div class="grow">LINEでログインすると、旅行をバックアップして、別の端末でも戻せます。</div><button class="btn lineg" data-a="line-login">LINEでログイン</button></div>';
+  if (!lineAcct.user) return '<div class="install col"><div>LINEでログインすると、旅行をバックアップして、別の端末でも戻せます。</div><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   return '';
 }
 function viewNew(){
