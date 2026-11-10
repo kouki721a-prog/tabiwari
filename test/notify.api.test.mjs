@@ -112,6 +112,15 @@ try {
   assert.ok(take(d2).some(m => m.title.includes('テスト')), 'the test notification arrives on the caller\'s device');
   assert.strictEqual(take(d1).length, 0, 'and not on anybody else\'s');
 
+  // ---- the diagnosis shows only the caller's own data, and changes nothing
+  assert.strictEqual((await j('/api/push/diagnose', { method: 'POST', body: {} })).status, 401);
+  const dg = await j('/api/push/diagnose', { cookie: c2, method: 'POST', body: {} });
+  assert.strictEqual(dg.status, 200); assert.strictEqual(dg.data.devices, 1); assert.ok(Array.isArray(dg.data.trips) && Array.isArray(dg.data.sent) && dg.data.jst.today);
+  assert.ok(dg.data.trips.every(x => x.name !== undefined || x.unreadable), JSON.stringify(dg.data.trips));
+  assert.ok(!dg.data.trips.some(x => /那須|日光|軽井沢/.test(x.name || '')), 'no trips of other accounts');
+  assert.ok(dg.data.trips.some(x => x.name === '二人目の旅' && Array.isArray(x.kinds)), JSON.stringify(dg.data.trips));
+  assert.strictEqual((await run('2026-12-05T09:40:00Z')).sent, 0, 'diagnosing sent nothing and claimed nothing new');
+
   // ---- turning it off / deleting the account stops everything
   assert.strictEqual((await j('/api/push/unsubscribe', { cookie: c1, method: 'POST', body: { endpoint: d2.endpoint } })).status, 200, 'cannot remove someone else\'s device');
   await j('/api/backup', { cookie: c2, method: 'PUT', body: { upsert: [local('R', 'ふたりの旅', '2026-12-06', '2026-12-07')] } });

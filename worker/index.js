@@ -164,7 +164,9 @@ export default {
   async scheduled(event, env) {
     await ensure(env);
     const at = event.scheduledTime || Date.now();
-    try { await runReminders(env, at); } catch (e) { console.error('reminders failed', e && e.message); }
+    let out = null, err = null;
+    try { out = await runReminders(env, at); } catch (e) { err = String(e && e.message || e).slice(0, 200); console.error('reminders failed', err); }
+    try { await env.DB.prepare("INSERT INTO meta(k, v) VALUES ('last_cron', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify({ at, out, err })).run(); } catch (e) { /* diagnosis only */ }
     if (new Date(at).getUTCHours() !== 18) return;
     const now = Date.now();
     await env.DB.prepare('DELETE FROM hits WHERE t < ?').bind(Math.floor(now / 1000) - 2 * 86400).run();

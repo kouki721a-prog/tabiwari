@@ -16,6 +16,7 @@
     backupPut: function (upsert, remove) { return call('PUT', '/api/backup', { upsert: upsert || [], remove: remove || [] }); },
     deleteAccount: function () { return call('DELETE', '/api/account'); },
     pushSubscribe: function (sub) { return call('POST', '/api/push/subscribe', sub); },
+    pushDiagnose: function () { return call('POST', '/api/push/diagnose', {}); },
     pushTest: function () { return call('POST', '/api/push/test', {}); },
     pushUnsubscribe: function (endpoint) { return call('POST', '/api/push/unsubscribe', { endpoint: endpoint }); },
     errText: function (e) {

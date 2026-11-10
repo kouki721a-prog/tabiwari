@@ -8,6 +8,7 @@
    That works even when LINE opens in a different browser context than the home-screen app (common on iPhone). */
 import { reply, sha256hex, limited, randomToken } from './util.js';
 import { seal, open } from './seal.js';
+import { reminderReport } from './reminders.js';
 import { getVapid, allowedEndpoint, validKeys, sendPush } from './push.js';
 
 export const ACCOUNT_SCHEMA = [
@@ -185,6 +186,10 @@ export async function handleAccount(req, env, url) {
       } catch (e) { out.failed++; }
     }
     return reply(out);
+  }
+  if (p === '/api/push/diagnose' && method === 'POST') {   // read-only: what the hourly job sees for this user (devices, trips, what is due, what was sent, when it last ran)
+    if (await limited(env, req, 't', 10, 600)) return reply({ error: 'rate_limited' }, 429);
+    return reply(await reminderReport(env, user.id));
   }
   if (p === '/api/push/unsubscribe' && method === 'POST') {
     let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
