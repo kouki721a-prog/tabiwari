@@ -117,6 +117,22 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .t-bot .warn{color:#ff9a92}
 
 /* lists */
+/* LINE account sheet */
+.sechd{font-size:13px;font-weight:700;color:var(--sub);margin:18px 4px 6px}
+.acc-me{display:flex;align-items:center;gap:12px;margin-top:12px;padding:4px 4px}
+.acc-me .av{width:44px;height:44px;font-size:18px}
+.acc-me .t{font-size:17px;font-weight:700}
+.item.acc{padding:12px 14px}
+.item.acc>svg,.item.acc .chev{flex:none;color:var(--sub)}
+.chev{display:grid;place-items:center;transition:transform .15s}.chev.open{transform:rotate(90deg)}
+.btn.sm{width:auto;flex:none;padding:7px 14px;font-size:14px;border-radius:12px}
+.acc-note{margin:8px 4px 0}
+.acc-foot{text-align:center;font-size:13px;color:var(--sub);margin-top:18px}
+.acc-foot a,.acc-foot .link{color:var(--sub);text-decoration:underline;font-size:13px}
+.sw{position:relative;flex:none;width:51px;height:31px;border-radius:99px;background:#b4bfcc;transition:background .15s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.sw[aria-checked=true]{background:var(--good)}.sw[aria-checked=true]::after{transform:translateX(20px)}
+.sw:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .sec{margin-top:16px}
 .sec>h2{font-size:15px;font-weight:700;margin:0 0 6px;display:flex;justify-content:space-between;align-items:baseline}
 .sec>h2 span{font-size:13px;font-weight:500;color:var(--sub)}
@@ -386,7 +402,8 @@ const IC = {
   back:'<path d="M15 5l-7 7 7 7"/>',
   close:'<path d="M6 6l12 12M18 6L6 18"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>'
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  chev:'<path d="M9 5l7 7-7 7"/>'
 };
 const icon = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>';
 
@@ -863,17 +880,21 @@ function viewSheet(){
   }
   if (s.type === 'line-account'){
     const nm = lineAcct.user ? lineAcct.user.name : ''; ttl = 'LINEアカウント';
-    body = '<div class="list" style="margin-top:12px"><div class="item slim"><span class="av" style="--h:150">' + esc(Array.from(nm)[0] || 'L') + '</span><div class="grow"><div class="sub sm">ログイン中</div><div class="t">' + esc(nm) + '</div></div></div>' +
-      '<div class="item slim"><div class="grow"><div class="sub sm">バックアップ</div><div class="t" style="font-weight:400;font-size:14px">' + (lineAcct.count == null ? '確認しています…' : lineAcct.count + '件' + (lineAcct.last ? '・' + new Date(lineAcct.last).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) + ' に保存' : '')) + '</div></div>' +
-      '<button class="btn line" data-a="bk-now" style="width:auto;padding:8px 12px;font-size:14px">今すぐ</button></div>' +
-      (s.ntf && s.ntf !== 'hidden' ? '<div class="item slim"><div class="grow"><div class="sub sm">この端末への通知</div><div class="t" style="font-weight:400;font-size:14px">' +
-        ({ 'on': '旅行の前日の夜、旅行中の記録のし忘れ、旅行の翌朝の精算を、お知らせします。', 'off': '旅行の前日の夜、旅行中の記録のし忘れ、旅行の翌朝の精算を、お知らせできます。', 'needs-install': 'ホーム画面に追加すると、通知を使えます。', 'blocked': '端末の設定で、通知を許可してください。', 'unsupported': 'この端末・ブラウザでは、通知を使えません。' }[s.ntf] || '確認しています…') + '</div></div>' +
-        (s.ntf === 'on' || s.ntf === 'off' ? '<button class="btn line" data-a="ntf-toggle" style="width:auto;padding:8px 12px;font-size:14px">' + (s.ntf === 'on' ? '止める' : '受け取る') + '</button>' : '') + '</div>' + (s.ntf === 'on' ? '<div class="item slim"><div class="grow"><div class="t" style="font-weight:400;font-size:14px">' + (s.testMsg ? esc(s.testMsg) : '今すぐ、テスト通知を1件送ります。') + '</div></div><button class="btn line" data-a="ntf-test" style="width:auto;padding:8px 12px;font-size:14px"' + (s.testing ? ' disabled' : '') + '>送る</button></div>' +
-        '<div class="item slim"><div class="grow"><div class="t" style="font-weight:400;font-size:14px">' + (s.diag ? s.diag.map(l => esc(l)).join('<br>') : '通知が届かないときに、サーバーの状態を調べます。') + '</div></div><button class="btn line" data-a="ntf-diag" style="width:auto;padding:8px 12px;font-size:14px"' + (s.diagging ? ' disabled' : '') + '>調べる</button></div>' : '') : '') + '</div>' +
-      '<button class="btn line" data-a="bk-restore" style="margin-top:10px">バックアップから戻す</button>' +
-      '<div class="sub sm" style="margin-top:8px">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを控えます（暗号化して保存）。別の端末で、同じLINEでログインして「バックアップから戻す」を押すと、旅行が戻ります。</div>' +
-      (CFG.legalReady ? '<div class="sub sm legal" style="margin-top:8px"><a href="privacy.html">プライバシーポリシー</a></div>' : '') +
-      '<button class="link" data-a="line-logout" style="margin-top:6px">ログアウト</button>' +
+    const row = (main, sub, right) => '<div class="item slim acc"><div class="grow"><div class="t">' + main + '</div>' + (sub ? '<div class="sub sm">' + sub + '</div>' : '') + '</div>' + (right || '') + '</div>';
+    const smallBtn = (a2, label, dis) => '<button class="btn line sm" data-a="' + a2 + '"' + (dis ? ' disabled' : '') + '>' + label + '</button>';
+    const saved = lineAcct.count == null ? '確認しています…' : lineAcct.count + '件' + (lineAcct.last ? '・' + new Date(lineAcct.last).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) + ' に保存' : '');
+    const ntfSub = { 'on': '旅行の前日の夜、旅行中の記録のし忘れ、翌朝の精算を、お知らせします。', 'off': '旅行の前日の夜、旅行中の記録のし忘れ、翌朝の精算を、お知らせできます。', 'needs-install': 'ホーム画面に追加すると、通知を使えます。', 'blocked': '端末の設定で、通知を許可してください。', 'unsupported': 'この端末・ブラウザでは、通知を使えません。' }[s.ntf] || '確認しています…';
+    const sw = s.ntf === 'on' || s.ntf === 'off' ? '<button class="sw" role="switch" aria-checked="' + (s.ntf === 'on') + '" aria-label="この端末に通知する" data-a="ntf-toggle"></button>' : '';
+    body = '<div class="acc-me"><span class="av" aria-hidden="true" style="--h:150">' + esc(Array.from(nm)[0] || 'L') + '</span><div class="grow"><div class="t">' + esc(nm) + '</div><div class="sub sm">LINEでログイン中</div></div></div>' +
+      '<div class="sechd">バックアップ</div><div class="list">' +
+        row('自動でバックアップ', esc(saved), smallBtn('bk-now', '今すぐ')) +
+        '<button class="item slim acc" data-a="bk-restore"><div class="grow"><div class="t">バックアップから戻す</div><div class="sub sm">別の端末に移すときや、消した旅行を戻すとき</div></div>' + icon('chev', 18) + '</button></div>' +
+      '<div class="sub sm acc-note">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを暗号化して控えます。</div>' +
+      (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('この端末に通知する', ntfSub, sw) +
+        (s.ntf === 'on' ? '<button class="item slim acc" data-a="ntf-help" aria-expanded="' + !!s.help + '"><div class="grow"><div class="t">うまく届かないとき</div></div><span class="chev' + (s.help ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
+          (s.help ? row('テスト通知を送る', s.testMsg ? esc(s.testMsg) : '今すぐ、この端末に1件送ります。', smallBtn('ntf-test', '送る', s.testing)) +
+            row('サーバーの状態を調べる', s.diag ? s.diag.map(l => esc(l)).join('<br>') : '端末の登録や、自動の判定の記録を確認します。', smallBtn('ntf-diag', '調べる', s.diagging)) : '') : '') + '</div>' : '') +
+      '<div class="acc-foot">' + (CFG.legalReady ? '<a href="privacy.html">プライバシーポリシー</a> ・ ' : '') + '<button class="link" data-a="line-logout" style="width:auto;display:inline;padding:0">ログアウト</button></div>' +
       (s.confirm ? '<div class="sub" style="margin:6px 0 8px">LINEのログイン情報と、バックアップを、サーバーから削除します。この端末の旅行は、そのまま残ります。元に戻せません。</div><button class="btn bad" data-a="line-del-go">本当にアカウントを削除する</button>' : '<button class="link bad" data-a="line-del-ask" style="padding-top:2px">アカウントを削除</button>');
     foot = err;
   }
@@ -971,6 +992,7 @@ document.addEventListener('click', e => {
     s.diagging = true; s.diag = ['調べています…']; s.err = '';
     Line.pushDiagnose().then(r => { s.diagging = false; s.diag = diagLines(r); render(); }, er => { s.diagging = false; s.diag = null; s.err = Line.errText(er); render(); });
   }
+  else if (a === 'ntf-help'){ s.help = !s.help; }
   else if (a === 'ntf-test'){
     s.testing = true; s.testMsg = '送っています…'; s.err = '';
     Line.pushTest().then(r => { s.testing = false; s.testMsg = r.sent ? '送りました。数秒以内に届かないときは、端末の通知設定を確認してください。' : '配信サービスが受け付けませんでした。もう一度お試しください。'; render(); },
