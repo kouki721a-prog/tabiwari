@@ -18,7 +18,7 @@ const root = path.join(__dirname, '..');
 
   // 1. local-only mode: no login UI, create trip + expense, nothing cloud-ish
   let { ctx, p } = await mk(false);
-  await p.goto('http://localhost:8791/'); await txt(p, 'サンプル 箱根');
+  await p.goto('http://localhost:8791/'); await txt(p, '最初の旅行をつくりましょう');
   assert.strictEqual(await p.locator('text=ログイン').count(), 0);
   await p.click('[data-a=new]'); await p.fill('#d-name', 'ローカル旅'); await p.fill('#d-budget', '30000'); await p.click('[data-a=save-trip]');
   await p.click('[data-a=add-exp]'); await p.fill('#f-amount', '500'); await p.click('[data-a=save-exp]'); await txt(p, '記録しました');
@@ -57,7 +57,7 @@ const root = path.join(__dirname, '..');
   // reload keeps the session? (fake has none) -> logout returns to local mode with the sample
   await p.click('[data-a=home]'); await p.click('[data-a=account]'); await txt(p, 'プラン'); await txt(p, '無料（旅行は3件まで）');
   assert.strictEqual(await p.locator('text=この端末への通知').count(), 0, 'push row hidden without a VAPID key');
-  await p.click('[data-a=logout]'); await txt(p, 'サンプル 箱根');
+  await p.click('[data-a=logout]'); await txt(p, '最初の旅行をつくりましょう');
   assert.strictEqual(await p.locator('text=端末の旅').count(), 0);
   await ctx.close();
 
@@ -84,7 +84,7 @@ const root = path.join(__dirname, '..');
   // account deletion: blocked message, then success
   await p.click('[data-a=account]'); await p.click('[data-a=ask-del-account]');
   await p.evaluate(() => { window.__blockDelete = true; }); await p.click('[data-a=del-account]'); await txt(p, '先に「プランの管理」から解約してください');
-  await p.evaluate(() => { window.__blockDelete = false; }); await p.click('[data-a=del-account]'); await txt(p, 'アカウントを削除しました'); await txt(p, 'サンプル 箱根');
+  await p.evaluate(() => { window.__blockDelete = false; }); await p.click('[data-a=del-account]'); await txt(p, 'アカウントを削除しました'); await txt(p, '最初の旅行をつくりましょう');
   assert.strictEqual(await p.evaluate(() => window.__deleted), 'U-bee@example.com');
   assert.strictEqual(await p.evaluate(() => Object.keys(localStorage).filter(k => k.indexOf('tabiwari.cloud.') === 0).length), 0, 'cloud cache wiped');
   await ctx.close();
