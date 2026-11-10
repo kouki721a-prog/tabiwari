@@ -4,7 +4,7 @@ const root = path.join(__dirname, '..'), out = path.join(root, 'dist');
 global.window = {}; eval(fs.readFileSync(path.join(root, 'config.js'), 'utf8'));
 
 const files = ['index.html', 'manifest.json', 'sw.js', 'config.js', 'sync.js', 'share.js', 'line.js',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/line-login-icon.png'];
 if (window.TABIWARI && window.TABIWARI.legalReady) files.push('terms.html', 'privacy.html', 'legal.css');
 
 fs.rmSync(out, { recursive: true, force: true });
