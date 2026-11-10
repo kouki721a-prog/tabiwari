@@ -524,7 +524,7 @@ const SHARE_POLL_MS = 8000;
 const shared = () => state.trips.filter(t => t.share);
 const shareBusy = {}, shareAgain = {};
 function shareSoon(){ clearTimeout(shareSoon.t); shareSoon.t = setTimeout(() => shared().forEach(t => shareSync(t)), 80); }
-function unshare(t){ delete t.share; persist(); }
+function unshare(t){ delete t.share; persist(); if (lineAcct.user) bkSoon(); }
 function applyRemote(t, r, rev){
   t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; t.expenses = r.expenses; t.paid = r.paid; t.savings = r.savings;
   t.share.rev = rev; t.share.snap = Sync.flatten([t]); persist();
@@ -561,7 +561,7 @@ async function startShare(t){
   let ok = false, why = null;
   try { const rows = Sync.flatten([t]), r = await Share.ops(token, Sync.diff(t.share.snap, rows)); t.share.snap = rows; t.share.rev = r.rev; ok = true; } catch(e){ why = e; }
   if (!ok){ t.id = oldId; ui.tripId = oldId; delete t.share; persist(); render(); flash(Share.errText(why)); return; }
-  persist(); render(); flash('共有を始めました');
+  persist(); if (lineAcct.user) bkSoon(); render(); flash('共有を始めました');
 }
 async function beginJoin(token){
   const id = await Share.sha256hex(token), have = state.trips.filter(x => x.id === id)[0];
@@ -576,7 +576,8 @@ async function captureShareHash(){
 }
 function bootShare(){
   lineInit();
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); if (!document.hidden) refreshNtfHome(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); if (!document.hidden){ refreshNtfHome(); checkRemote(); } else if (lineAcct.user) bkRun(); });
+window.addEventListener('online', () => { checkRemote(true); });
   captureShareHash();
   window.addEventListener('hashchange', captureShareHash);
   shared().forEach(t => shareSync(t));
@@ -585,7 +586,7 @@ function bootShare(){
   window.addEventListener('online', () => shared().forEach(t => shareSync(t)));
 }
 /* ---- LINE login + backup (worker/account.js). Logging in is optional; sharing by link never needs it. ---- */
-const lineAcct = { login: false, user: null, waiting: false, count: null, last: null, push: null };
+const lineAcct = { login: false, user: null, waiting: false, count: null, last: null, push: null, remoteItems: [] };
 const LINE_ATTEMPT = 'tabiwari.lineattempt', BK_SIGS = 'tabiwari.bksigs';
 const sigOf = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return str.length + ':' + h; };
 const readSigs = () => { try { return JSON.parse(lsGet(BK_SIGS)) || {}; } catch(e){ return {}; } };
@@ -618,7 +619,7 @@ async function lineInit(){
     if (m.user){ try { lineAcct.count = (await Line.backupGet()).items.length; } catch(e){} bkRun(); }
   } catch(e){ /* offline or no server: login simply is not offered */ }
   if (lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); else { lineAcct.waiting = false; }
-  render(); refreshNtfHome();
+  render(); refreshNtfHome(); checkRemote(true);
 }
 async function lineLogin(){
   try { const a = await Line.begin(); lsSet(LINE_ATTEMPT, JSON.stringify({ id: a.id, secret: a.secret, t: Date.now() })); location.href = a.url; }
@@ -672,6 +673,24 @@ function diagLines(r){
   return L;
 }
 async function ntfRefreshSheet(){ const v = await ntfState(); if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.ntf = v; render(); } }
+/* Other devices' trips: on open, on coming back to the app and when the network returns, push local changes first, then look at the backup. Trips this device does not have (and did not already decline) are offered in a card on the home screen. */
+const SEEN_KEY = 'tabiwari.remoteseen';
+const readSeen = () => { try { const a = JSON.parse(lsGet(SEEN_KEY)); return Array.isArray(a) ? a : []; } catch(e){ return []; } };
+const remoteCands = () => lineAcct.remoteItems.filter(x => !x.item.deleted && !state.trips.some(t => t.id === x.id) && !sameLocal(x) && readSeen().indexOf(x.id) < 0);
+async function checkRemote(force){
+  if (!lineAcct.user || checkRemote.busy) return;
+  if (!force && Date.now() - (checkRemote.t || 0) < 15000) return;
+  checkRemote.busy = true; checkRemote.t = Date.now();
+  try {
+    try { await bkRun(); } catch(e){}
+    const items = (await Line.backupGet()).items; lineAcct.count = items.length; lineAcct.remoteItems = items;
+    if (ui.view === 'home' && !ui.sheet) render();
+  } catch(e){ /* offline: try again next time */ } finally { checkRemote.busy = false; }
+}
+function remoteCard(){
+  const n = lineAcct.user ? remoteCands().length : 0; if (!n) return '';
+  return '<div class="install"><div class="grow"><b>別の端末の旅行が ' + n + '件あります。</b><div class="sub sm">「戻す」で、この端末に取り込みます。</div></div><button class="btn" data-a="remote-open">戻す</button><button class="x" data-a="remote-dismiss" aria-label="あとで">' + icon('close', 18) + '</button></div>';
+}
 /* at login: offer only trips that were not deleted and that this device does not already have (same id, or the same name and dates) */
 async function lineOfferRestore(){
   try { await bkRun(); } catch(e){}   // tell the backup about trips deleted while logged out first, so they are not offered again
@@ -747,7 +766,7 @@ function viewHomeEmpty(){
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">' + (isStandalone() ? 'LINEでログインすると、通知とバックアップを使えます。' : 'LINEでログインすると、旅行をバックアップできます。') + '</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   else if (lineAcct.user) line = '<div style="text-align:center"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
-  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '"><h1 class="brand">たびわり</h1><div class="home0-mid">' + installBanner() +
+  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '"><h1 class="brand">たびわり</h1><div class="home0-mid">' + remoteCard() + installBanner() +
     '<div class="home0-intro"><b>最初の旅行をつくりましょう</b>予算を決めて記録するだけ。割り勘は自動で計算します。</div>' +
     '<button class="btn" data-a="new">旅行をつくる</button>' +
     '<button class="btn line" data-a="join-paste" style="margin-top:10px">共有リンクで参加する</button>' +
@@ -756,7 +775,7 @@ function viewHomeEmpty(){
 }
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
-  let h = '<h1 class="brand">たびわり</h1>' + installBanner() + lineCard();
+  let h = '<h1 class="brand">たびわり</h1>' + remoteCard() + installBanner() + lineCard();
   const order = { '旅行中': 0, '準備中': 1, '終了': 2 };
   state.trips.slice().sort((a, b) => order[status(a)[0]] - order[status(b)[0]] || (a.start < b.start ? -1 : 1)).forEach(t => {
     const sp = total(t), left = t.budget - sp, pct = Math.min(100, Math.round(sp / t.budget * 100));
@@ -1041,6 +1060,8 @@ document.addEventListener('click', e => {
 
   if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.copyText = null; ui.q = ''; }
   else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.copyText = null; ui.q = ''; }
+  else if (a === 'remote-open'){ openRestore(remoteCands()); return; }
+  else if (a === 'remote-dismiss'){ lsSet(SEEN_KEY, JSON.stringify(readSeen().concat(remoteCands().map(x => x.id)))); }
   else if (a === 'ntf-home'){ ntfOn().then(v => { lineAcct.ntfHome = v; render(); if (v === 'on') flash('通知をオンにしました'); }, er => { flash(er && er.status ? Line.errText(er) : '通知を設定できませんでした。もう一度お試しください。'); refreshNtfHome(); }); return; }
   else if (a === 'copy-site'){ const u = location.origin + '/'; try { navigator.clipboard.writeText(u).then(() => flash('リンクをコピーしました'), () => flash(u)); } catch(err){ flash(u); } return; }
   else if (a === 'install'){ if (deferredInstall){ deferredInstall.prompt(); deferredInstall = null; } }

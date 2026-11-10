@@ -108,6 +108,20 @@ try {
   assert.ok(await f.p.locator('.item', { hasText: '消す旅' }).locator('.chk.on').count() === 1);
   await f.p.click('[data-a=close-sheet]'); assert.strictEqual(await f.p.locator('.trip', { hasText: '残す旅' }).count(), 1, 'no second copy');
 
+  // ---------- a trip made on another device shows up (card on the home screen) when this device opens or comes back to the app; "later" is remembered
+  line.setIdentity('U-sync', '同期さん');
+  const g = await device(); await g.p.goto(base + '/'); await see(g.p, 'LINEでログインすると'); await loginFlow(g); await noRestoreSheet(g.p);
+  const h = await device(); await h.p.goto(base + '/'); await see(h.p, 'LINEでログインすると'); await newTrip(h.p, '箱根'); await h.p.click('[data-a=home]'); await loginFlow(h);
+  await backupHas(h.p, it => it.some(x => x.name === '箱根'));
+  const comeBack = p => p.evaluate(() => { checkRemote.t = 0; document.dispatchEvent(new Event('visibilitychange')); });
+  await comeBack(g.p); await see(g.p, '別の端末の旅行が 1件あります');
+  await g.p.click('[data-a=remote-open]'); await see(g.p, '箱根'); await g.p.click('[data-a=bk-restore-go]'); await see(g.p, '1件を戻しました');
+  await see(g.p, '箱根'); assert.strictEqual(await g.p.locator('[data-a=remote-open]').count(), 0, 'the card goes away once the trip is here');
+  await newTrip(h.p, '草津'); await backupHas(h.p, it => it.some(x => x.name === '草津'));
+  await comeBack(g.p); await see(g.p, '別の端末の旅行が 1件あります'); await g.p.click('[data-a=remote-dismiss]');
+  assert.strictEqual(await g.p.locator('[data-a=remote-open]').count(), 0); await comeBack(g.p); await g.p.waitForTimeout(1500);
+  assert.strictEqual(await g.p.locator('[data-a=remote-open]').count(), 0, '"later" is remembered');
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('account e2e passed');
 } finally { await b.close(); srv.stop(); line.stop(); }
