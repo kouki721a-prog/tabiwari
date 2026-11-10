@@ -15,10 +15,12 @@
     backupGet: function () { return call('GET', '/api/backup'); },
     backupPut: function (upsert, remove) { return call('PUT', '/api/backup', { upsert: upsert || [], remove: remove || [] }); },
     deleteAccount: function () { return call('DELETE', '/api/account'); },
+    pushSubscribe: function (sub) { return call('POST', '/api/push/subscribe', sub); },
+    pushUnsubscribe: function (endpoint) { return call('POST', '/api/push/unsubscribe', { endpoint: endpoint }); },
     errText: function (e) {
       var s = e && e.status;
       if (s === 401) return 'ログインが切れました。もう一度、LINEでログインしてください。';
-      if (s === 413) return 'バックアップできる旅行は、100件までです。';
+      if (s === 413) return 'バックアップできる旅行は、100件まで、通知を受け取れる端末は、10台までです。';
       if (s === 429) return '短い間に、操作が多すぎます。少し待ってから、もう一度お試しください。';
       if (s === 503) return 'LINEログインは、まだ準備中です。';
       return 'ネットワークにつながりません。接続を確認して、もう一度お試しください。';

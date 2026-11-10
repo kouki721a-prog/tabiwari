@@ -6,14 +6,20 @@
 
    Login uses a polling hand-off: the app asks for an "attempt", sends the person to LINE, and keeps polling with a secret only it holds.
    That works even when LINE opens in a different browser context than the home-screen app (common on iPhone). */
-import { reply, sha256hex, limited, randomToken, b64u, unb64u } from './util.js';
+import { reply, sha256hex, limited, randomToken } from './util.js';
+import { seal, open } from './seal.js';
+import { getVapid, allowedEndpoint, validKeys } from './push.js';
 
 export const ACCOUNT_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, line_sub TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', picture TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, last_login INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id)`,
   `CREATE TABLE IF NOT EXISTS attempts (id TEXT PRIMARY KEY, secret_hash TEXT NOT NULL, nonce TEXT NOT NULL, status TEXT NOT NULL, user_id TEXT, created_at INTEGER NOT NULL)`,
-  `CREATE TABLE IF NOT EXISTS backups (user_id TEXT NOT NULL, trip_id TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, trip_id))`
+  `CREATE TABLE IF NOT EXISTS backups (user_id TEXT NOT NULL, trip_id TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, trip_id))`,
+  `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, user_id TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS push_subs_user ON push_subs(user_id)`,
+  `CREATE TABLE IF NOT EXISTS notif_log (user_id TEXT NOT NULL, trip_id TEXT NOT NULL, kind TEXT NOT NULL, day TEXT NOT NULL, t INTEGER NOT NULL, PRIMARY KEY (user_id, trip_id, kind, day))`
 ];
 
 const SESSION_SECONDS = 90 * 86400, ATTEMPT_SECONDS = 600, INACTIVE_ACCOUNT_DAYS = 400;
@@ -41,22 +47,6 @@ async function userFrom(req, env) {
   return env.DB.prepare('SELECT u.id, u.name FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?1 AND s.expires_at > ?2').bind(await sha256hex(m[1]), nowSec()).first();
 }
 
-/* ---- backup encryption: AES-GCM, key derived from AUTH_SECRET, each row bound to (user, trip) ---- */
-async function aesKey(env) {
-  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.AUTH_SECRET), 'HKDF', false, ['deriveKey']);
-  return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new TextEncoder().encode('tabiwari-backup'), info: new TextEncoder().encode('v1') }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-}
-async function seal(env, userId, tripId, obj) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(userId + '|' + tripId) }, await aesKey(env), new TextEncoder().encode(JSON.stringify(obj)));
-  return b64u(iv) + '.' + b64u(ct);
-}
-async function open(env, userId, tripId, data) {
-  const [iv, ct] = data.split('.');
-  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(iv), additionalData: new TextEncoder().encode(userId + '|' + tripId) }, await aesKey(env), unb64u(ct));
-  return JSON.parse(new TextDecoder().decode(pt));
-}
-
 function validItem(item) {
   if (!item || typeof item !== 'object' || JSON.stringify(item).length > BACKUP.itemBytes) return false;
   if (item.kind === 'shared') return typeof item.token === 'string' && TOKEN.test(item.token) && typeof item.name === 'string';
@@ -67,7 +57,7 @@ function validItem(item) {
 async function backupGet(env, user) {
   const rows = await env.DB.prepare('SELECT trip_id, data, updated_at FROM backups WHERE user_id = ? ORDER BY updated_at DESC').bind(user.id).all();
   const items = [];
-  for (const r of rows.results) { try { items.push({ id: r.trip_id, updated_at: r.updated_at, item: await open(env, user.id, r.trip_id, r.data) }); } catch (e) { /* unreadable row (e.g. AUTH_SECRET was changed): skip */ } }
+  for (const r of rows.results) { try { items.push({ id: r.trip_id, updated_at: r.updated_at, item: await open(env, user.id + '|' + r.trip_id, r.data) }); } catch (e) { /* unreadable row (e.g. AUTH_SECRET was changed): skip */ } }
   return reply({ items });
 }
 
@@ -87,7 +77,7 @@ async function backupPut(req, env, user) {
 
   const now = nowSec(), S = [];
   for (const x of up) S.push(env.DB.prepare('INSERT INTO backups(user_id,trip_id,data,updated_at) VALUES (?1,?2,?3,?4) ON CONFLICT(user_id,trip_id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at')
-    .bind(user.id, x.id, await seal(env, user.id, x.id, x.item), now));
+    .bind(user.id, x.id, await seal(env, user.id + '|' + x.id, x.item), now));
   for (const id of rm) S.push(env.DB.prepare('DELETE FROM backups WHERE user_id = ?1 AND trip_id = ?2').bind(user.id, id));
   await env.DB.batch(S);
   return reply({ ok: true, count: have.size });
@@ -124,12 +114,12 @@ async function lineCallback(url, env) {
 
 export async function handleAccount(req, env, url) {
   const p = url.pathname;
-  if (!(p === '/api/me' || p.startsWith('/api/auth/') || p === '/api/backup' || p === '/api/account')) return null;
+  if (!(p === '/api/me' || p.startsWith('/api/auth/') || p.startsWith('/api/push/') || p === '/api/backup' || p === '/api/account')) return null;
   const method = req.method;
   if (method !== 'GET' && method !== 'HEAD' && req.headers.get('Origin') !== url.origin) return reply({ error: 'origin' }, 403);   // blocks cross-site form posts
   const on = configured(env);
 
-  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name } : null }); }
+  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name } : null, push: u ? (await getVapid(env)).publicKey : null }); }
   if (!on) return reply({ error: 'not_configured' }, 503);
 
   if (p === '/api/auth/begin' && method === 'POST') {
@@ -168,8 +158,26 @@ export async function handleAccount(req, env, url) {
   if (!user) return reply({ error: 'unauthorized' }, 401);
   if (p === '/api/backup' && method === 'GET') return backupGet(env, user);
   if (p === '/api/backup' && method === 'PUT') return backupPut(req, env, user);
+  if (p === '/api/push/subscribe' && method === 'POST') {
+    let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
+    if (!b || !allowedEndpoint(b.endpoint, env) || !validKeys(b.keys)) return reply({ error: 'invalid' }, 400);
+    if (await limited(env, req, 'p', 60, 600)) return reply({ error: 'rate_limited' }, 429);
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM push_subs WHERE user_id = ?1 AND endpoint != ?2').bind(user.id, b.endpoint).first();
+    if (n.n >= 10) return reply({ error: 'limit' }, 413);
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO push_subs(endpoint, user_id, p256dh, auth, created_at) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth')   // a shared device switches owner
+        .bind(b.endpoint, user.id, b.keys.p256dh, b.keys.auth, nowSec()),
+      env.DB.prepare("INSERT INTO meta(k, v) VALUES ('origin', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(url.origin)]);
+    return reply({ ok: true });
+  }
+  if (p === '/api/push/unsubscribe' && method === 'POST') {
+    let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
+    if (!b || typeof b.endpoint !== 'string') return reply({ error: 'invalid' }, 400);
+    await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ?1 AND user_id = ?2').bind(b.endpoint, user.id).run();
+    return reply({ ok: true });
+  }
   if (p === '/api/account' && method === 'DELETE') {
-    await env.DB.batch(['backups', 'sessions', 'attempts'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)).concat(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id)));
+    await env.DB.batch(['backups', 'sessions', 'attempts', 'push_subs', 'notif_log'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)).concat(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id)));
     return reply({ ok: true }, 200, { 'Set-Cookie': cookieHeader('', req, 0) });
   }
   return reply({ error: 'not_found' }, 404);
@@ -180,6 +188,8 @@ export async function purgeAccountData(env, now) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now),
     env.DB.prepare('DELETE FROM attempts WHERE created_at < ?').bind(now - 86400),
+    env.DB.prepare('DELETE FROM notif_log WHERE t < ?').bind(now - 3 * 86400),
+    env.DB.prepare('DELETE FROM push_subs WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
     env.DB.prepare('DELETE FROM backups WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
     env.DB.prepare('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
     env.DB.prepare('DELETE FROM users WHERE last_login < ?1').bind(now - INACTIVE_ACCOUNT_DAYS * 86400)

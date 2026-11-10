@@ -1,0 +1,82 @@
+/* Hourly reminder job. For every device that turned notifications on, look at the owner's (encrypted) trip backups and send:
+     eve    the evening (from 18:00 Japan time) before the trip starts
+     daily  during the trip, from 20:00, when nothing has been logged for today yet
+     settle the morning (from 10:00) after the trip ends, if there were expenses
+   A (person, trip, kind, day) is claimed in D1 before sending, so it goes out once even if the job runs again. */
+import { sha256hex } from './util.js';
+import { open } from './seal.js';
+import { getVapid, sendPush, reminderMessage, allowedEndpoint } from './push.js';
+
+const MAX_CLAIMS = 40, MAX_SENDS = 45;   // the free plan allows ~50 outgoing requests per run; what does not fit is picked up next hour
+const ymd = d => d.toISOString().slice(0, 10);
+
+export function jstParts(nowMs) {
+  const j = new Date(nowMs + 9 * 3600 * 1000);   // shift so the UTC getters read Japan time
+  return { today: ymd(j), tomorrow: ymd(new Date(j.getTime() + 86400000)), yesterday: ymd(new Date(j.getTime() - 86400000)), hour: j.getUTCHours() };
+}
+export function dueKinds(trip, t, ex) {
+  const kinds = [];
+  if (t.hour >= 18 && trip.start === t.tomorrow) kinds.push('eve');
+  if (t.hour >= 20 && trip.start <= t.today && t.today <= trip.end && ex.onToday === 0) kinds.push('daily');
+  if (t.hour >= 10 && trip.end === t.yesterday && ex.total > 0) kinds.push('settle');
+  return kinds;
+}
+const isDay = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+export async function runReminders(env, nowMs = Date.now()) {
+  const t = jstParts(nowMs), out = { claimed: 0, sent: 0, gone: 0, failed: 0, released: 0 };
+  if (t.hour < 10) return out;
+  const DB = env.DB;
+  const subs = (await DB.prepare('SELECT endpoint, p256dh, auth, user_id FROM push_subs').all()).results;
+  if (!subs.length) return out;
+  const origin = await DB.prepare("SELECT v FROM meta WHERE k = 'origin'").first();
+  if (!origin) return out;
+  const byUser = new Map(); for (const s of subs) { if (!byUser.has(s.user_id)) byUser.set(s.user_id, []); byUser.get(s.user_id).push(s); }
+
+  // trips that are in a window where something could be due
+  const rows = (await DB.prepare('SELECT user_id, trip_id, data FROM backups WHERE user_id IN (SELECT DISTINCT user_id FROM push_subs)').all()).results;
+  const trips = [];
+  for (const r of rows) {
+    let item; try { item = await open(env, r.user_id + '|' + r.trip_id, r.data); } catch (e) { continue; }
+    const src = item.kind === 'shared' ? item : item.trip;
+    if (!src || !isDay(src.start) || !isDay(src.end) || typeof src.name !== 'string') continue;
+    if (!(src.start === t.tomorrow || (src.start <= t.today && t.today <= src.end) || src.end === t.yesterday)) continue;
+    trips.push({ userId: r.user_id, tripId: r.trip_id, name: src.name, start: src.start, end: src.end,
+      hash: item.kind === 'shared' && typeof item.token === 'string' ? await sha256hex(item.token) : null,
+      local: item.kind === 'local' ? (Array.isArray(item.trip.expenses) ? item.trip.expenses : []) : null });
+  }
+  const hashes = trips.filter(x => x.hash).map(x => x.hash), counts = {};
+  if (hashes.length) {
+    const q = await DB.prepare('SELECT trip_id, COUNT(*) AS total, SUM(spent_on = ?1) AS on_today FROM expenses WHERE trip_id IN (SELECT value FROM json_each(?2)) GROUP BY trip_id').bind(t.today, JSON.stringify(hashes)).all();
+    for (const r of q.results) counts[r.trip_id] = { total: r.total, onToday: r.on_today || 0 };
+  }
+  const due = [];
+  for (const x of trips) {
+    const ex = x.hash ? (counts[x.hash] || { total: 0, onToday: 0 }) : { total: x.local.length, onToday: x.local.filter(e => e && e.date === t.today).length };
+    for (const kind of dueKinds(x, t, ex)) due.push({ u: x.userId, t: x.tripId, k: kind, name: x.name });
+  }
+  if (!due.length) return out;
+
+  const claimed = (await DB.prepare('INSERT OR IGNORE INTO notif_log(user_id, trip_id, kind, day, t) SELECT json_extract(value, \'$.u\'), json_extract(value, \'$.t\'), json_extract(value, \'$.k\'), ?1, ?2 FROM json_each(?3) RETURNING user_id, trip_id, kind')
+    .bind(t.today, Math.floor(nowMs / 1000), JSON.stringify(due.slice(0, MAX_CLAIMS))).all()).results;
+  out.claimed = claimed.length;
+  const vapid = await getVapid(env);
+  const release = c => DB.prepare('DELETE FROM notif_log WHERE user_id = ?1 AND trip_id = ?2 AND kind = ?3 AND day = ?4').bind(c.user_id, c.trip_id, c.kind, t.today).run();
+  let budget = MAX_SENDS;
+  for (const c of claimed) {
+    const mine = (byUser.get(c.user_id) || []).filter(s => allowedEndpoint(s.endpoint, env)), name = due.find(d => d.u === c.user_id && d.t === c.trip_id && d.k === c.kind).name;
+    if (!mine.length || mine.length > budget) { await release(c); out.released++; continue; }
+    const msg = reminderMessage(c.kind, name); let delivered = false, transient = false;
+    for (const s of mine) {
+      budget--;
+      try {
+        const st = await sendPush(env, vapid, origin.v, s, { ...msg, url: './', tag: c.kind + '-' + c.trip_id });
+        if (st >= 200 && st < 300) { delivered = true; out.sent++; }
+        else if (st === 404 || st === 410) { out.gone++; await DB.prepare('DELETE FROM push_subs WHERE endpoint = ?').bind(s.endpoint).run(); }
+        else { transient = true; out.failed++; }
+      } catch (e) { transient = true; out.failed++; }
+    }
+    if (!delivered && transient) { await release(c); out.released++; }   // try again next hour
+  }
+  return out;
+}
