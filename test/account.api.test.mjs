@@ -71,6 +71,13 @@ try {
   assert.strictEqual((await j('/api/backup', { cookie: c1, method: 'PUT', body: { upsert: [edited], remove: [shared.id] } })).status, 200);
   got = (await j('/api/backup', { cookie: c1 })).data.items;
   assert.deepStrictEqual([got.length, got[0].item.trip.name], [1, 'ローカル旅 改']);
+  // a trip deleted on the device is marked, not removed: the content stays (so it can still be restored), and it is flagged
+  assert.strictEqual((await j('/api/backup', { cookie: c1, method: 'PUT', body: { upsert: [], remove: [], deleted: [local.id, 'does-not-exist'] } })).status, 200);
+  got = (await j('/api/backup', { cookie: c1 })).data.items;
+  assert.deepStrictEqual([got.length, got[0].item.deleted, got[0].item.trip.name], [1, true, 'ローカル旅 改'], 'marked as deleted, content kept');
+  assert.strictEqual((await j('/api/backup', { cookie: c1, method: 'PUT', body: { upsert: [edited] } })).status, 200);
+  assert.strictEqual((await j('/api/backup', { cookie: c1 })).data.items[0].item.deleted, undefined, 'a normal backup of the trip clears the mark');
+  assert.strictEqual((await j('/api/backup', { cookie: c1, method: 'PUT', body: { deleted: ['x y'] } })).status, 400, 'bad ids are refused');
   // validation
   for (const bad of [{ upsert: [{ id: 'x y', item: local.item }] }, { upsert: [{ id: 'ok', item: { kind: 'shared', token: 'short', name: 'x' } }] }, { upsert: [{ id: 'ok', item: { kind: 'other' } }] },
     { upsert: [{ id: 'ok', item: { kind: 'local', trip: { name: 'x', members: 'no', expenses: [] } } }] }, {}, { upsert: Array.from({ length: 21 }, (_, i) => ({ id: 'i' + i, item: local.item })) },

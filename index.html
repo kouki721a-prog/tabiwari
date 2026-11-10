@@ -533,10 +533,13 @@ function bkItem(t){
   const copy = JSON.parse(JSON.stringify(t)); delete copy.share; return { kind: 'local', trip: copy };
 }
 function bkSoon(){ clearTimeout(bkSoon.t); bkSoon.t = setTimeout(() => bkRun(), 4000); }
-async function bkRun(){
+function bkRun(){ if (!bkRun.p) bkRun.p = bkRunInner().finally(() => { bkRun.p = null; }); return bkRun.p; }
+async function bkRunInner(){
   if (!lineAcct.user || bkRun.busy) return; bkRun.busy = true;
   try {
     const sigs = readSigs(), todo = [];
+    const gone = readGone().filter(id => !state.trips.some(t => t.id === id));
+    for (let i = 0; i < gone.length; i += 20){ const part = gone.slice(i, i + 20); await Line.backupPut([], [], part); lsSet(GONE_KEY, JSON.stringify(readGone().filter(id => part.indexOf(id) < 0))); }
     state.trips.forEach(t => { const item = bkItem(t), sg = sigOf(JSON.stringify(item)); if (sigs[t.id] !== sg) todo.push({ id: t.id, item: item, sg: sg }); });
     for (let i = 0; i < todo.length; i += 20){
       const part = todo.slice(i, i + 20), r = await Line.backupPut(part.map(x => ({ id: x.id, item: x.item })));
@@ -603,18 +606,24 @@ function diagLines(r){
   const c = r.lastCron;
   L.push(!c ? '自動の判定：まだ一度も動いていません' : '自動の判定：' + jstText(c.at) + ' に実行' + (c.err ? '（エラー：' + c.err + '）' : c.out ? '（送信 ' + c.out.sent + '・失敗 ' + c.out.failed + '・対象 ' + c.out.claimed + '）' : ''));
   if (!r.trips.length) L.push('バックアップされた旅行：なし');
-  r.trips.forEach(x => L.push(x.unreadable ? '読めない旅行があります' : '「' + x.name + '」' + x.start.slice(5).replace('-', '/') + '〜' + x.end.slice(5).replace('-', '/') + ' → ' + (x.kinds.length ? x.kinds.map(k => KIND_JA[k]).join('・') + 'が対象' : '今は対象ではありません')));
+  r.trips.forEach(x => L.push(x.unreadable ? '読めない旅行があります' : '「' + x.name + '」' + x.start.slice(5).replace('-', '/') + '〜' + x.end.slice(5).replace('-', '/') + ' → ' + (x.deleted ? '削除済み（通知しません）' : x.kinds.length ? x.kinds.map(k => KIND_JA[k]).join('・') + 'が対象' : '今は対象ではありません')));
   L.push(r.sent.length ? '送った記録：' + r.sent.map(x => (KIND_JA[x.kind] || x.kind) + '（' + x.day.slice(5).replace('-', '/') + '）').join('、') : '送った記録：なし');
   return L;
 }
 async function ntfRefreshSheet(){ const v = await ntfState(); if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.ntf = v; render(); } }
+/* at login: offer only trips that were not deleted and that this device does not already have (same id, or the same name and dates) */
 async function lineOfferRestore(){
-  try { const items = (await Line.backupGet()).items; if (items.some(x => !state.trips.some(t => t.id === x.id))) openRestore(items); } catch(e){}
+  try { await bkRun(); } catch(e){}   // tell the backup about trips deleted while logged out first, so they are not offered again
+  try { const items = (await Line.backupGet()).items; if (items.some(x => !x.item.deleted && !state.trips.some(t => t.id === x.id) && !sameLocal(x))) openRestore(items); } catch(e){}
 }
 function openRestore(items){
   const missing = items.filter(x => !state.trips.some(t => t.id === x.id));
-  ui.sheet = { type: 'line-restore', items: missing, pick: missing.map(x => x.id), err: '', busy: false }; render();
+  missing.forEach(x => { x.dup = sameLocal(x); });
+  ui.sheet = { type: 'line-restore', items: missing, pick: missing.filter(x => !x.item.deleted && !x.dup).map(x => x.id), err: '', busy: false }; render();
 }
+const GONE_KEY = 'tabiwari.gone';   // trips deleted on this device that the backup has not been told about yet
+const readGone = () => { try { const a = JSON.parse(lsGet(GONE_KEY)); return Array.isArray(a) ? a : []; } catch(e){ return []; } };
+const sameLocal = x => { const l = bkLabel(x); return state.trips.some(t => t.name === l.name && t.start === l.start && t.end === l.end); };
 const bkLabel = x => x.item.kind === 'shared' ? { name: x.item.name, start: x.item.start, end: x.item.end, shared: true } : { name: x.item.trip.name, start: x.item.trip.start, end: x.item.trip.end, shared: false };
 async function restoreTrips(items){
   let ok = 0, skipped = 0;
@@ -629,6 +638,7 @@ async function restoreTrips(items){
       } catch(e){ skipped++; }
     }
   }
+  const sg = readSigs(); items.forEach(x => { delete sg[x.id]; }); lsSet(BK_SIGS, JSON.stringify(sg));   // so the next backup replaces the "deleted" copy
   return { ok, skipped };
 }
 /* members as small tags (they join themselves from the share link; an unused person can be removed with ×) */
@@ -871,7 +881,7 @@ function viewSheet(){
     ttl = 'バックアップから戻す';
     body = s.loading ? '<div class="sub" style="margin-top:14px">読み込んでいます…</div>' : !s.items.length ? '<div class="empty" style="padding:24px 8px"><b>戻すものはありません</b>この端末にない旅行は、バックアップに入っていません。</div>' :
       '<div class="sub" style="margin-top:12px">この端末にない旅行です。戻したいものを選んでください。</div><div class="list" style="margin-top:8px">' + s.items.map(x => { const l = bkLabel(x), on = s.pick.indexOf(x.id) >= 0;
-        return '<button class="item" data-a="bk-pick" data-id="' + esc(x.id) + '" aria-pressed="' + on + '"><span class="chk ' + (on ? 'on' : '') + '">' + icon('check', 18) + '</span><div class="grow"><div class="t">' + esc(l.name) + '</div><div class="sub">' + fmtDate(l.start) + ' - ' + fmtDate(l.end) + (l.shared ? '・共有中' : '') + '</div></div></button>'; }).join('') + '</div>';
+        return '<button class="item" data-a="bk-pick" data-id="' + esc(x.id) + '" aria-pressed="' + on + '"><span class="chk ' + (on ? 'on' : '') + '">' + icon('check', 18) + '</span><div class="grow"><div class="t">' + esc(l.name) + '</div><div class="sub">' + fmtDate(l.start) + ' - ' + fmtDate(l.end) + (l.shared ? '・共有中' : '') + (x.item.deleted ? '・削除した旅行' : '') + (x.dup ? '・同じ旅行が、この端末にあります' : '') + '</div></div></button>'; }).join('') + '</div>';
     foot = err + (s.items && s.items.length ? '<button class="btn" data-a="bk-restore-go"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '戻しています…' : '選んだ旅行を戻す') + '</button>' + (s.delAsk ? '<div class="sub" style="margin:8px 0">選んだ ' + s.pick.length + '件を、バックアップから削除します（この端末や、共有している旅行には、影響しません）。元に戻せません。</div><button class="btn bad" data-a="bk-del-yes">本当に削除する</button><button class="link" data-a="bk-del-no">やめる</button>' : '<button class="link bad" data-a="bk-del-go">選んだものを、バックアップから削除</button>') : '<button class="link" data-a="close-sheet">閉じる</button>');
   }
   if (s.type === 'join-share'){
@@ -1124,8 +1134,8 @@ document.addEventListener('click', e => {
   else if (a === 'ask-del-trip'){ readSheet(); s.confirmDel = true; }
   else if (a === 'del-trip'){
     const ix = state.trips.findIndex(x => x.id === t.id), gone = t;
-    state.trips = state.trips.filter(x => x.id !== t.id); save(); ui.sheet = null; ui.view = 'home'; ui.tripId = null; render();
-    flash('旅行を削除しました', () => { if (state.trips.some(x => x.id === gone.id)) return; state.trips.splice(Math.min(ix, state.trips.length), 0, gone); save(); render(); flash('元に戻しました'); });
+    state.trips = state.trips.filter(x => x.id !== t.id); lsSet(GONE_KEY, JSON.stringify(readGone().concat(gone.id))); save(); if (lineAcct.user) bkSoon(); ui.sheet = null; ui.view = 'home'; ui.tripId = null; render();
+    flash('旅行を削除しました', () => { if (state.trips.some(x => x.id === gone.id)) return; state.trips.splice(Math.min(ix, state.trips.length), 0, gone); lsSet(GONE_KEY, JSON.stringify(readGone().filter(id => id !== gone.id))); const sg = readSigs(); delete sg[gone.id]; lsSet(BK_SIGS, JSON.stringify(sg)); save(); render(); flash('元に戻しました'); });
     return;
   }
   else if (a === 'close-sheet'){ ui.sheet = null; }

@@ -104,6 +104,14 @@ try {
   await j('/api/backup', { cookie: c1, method: 'PUT', body: { upsert: [local('M', '軽井沢', '2026-12-05', '2026-12-06')] } });
   assert.strictEqual((await run('2026-12-04T09:30:00Z')).sent, 0, 'the dead device is no longer used');
 
+  // ---- a trip deleted on the device gets no reminders, and the same trip saved twice gets one
+  await j('/api/backup', { cookie: c2, method: 'PUT', body: { upsert: [local('DEL', '消した旅', '2026-12-20', '2026-12-21'), local('DUP1', '同じ旅', '2026-12-20', '2026-12-21'), local('DUP2', '同じ旅', '2026-12-20', '2026-12-21')] } });
+  await j('/api/backup', { cookie: c2, method: 'PUT', body: { deleted: ['DEL'] } });
+  inbox.splice(0); const rd = await run('2026-12-19T09:30:00Z');
+  const titles = take(d2).map(m => m.title);
+  assert.ok(!titles.some(t => t.includes('消した旅')), 'no reminder for a deleted trip: ' + titles.join(','));
+  assert.strictEqual(titles.filter(t => t.includes('同じ旅')).length, 1, 'one reminder for a trip saved twice: ' + titles.join(','));
+
   // ---- "send a test notification" goes only to the caller's own devices, and needs a login
   inbox.splice(0);
   assert.strictEqual((await j('/api/push/test', { method: 'POST', body: {} })).status, 401, 'test push needs a login');

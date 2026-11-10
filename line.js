@@ -13,7 +13,7 @@
     poll: function (id, secret) { return call('POST', '/api/auth/poll', { id: id, secret: secret }); },
     logout: function () { return call('POST', '/api/auth/logout', {}); },
     backupGet: function () { return call('GET', '/api/backup'); },
-    backupPut: function (upsert, remove) { return call('PUT', '/api/backup', { upsert: upsert || [], remove: remove || [] }); },
+    backupPut: function (upsert, remove, deleted) { return call('PUT', '/api/backup', { upsert: upsert || [], remove: remove || [], deleted: deleted || [] }); },
     deleteAccount: function () { return call('DELETE', '/api/account'); },
     pushSubscribe: function (sub) { return call('POST', '/api/push/subscribe', sub); },
     pushDiagnose: function () { return call('POST', '/api/push/diagnose', {}); },
