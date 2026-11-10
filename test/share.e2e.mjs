@@ -14,6 +14,7 @@ const person = async () => {
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_INTERNET/.test(m.text())) errs.push(m.text()); });
   return { ctx, p };
 };
+const newTripFor = async (p, name) => { await p.click('[data-a=new]'); await p.fill('#d-name', name); await p.fill('#d-budget', '30000'); await p.fill('#d-me', 'あおい'); await p.click('[data-a=save-trip]'); await p.waitForSelector('[data-a=add-exp]'); };
 const see = (p, t) => p.waitForSelector('text=' + t, { timeout: 9000 });
 const gone = async (p, t) => { await p.waitForTimeout(400); assert.strictEqual(await p.locator('text=' + t).count(), 0, t + ' should not be visible'); };
 const refresh = p => p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));   // same trigger as returning to the app
@@ -80,6 +81,16 @@ try {
   // ---------- A ends sharing for everyone: B is told, keeps a local copy
   await A.p.click('[data-a=settings]'); await A.p.click('[data-a=share-erase]'); await A.p.click('[data-a=share-erase-go]'); await see(A.p, '共有を終了しました');
   await refresh(Bp.p); await see(Bp.p, '共有が終了しました'); await see(Bp.p, 'コーヒー'); await gone(Bp.p, '共有中');
+
+  // ---------- "invite a friend" on the home screen: only while I am the only member; it makes the share link and opens LINE with the message ready
+  await A.p.route('https://line.me/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: '<title>LINE</title>' }));
+  if (await A.p.locator('.sheet').count()) await A.p.click('[data-a=close-sheet]');
+  await A.p.click('[data-a=home]'); await newTripFor(A.p, '招待旅行');
+  await A.p.click('[data-a=home]'); await A.p.waitForSelector('.home1');
+  assert.strictEqual(await A.p.locator('[data-a=invite]').count(), 1, 'one trip with only me: one invite button (the other trips have more members or are not mine alone)');
+  const lineReq = A.p.waitForRequest(r => r.url().startsWith('https://line.me/R/msg/text/?'), { timeout: 12000 });
+  await A.p.click('[data-a=invite]'); const sent = decodeURIComponent((await lineReq).url().split('?')[1]);
+  assert.ok(sent.includes('「招待旅行」の割り勘に参加してね。') && /#t=[A-Za-z0-9_-]{32}/.test(sent), 'the LINE message carries the trip name and the share link: ' + sent);
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('share e2e passed');

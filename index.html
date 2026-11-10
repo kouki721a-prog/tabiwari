@@ -112,6 +112,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .home1{display:flex;flex-direction:column;min-height:calc(100vh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}
 @supports (height:100dvh){.home1{min-height:calc(100dvh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}}
 .home1-foot{margin-top:auto;padding-top:16px}
+.foot1{text-align:center;white-space:nowrap}.foot1 button{color:var(--sub);text-decoration:underline;font:inherit;padding:8px 0}.foot1 a{display:inline-block;padding:8px 0}
+.btn.inv{margin-top:8px;padding:10px 14px;font-size:14px;border-radius:14px}
+.btn.inv.join{margin-top:14px;color:var(--sub);font-weight:500;border-style:dashed}
 .home0-mid,.home0-bottom{display:contents}   /* in the browser the two groups are transparent: the layout is the one with the steps stretching */
 /* opened from the home screen: no banner space to fill, so the buttons and steps sit close together, centred between the title and the LINE row; LINE and the legal links stay at the bottom */
 .home0.sa>.home0-mid{display:flex;flex-direction:column;flex:1 0 auto;justify-content:center;padding-bottom:8px}
@@ -459,7 +462,7 @@ function save(){ persist(); if (state.trips.some(t => t.share)) shareSoon(); if 
 let state = load();
 
 
-const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', copyText: null };
+const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', inviting: null, copyText: null };
 
 const CFG = window.TABIWARI || {};
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
@@ -794,11 +797,13 @@ function viewHome(){
       '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
       '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>' +
       '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="予算の ' + pct + '%を使用"><i style="width:' + pct + '%"></i></div></button>';
+    if (t.members.length === 1) h += '<button class="btn line inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button>';   // only while I am the only member
   });
+  h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
   /* the links go to the bottom of the screen (above the main button) when the list is short, and follow the list when it is long */
-  let foot = legalLinks();
-  if (lineAcct.user) foot += '<div style="text-align:center;margin-top:6px"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
-  foot += '<div style="text-align:center;margin-top:2px"><button class="link" data-a="join-paste" style="width:auto;padding:8px 12px;text-decoration:underline">共有リンクで参加する</button></div>';
+  const links = []; if (CFG.legalReady) links.push('<a href="terms.html">利用規約</a>', '<a href="privacy.html">プライバシーポリシー</a>');
+  if (lineAcct.user) links.push('<button data-a="line-account">アカウント</button>');
+  const foot = links.length ? '<div class="sub sm legal foot1">' + links.join(' ・ ') + '</div>' : '';
   return '<div class="home1"><div>' + h + '</div><div class="home1-foot">' + foot + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
@@ -1071,6 +1076,19 @@ document.addEventListener('click', e => {
 
   if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.copyText = null; ui.q = ''; }
   else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.copyText = null; ui.q = ''; }
+  else if (a === 'invite'){
+    const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
+    ui.inviting = tr.id; render();
+    (async () => {
+      let url = null;
+      try {
+        if (!tr.share) await startShare(tr);   // makes the share link first (the trip keeps working offline until then)
+        if (tr.share){ ui.tripId = null; url = 'https://line.me/R/msg/text/?' + encodeURIComponent('「' + tr.name + '」の割り勘に参加してね。\n' + Share.linkFor(tr.share.token, location)); }
+      } finally { ui.inviting = null; ui.view = 'home'; ui.tripId = null; render(); }
+      if (url) location.href = url;   // opens LINE with the message ready to send
+    })();
+    return;
+  }
   else if (a === 'remote-open'){ openRestore(remoteCands()); return; }
   else if (a === 'remote-dismiss'){ lsSet(SEEN_KEY, JSON.stringify(readSeen().concat(remoteCands().map(x => x.id)))); }
   else if (a === 'ntf-home'){ ntfOn().then(v => { lineAcct.ntfHome = v; render(); if (v === 'on') flash('通知をオンにしました'); }, er => { flash(er && er.status ? Line.errText(er) : '通知を設定できませんでした。もう一度お試しください。'); refreshNtfHome(); }); return; }
