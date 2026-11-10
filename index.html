@@ -104,11 +104,17 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .home0>*{flex:none}
 .home0-intro{text-align:center;color:var(--sub);font-size:min(14px, calc((100vw - 36px) / 27.5));line-height:1.6;padding:18px 0 16px;white-space:nowrap}
 .home0-intro b{display:block;color:var(--ink);font-size:20px;font-weight:700;margin-bottom:4px}
-@media (max-height:700px){.home0-intro{padding:8px 0 10px}.home0-steps{gap:10px;padding:10px 4px}.home0 .legal{margin-top:8px}}
+@media (max-height:700px){.home0-intro{padding:8px 0 10px}.home0-steps{gap:10px;padding:10px 4px}.home0 .legal{margin-top:8px}.home0.sa .home0-steps{padding:10px 4px 0;gap:10px}.home0.sa .home0-intro{padding:2px 0 8px}.home0.sa>.home0-mid{padding-bottom:4px}}
 .home0-steps{list-style:none;margin:0;padding:0;flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:18px 4px}
 .home0-steps li{display:flex;gap:14px;align-items:center}
 .home0-steps .n{width:32px;height:32px;border-radius:50%;background:var(--soft);color:var(--ink);font-weight:700;display:grid;place-items:center;flex:none}
 .home0-steps b{display:block;font-size:15px}.home0-steps span:not(.n){display:block;color:var(--sub);font-size:13px}
+.home0-mid,.home0-bottom{display:contents}   /* in the browser the two groups are transparent: the layout is the one with the steps stretching */
+/* opened from the home screen: no banner space to fill, so the buttons and steps sit close together, centred between the title and the LINE row; LINE and the legal links stay at the bottom */
+.home0.sa>.home0-mid{display:flex;flex-direction:column;flex:1 0 auto;justify-content:center;padding-bottom:8px}
+.home0.sa>.home0-bottom{display:block}
+.home0.sa .home0-steps{flex:none;padding:18px 4px 0;gap:14px}
+.home0.sa .home0-intro{padding-top:6px}
 .home0-line{display:flex;flex-direction:column;gap:6px;padding:0 2px}
 .home0-line .sub{text-align:center}
 .home0 .legal{margin-top:12px}
@@ -741,12 +747,12 @@ function viewHomeEmpty(){
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">' + (isStandalone() ? 'LINEでログインすると、通知とバックアップを使えます。' : 'LINEでログインすると、旅行をバックアップできます。') + '</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   else if (lineAcct.user) line = '<div style="text-align:center"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
-  return '<div class="home0"><h1 class="brand">たびわり</h1>' + installBanner() +
+  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '"><h1 class="brand">たびわり</h1><div class="home0-mid">' + installBanner() +
     '<div class="home0-intro"><b>最初の旅行をつくりましょう</b>予算を決めて記録するだけ。割り勘は自動で計算します。</div>' +
     '<button class="btn" data-a="new">旅行をつくる</button>' +
     '<button class="btn line" data-a="join-paste" style="margin-top:10px">共有リンクで参加する</button>' +
-    '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol>' +
-    line + legalLinks() + '</div>';
+    '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol></div>' +
+    '<div class="home0-bottom">' + line + legalLinks() + '</div></div>';
 }
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
