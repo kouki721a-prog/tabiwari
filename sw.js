@@ -1,8 +1,8 @@
-/* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls (Supabase) are never cached. */
-const VERSION = 'tabiwari-v16';
-const FILES = ['./', './index.html', './config.js', './cloud.js', './share.js', './line.js', './vendor/supabase.js', './manifest.json',
+/* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls are never cached. */
+const VERSION = 'tabiwari-v17';
+const FILES = ['./', './index.html', './config.js', './sync.js', './share.js', './line.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/icon-maskable-512.png'];
-const OPTIONAL = ['./terms.html', './privacy.html', './legal.html', './legal.css'];   // only deployed once sharing is on
+const OPTIONAL = ['./terms.html', './privacy.html', './legal.css'];   // optional: a missing one must not break the install
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES).then(() => Promise.all(OPTIONAL.map(f => c.add(f).catch(() => {}))))).then(() => self.skipWaiting()));
 });

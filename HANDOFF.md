@@ -193,7 +193,7 @@
 ### 公開と運用
 - 公開URL: **https://tabiwari.tabiwari-app.workers.dev**（Cloudflare Workers。静的ファイル + Worker + D1）。
 - リポジトリ: `kouki721a-prog/tabiwari`。**`main` にマージすると、Cloudflare（Workers Builds）が、自動でビルドして公開する**（ビルド `npm run build`、デプロイ `npx wrangler deploy`）。作業は、作業ブランチで行い、PRを作って、ユーザーが「マージして」と言ったらマージ、という流れ。マージ済みのブランチは、`main` から作り直す。
-- 公開された版の確認: `https://…/sw.js` の `const VERSION = 'tabiwari-vNN'`（いまは **v14**）。**ファイルを変えたら、`sw.js` の `VERSION` を上げる**こと。
+- 公開された版の確認: `https://…/sw.js` の `const VERSION = 'tabiwari-vNN'`（2026-11-10 時点で v17）。**ファイルを変えたら、`sw.js` の `VERSION` を上げる**こと。
 - Cloudflare 側の設定（コードには入っていない）:
   - シークレット3つ: `LINE_CHANNEL_ID`、`LINE_CHANNEL_SECRET`、`AUTH_SECRET`（**`AUTH_SECRET` は変えてはいけない。変えると、保存済みのバックアップが読めなくなる**）。
   - D1 データベース `tabiwari`（初回デプロイで自動作成された）。cron は毎時（`0 * * * *`）。`workers.dev` のサブドメインは `tabiwari-app`。
@@ -208,7 +208,7 @@
 - **見た目**: アプリ名「たびわり」、アイコンは「割れたチケット + ¥ ×2」（丸く切り抜かれる端末用に、余白を取った版も別にある）。
 
 ### 構成（ファイル）
-- アプリ本体: `index.html`（単一ファイル。計算ロジックは `LOGIC_START`〜`LOGIC_END` の間の純粋関数。`sanitizeTrip`、`tripCsv`、`isUntouchedSample` もここ）、`share.js`（共有のAPI呼び出し）、`line.js`（ログイン・バックアップ・通知のAPI呼び出し）、`cloud.js`（**`Sync.flatten/diff/assemble` は、共有で使用中**）、`sw.js`、`manifest.json`、`icons/`、`config.js`。
+- アプリ本体: `index.html`（単一ファイル。計算ロジックは `LOGIC_START`〜`LOGIC_END` の間の純粋関数。`sanitizeTrip`、`tripCsv`、`isUntouchedSample` もここ）、`share.js`（共有のAPI呼び出し）、`line.js`（ログイン・バックアップ・通知のAPI呼び出し）、`sync.js`（旧 `cloud.js`。**`Sync.flatten/diff/assemble` は、共有で使用中**）、`sw.js`、`manifest.json`、`icons/`、`config.js`。
 - サーバー: `worker/index.js`（共有API。検証・上限・回数制限）、`worker/account.js`（LINEログイン、セッション、バックアップ、購読、アカウント削除）、`worker/reminders.js`（毎時の通知の判定）、`worker/push.js`（VAPID + aes128gcm）、`worker/seal.js`、`worker/util.js`。設定は `wrangler.jsonc`。テーブルは、最初のアクセスで自動作成（別のマイグレーションは無い）。
 - ビルド: `scripts/build.js` が、公開に必要なファイルだけを `dist/` に集める（`dist/` はGit管理外）。
 - ドキュメント: `docs/SHARING.md`、`docs/LINE.md`、`docs/NOTIFICATIONS.md`、`docs/PUBLISH.md`（`docs/SETUP.md` は、休止中の Supabase / Stripe 用）。
@@ -254,7 +254,7 @@
 
 1. **通知の実機確認**（おすすめ・最優先）: iPhoneのホーム画面のアプリで、LINEログイン →「この端末への通知」→「受け取る」。明日から始まる旅行を作り、前日の18時以降に、通知が届くか。本物のApple・Googleの配信サービスを通すのは、これが初めて。待たずに試せるよう、**時刻を指定して、判定を動かす手順**（テスト用の入口は、本番では無効）を用意してもよい。うまくいかなければ、ここで直す。
 2. **割り勘の端数の配り方**: いまは、端数（円）が、常に、先頭のメンバーに偏る（100円を3人で割ると、先頭が34円）。支出ごとに、端数を受け持つ人を回して、公平にする（§9の未決事項5）。`splitShares` の仕様変更になるので、§4の仕様、テスト、CSV、精算の表示への影響を確認すること。
-3. **使っていないコードの整理**（§D の「古いコード」を参照）: Supabase、Stripe、旧通知（`supabase/`）、`CLOUD` ブロックなど。いつでも履歴から戻せる。**`cloud.js` の `Sync` は、削除しない（共有で使用中）。**
+3. ~~使っていないコードの整理~~（実施済み。§D を参照）。
 4. **独自ドメイン**: URLを、短くきれいにする（年1,500円前後から）。ドメイン取得後は、LINEのコールバックURL、`wrangler.jsonc`、Googleログインの検討、メール送信が、関係する。
 5. **LINEログインのボタンを、公式デザインに差し替える**（LINEのガイドラインに合わせる）。
 6. **使いやすさの追加**: 「元に戻す」（削除した支出を、すぐ戻す）、支出の検索、アクセシビリティ（画面読み上げの確認）、データの読み込み（CSVの取り込み）など。
@@ -270,13 +270,10 @@
 - Cloudflare **無料プランの上限**（1回の実行で、D1のクエリ約50、外への送信約50）に近い使い方をしたときの動き。通知の1回の実行は、最大40件に絞っている（収まらない分は、次の1時間に回る）。利用者が増えたら、見直す。
 - 法務ページは、**専門家の確認を受けていない**（ひな形）。不特定多数への公開や、有料化の前には、確認が必要。**公開ページに、運営者のメールアドレスが載っている。**
 
-### 残っている古いコード（休止中。`config.js` の `supabaseUrl` が空のため、動かない）
-- `supabase/`（マイグレーション、Edge Functions、SQLのテスト）、`vendor/supabase.js`、`docs/SETUP.md`、`legal.html`（特定商取引法の表記。有料化のときのもの）。
-- `cloud.js` のうち、`Cloud`（Supabaseのクライアント）の部分。**`Sync`（`flatten` / `diff` / `assemble`）は、共有で使っているので、残す。**
-- `index.html` の、`CLOUD` で分岐しているブロック（Supabase のログイン、プレミアム、アップグレード画面、招待リンク、CSVのプレミアム制限など）と、その関数・アクション。
-- `test/e2e.js`、`test/fake-supabase.js`、`test/stripe.test.mjs`、`supabase/functions/_shared/`（Stripe署名などの純粋関数）。
-- `config.js` の `supabaseUrl`、`supabaseKey`、`vapidPublicKey`、`premiumPriceLabel`（`vapidPublicKey` は、古い通知の設定。いまの通知は、サーバーが鍵を自動生成するので、不要）。
-- 整理するときは、`CLOUD` ブロックと、それをテストしている `test/e2e.js` を、**同時に**直すこと。`package.json` の `test` に、`stripe.test.mjs` が入っている。
+### 古いコードの整理（2026-11-10 に実施済み）
+- 削除したもの: `supabase/`、`vendor/supabase.js`、`docs/SETUP.md`、`legal.html`（特定商取引法）、`test/e2e.js`、`test/fake-supabase.js`、`test/stripe.test.mjs`、`index.html` の `CLOUD` ブロック（メールログイン、プレミアム、招待リンク、アカウント画面）、`config.js` の Supabase / 通知 / 価格の設定。履歴（Git）から戻せる。
+- `cloud.js` は、**`sync.js`** に改名し、`Sync`（`flatten` / `diff` / `assemble` / `empty`）だけを残した（共有で使用中。削除しない）。
+- 有料化（Stripe）を再開するときは、履歴から、設計し直す。
 
 ### 設計上の注意・既知の制限
 - iPhoneでは、ホーム画面に追加したアプリと、Safariは、**保存領域が別**。LINEの共有リンクを開くと、Safariで開き、アプリには入らない（このため、「共有リンクで参加する」の貼り付けの導線がある）。

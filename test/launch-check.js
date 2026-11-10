@@ -8,5 +8,4 @@ for (const f of ['terms.html', 'privacy.html']) {
 global.window = {}; eval(fs.readFileSync(path.join(root, 'config.js'), 'utf8'));
 const c = window.TABIWARI;
 if (!c.legalReady) { bad++; console.log('config.js: legalReady is false (set it to true once the legal pages are filled in)'); }
-if (/service_role/.test(fs.readFileSync(path.join(root, 'config.js'), 'utf8'))) { bad++; console.log('config.js mentions service_role'); }
 console.log(bad ? '\nNOT ready to launch (' + bad + ' issue(s))' : 'launch check passed'); process.exit(bad ? 1 : 0);
