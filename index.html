@@ -906,7 +906,8 @@ function viewNew(){
     '<label class="lab" for="d-budget">全体の予算（円）</label><input class="field" id="d-budget" type="text" inputmode="numeric" data-draft="budget" value="' + esc(d.budget) + '" placeholder="例：50000">' +
     '<div class="chips" style="margin-top:10px">' + [30000, 50000, 100000].map(n => '<button class="chip plain" data-a="preset" data-v="' + n + '">' + n.toLocaleString('ja-JP') + '</button>').join('') + '</div>' +
     '<label class="lab" for="d-me">あなたの名前</label><input class="field" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">' +
-    '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあとに、旅行の設定の「友だちと共有」から誘えます。</div>';
+    '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあとに、旅行の設定の「友だちと共有」から誘えます。</div>' +
+    '<button class="link" data-a="make-demo" style="width:auto;padding:12px 0 0;font-size:12px">動作確認用に、3人のテスト旅行をつくる</button>';
   if (d.err) h += '<div class="err" role="alert">' + esc(d.err) + '</div>';
   return h + '</div><div class="cta"><button class="btn" data-a="save-trip">この内容でつくる</button></div>';
 }
@@ -1320,6 +1321,14 @@ document.addEventListener('click', e => {
         members: [{ id: uid(), name: me, pos: 0 }], expenses: [] };
       state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
     }
+  }
+  else if (a === 'make-demo'){   // a 3-person trip with a few receipts, to try settlement and payment requests alone
+    const me = (ui.draft && ui.draft.me.trim()) || state.me || 'あなた', today = todayStr(), ids = [uid(), uid(), uid()];
+    const ex = (title, amount, payer, cat, split) => ({ id: uid(), title: title, amount: amount, payer: ids[payer], cat: cat, date: today, split: split.map(i => ids[i]) });
+    const nt = { id: uid(), name: 'テスト旅行', start: today, end: addDays(today, 1), budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
+      members: [{ id: ids[0], name: me, pos: 0 }, { id: ids[1], name: 'あおい', pos: 1 }, { id: ids[2], name: 'けんた', pos: 2 }],
+      expenses: [ex('夕食', 9000, 0, 'food', [0, 1, 2]), ex('宿', 12000, 1, 'stay', [0, 1, 2]), ex('電車', 3000, 2, 'transport', [1, 2])] };
+    state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'settle'; ui.draft = null;
   }
   else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.copyText = null; ui.q = ''; ui.resetScroll = true; }
 
