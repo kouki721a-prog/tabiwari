@@ -2,11 +2,12 @@
    Pure functions; tested in test/sync.test.js. Used by share.js's callers in index.html (the server side is worker/index.js). */
 (function (root) {
   'use strict';
-  var ORDER = ['trips', 'members', 'expenses', 'paid', 'savings'];
-  var KEYS = { trips: ['id'], members: ['id'], expenses: ['id'], paid: ['trip_id', 'key'], savings: ['trip_id', 'member_id'] };
-  var UPDATABLE = { trips: true, expenses: true, savings: true, members: false, paid: false };
+  var ORDER = ['trips', 'members', 'expenses', 'settlements', 'adjustments', 'paid', 'savings'];
+  var KEYS = { trips: ['id'], members: ['id'], expenses: ['id'], settlements: ['trip_id', 'id'], adjustments: ['trip_id', 'id'], paid: ['trip_id', 'key'], savings: ['trip_id', 'member_id'] };
+  /* settlements are written once; an adjustment only ever gets its settle_id filled in (when a round is confirmed) */
+  var UPDATABLE = { trips: true, expenses: true, savings: true, adjustments: true, members: false, paid: false, settlements: false };
 
-  function empty() { return { trips: {}, members: {}, expenses: {}, paid: {}, savings: {} }; }
+  function empty() { return { trips: {}, members: {}, expenses: {}, settlements: {}, adjustments: {}, paid: {}, savings: {} }; }
 
   /* app state (trips[]) -> row maps keyed by primary key */
   function flatten(trips) {
@@ -20,7 +21,14 @@
           user_id: m.userId || null, status: m.userId ? 'joined' : 'invited' };
       });
       t.expenses.forEach(function (e) {
-        out.expenses[e.id] = { id: e.id, trip_id: t.id, title: e.title || '', amount: e.amount, payer: e.payer, cat: e.cat, spent_on: e.date, split: e.split.slice() };
+        out.expenses[e.id] = { id: e.id, trip_id: t.id, title: e.title || '', amount: e.amount, payer: e.payer, cat: e.cat, spent_on: e.date, split: e.split.slice(), settle_id: e.settleId || null };
+      });
+      (t.settlements || []).forEach(function (st, i) {
+        out.settlements[t.id + '|' + st.id] = { id: st.id, trip_id: t.id, n: st.n != null ? st.n : i + 1, at: st.at, total: st.total || 0,
+          transfers: (st.transfers || []).map(function (x) { return { from: x.from, to: x.to, amount: x.amount }; }) };
+      });
+      (t.adjustments || []).forEach(function (a) {
+        out.adjustments[t.id + '|' + a.id] = { id: a.id, trip_id: t.id, settle_id: a.settleId || null, nets: Object.assign({}, a.nets), note: a.note || '', at: a.at };
       });
       Object.keys(t.paid || {}).forEach(function (k) { if (t.paid[k]) out.paid[t.id + '|' + k] = { trip_id: t.id, key: k }; });
       Object.keys(t.savings || {}).forEach(function (mid) {
@@ -61,11 +69,15 @@
       var members = (r.trip_members || []).slice().sort(function (a, b) { return a.position - b.position || (a.id < b.id ? -1 : 1); })
         .map(function (m) { return { id: m.id, name: m.name, pos: m.position, userId: m.user_id || undefined, pending: m.status !== 'joined' }; });
       var expenses = (r.expenses || []).slice().sort(function (a, b) { return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : (a.id < b.id ? -1 : 1); })
-        .map(function (e) { return { id: e.id, title: e.title, amount: e.amount, payer: e.payer, cat: e.cat, date: e.spent_on, split: e.split }; });
+        .map(function (e) { var x = { id: e.id, title: e.title, amount: e.amount, payer: e.payer, cat: e.cat, date: e.spent_on, split: e.split }; if (e.settle_id) x.settleId = e.settle_id; return x; });
+      var settlements = (r.settlements || []).slice().sort(function (a, b) { return a.n - b.n || (a.id < b.id ? -1 : 1); })
+        .map(function (st) { return { id: st.id, n: st.n, at: st.at, total: st.total || 0, transfers: st.transfers || [] }; });
+      var adjustments = (r.adjustments || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : (a.id < b.id ? -1 : 1); })
+        .map(function (a) { return { id: a.id, settleId: a.settle_id || null, nets: a.nets || {}, note: a.note || '', at: a.at }; });
       var paid = {}, savings = {};
       (r.paid || []).forEach(function (p) { paid[p.key] = true; });
       (r.savings || []).forEach(function (s) { savings[s.member_id] = s.amount; });
-      return { id: r.id, name: r.name, start: r.start_date, end: r.end_date, budget: r.budget, owner: r.owner, members: members, expenses: expenses, paid: paid, savings: savings };
+      return { id: r.id, name: r.name, start: r.start_date, end: r.end_date, budget: r.budget, owner: r.owner, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
     });
   }
 

@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -40,10 +40,10 @@ const csvTrip = { members: [{id:'a',name:'あおい'},{id:'b',name:'けんた'}]
   {id:'1', title:'夕食, 2軒目', amount:3000, payer:'b', cat:'food', date:'2026-11-10', split:['a','b']},
   {id:'2', title:'=HYPERLINK("x")', amount:1000, payer:'a', cat:'gift', date:'2026-11-09', split:['a']}]};
 const csv = L.tripCsv(csvTrip, c => ({food:'食事', gift:'お土産'})[c]).split('\r\n');
-assert.strictEqual(csv[0], '日付,内容,カテゴリ,金額,払った人,割り勘の対象');
-assert.strictEqual(csv[1], '2026-11-09,"\'=HYPERLINK(""x"")",お土産,1000,あおい,あおい');
-assert.strictEqual(csv[2], '2026-11-10,"夕食, 2軒目",食事,3000,けんた,あおい・けんた');
-assert.strictEqual(csv[3], ''); assert.strictEqual(csv[4], '精算,払う人,受け取る人,金額'); assert.strictEqual(csv[5], ',あおい,けんた,1500');
+assert.strictEqual(csv[0], '日付,内容,カテゴリ,金額,払った人,割り勘の対象,精算');
+assert.strictEqual(csv[1], '2026-11-09,"\'=HYPERLINK(""x"")",お土産,1000,あおい,あおい,未精算');
+assert.strictEqual(csv[2], '2026-11-10,"夕食, 2軒目",食事,3000,けんた,あおい・けんた,未精算');
+assert.strictEqual(csv[3], ''); assert.strictEqual(csv[4], '精算（いまの回）,払う人,受け取る人,金額'); assert.strictEqual(csv[5], ',あおい,けんた,1500');
 assert.strictEqual(L.csvCell(-5), '-5');
 
 // the old demo trip: removed only while untouched
@@ -63,7 +63,7 @@ const raw = () => ({ id: 't1', name: 'お盆', start: '2026-08-13', end: '2026-0
   expenses: [{ id: 'e1', title: '昼食', amount: 1800, payer: 'a', cat: 'food', date: '2026-08-13', split: ['a', 'b', 'ghost'], extra: 1 }],
   paid: { 'b-a-900': true, bad: 'yes' }, savings: { a: 5000, ghost: 9, b: -1 } });
 let r = L.sanitizeTrip(raw(), 'new-id');
-assert.strictEqual(r.id, 'new-id'); assert.deepStrictEqual(Object.keys(r).sort(), ['budget', 'end', 'expenses', 'id', 'members', 'name', 'paid', 'savings', 'start']);
+assert.strictEqual(r.id, 'new-id'); assert.deepStrictEqual(Object.keys(r).sort(), ['adjustments', 'budget', 'end', 'expenses', 'id', 'members', 'name', 'paid', 'savings', 'settlements', 'start']);
 assert.deepStrictEqual(r.expenses[0].split, ['a', 'b'], 'unknown members are dropped from splits'); assert.strictEqual(r.expenses[0].extra, undefined);
 assert.deepStrictEqual(r.paid, { 'b-a-900': true }); assert.deepStrictEqual(r.savings, { a: 5000 }); assert.strictEqual(r.members[0].userId, undefined);
 for (const f of [t => { t.name = '  '; }, t => { t.budget = 0; }, t => { t.end = '2026-08-01'; }, t => { t.members = []; }, t => { t.start = 'soon'; }]) { const t = raw(); f(t); assert.strictEqual(L.sanitizeTrip(t, 'x'), null); }
@@ -102,3 +102,68 @@ console.log('search tests passed');
   assert.strictEqual(mixed.skipped.length, 5, JSON.stringify(mixed.skipped)); assert.deepStrictEqual(mixed.skipped.map(x => x.line), [3, 4, 5, 6, 7]);
 }
 console.log('csv import tests passed');
+
+// ---- rounds of settlement
+{
+  const mk = () => ({ members: ['a', 'b', 'c'].map(id => ({ id })), expenses: [], settlements: [], adjustments: [] });
+  const sumNets = n => Object.values(n).reduce((x, y) => x + y, 0);
+  // old data (no settlements, no settleId) is "round 1, not settled": same numbers as before
+  const old = { members: [{ id: 'a' }, { id: 'b' }], expenses: [{ id: 'e1', amount: 3000, payer: 'a', split: ['a', 'b'] }], paid: {}, savings: {} };
+  assert.deepStrictEqual(L.roundBalances(old).net, L.calcBalances(old).net); assert.strictEqual(L.openItems(old).expenses.length, 1);
+  // confirm round 1, add a receipt later -> round 2 holds only the new one
+  const t = mk(); t.expenses.push({ id: 'e1', amount: 3000, payer: 'a', split: ['a', 'b', 'c'] }, { id: 'e2', amount: 1000, payer: 'b', split: ['a', 'b'] });
+  const s1 = L.confirmRound(t, 'r1', '2026-11-10');
+  assert.deepStrictEqual([s1.n, s1.total, t.settlements.length, t.expenses.every(e => e.settleId === 'r1')], [1, 4000, 1, true]);
+  assert.ok(sumNets(Object.fromEntries(s1.transfers.map((p, i) => [i, 0]))) === 0 && L.roundBalances(t).net.a === 0, 'nothing open right after confirming');
+  t.expenses.push({ id: 'e3', amount: 600, payer: 'c', split: ['a', 'b', 'c'] });
+  assert.deepStrictEqual(L.roundBalances(t).net, { a: -200, b: -200, c: 400 }, 'round 2 only counts the new expense');
+  const budgetTotal = t.expenses.reduce((x, e) => x + e.amount, 0); assert.strictEqual(budgetTotal, 4600, 'the budget uses every expense, whatever the round');
+  // editing a settled expense: round 1 stays as it was, the difference lands in round 2; deleting too
+  const e2 = t.expenses.find(e => e.id === 'e2'), before = JSON.parse(JSON.stringify(e2)); e2.amount = 1500;
+  const adj = L.expenseAdjustment(t, before, e2, 'j1', '「e2」の変更', '2026-11-11'); t.adjustments.push(adj);
+  assert.ok(adj && sumNets(adj.nets) === 0 && adj.settleId === null);
+  assert.strictEqual(L.expenseAdjustment(t, { ...before }, { ...before }, 'x', '', '2026-11-11'), null, 'nothing changed: no adjustment');
+  assert.strictEqual(L.expenseAdjustment(t, t.expenses.find(e => e.id === 'e3'), null, 'x', '', '2026-11-11'), null, 'an unsettled expense never needs one');
+  assert.strictEqual(sumNets(L.roundBalances(t).net), 0);
+  // the second round, once confirmed, takes the adjustment with it and later rounds do not repeat it
+  const before2 = L.roundBalances(t).net; const s2 = L.confirmRound(t, 'r2', '2026-11-12');
+  assert.ok(t.adjustments.every(a => a.settleId === 'r2') && L.roundNo(t, 'r2') === 2);
+  assert.deepStrictEqual(L.roundBalances(t).net, { a: 0, b: 0, c: 0 }, 'the adjustment is not counted again');
+  // random: edits and deletes of settled expenses across several rounds; every round's money adds up to the final state
+  let seed2 = 7; const r2 = () => (seed2 = (seed2 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (let k = 0; k < 600; k++){
+    const n = 2 + Math.floor(r2() * 4), ids = Array.from({ length: n }, (_, i) => 'm' + i), tt = { members: ids.map(id => ({ id })), expenses: [], settlements: [], adjustments: [] };
+    const pick = () => { const sp = ids.filter(() => r2() < .6); return sp.length ? sp : [ids[0]]; };
+    const balanceSum = {}; ids.forEach(id => { balanceSum[id] = 0; });
+    let nextId = 0, adjN = 0;
+    for (let step = 0, steps = 3 + Math.floor(r2() * 25); step < steps; step++){
+      const r = r2();
+      if (r < .45 || !tt.expenses.length) tt.expenses.push({ id: 'e' + (nextId++), amount: 1 + Math.floor(r2() * 30000), payer: ids[Math.floor(r2() * n)], split: pick() });
+      else if (r < .65){ const e = tt.expenses[Math.floor(r2() * tt.expenses.length)], old = JSON.parse(JSON.stringify(e)); e.amount = 1 + Math.floor(r2() * 30000); e.payer = ids[Math.floor(r2() * n)]; e.split = pick();
+        const a = L.expenseAdjustment(tt, old, e, 'j' + (adjN++), '', '2026-11-10'); if (a) tt.adjustments.push(a); }
+      else if (r < .8){ const i = Math.floor(r2() * tt.expenses.length), old = tt.expenses[i]; const a = L.expenseAdjustment(tt, old, null, 'j' + (adjN++), '', '2026-11-10'); if (a) tt.adjustments.push(a); tt.expenses.splice(i, 1); }
+      else if (L.openItems(tt).expenses.length || L.openItems(tt).adjustments.length){
+        const bal = L.roundBalances(tt).net; assert.strictEqual(sumNets(bal), 0);
+        const st = L.confirmRound(tt, 'r' + tt.settlements.length, '2026-11-10');
+        const after = {}; ids.forEach(id => { after[id] = bal[id]; }); st.transfers.forEach(p => { after[p.from] += p.amount; after[p.to] -= p.amount; });   // paying the transfers settles the round
+        ids.forEach(id => assert.strictEqual(after[id], 0)); assert.ok(st.transfers.length <= n - 1);
+        ids.forEach(id => { balanceSum[id] += bal[id]; });
+      }
+    }
+    const cur = L.roundBalances(tt).net, all = L.calcBalances(tt).net;
+    ids.forEach(id => assert.strictEqual(balanceSum[id] + cur[id], all[id], 'all rounds together equal the whole trip (seed ' + k + ')'));
+    assert.strictEqual(sumNets(cur), 0);
+  }
+}
+// sanitizeTrip keeps valid rounds (backup restore) and drops what refers to nothing
+{
+  const raw = { id: 'x1', name: '箱根', start: '2026-11-09', end: '2026-11-11', budget: 50000, members: [{ id: 'a', name: 'あ' }, { id: 'b', name: 'い' }],
+    settlements: [{ id: 'r1', n: 1, at: '2026-11-10', total: 100, transfers: [{ from: 'a', to: 'b', amount: 50 }, { from: 'zz', to: 'b', amount: 5 }] }, { id: 'bad id', at: '2026-11-10' }],
+    expenses: [{ id: 'e1', amount: 100, payer: 'a', cat: 'food', date: '2026-11-10', split: ['a', 'b'], settleId: 'r1' }, { id: 'e2', amount: 100, payer: 'a', cat: 'food', date: '2026-11-10', split: ['a'], settleId: 'nope' }],
+    adjustments: [{ id: 'j1', settleId: 'r1', nets: { a: 5, b: -5 }, note: 'n', at: '2026-11-10' }, { id: 'j2', settleId: null, nets: { zz: 5 }, at: '2026-11-10' }, { id: 'j3', settleId: 'gone', nets: { a: 1, b: -1 }, at: '2026-11-10' }] };
+  const t = L.sanitizeTrip(raw, 'new');
+  assert.deepStrictEqual(t.settlements.map(x => [x.id, x.transfers.length]), [['r1', 1]], 'bad rounds and transfers of unknown members are dropped');
+  assert.deepStrictEqual(t.expenses.map(e => e.settleId), ['r1', undefined], 'a settleId that points at nothing means "not settled"');
+  assert.deepStrictEqual(t.adjustments.map(a => [a.id, a.settleId]), [['j1', 'r1'], ['j3', null]], 'adjustments of unknown members are dropped; a missing round means "open"');
+}
+console.log('settlement round tests passed');

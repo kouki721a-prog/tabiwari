@@ -107,6 +107,31 @@ try {
   assert.strictEqual((await call(A, 'GET', '/api/trip')).status, 200, 'other trips untouched');
   assert.strictEqual((await ops(Y, [{ kind: 'insert', table: 'expenses', rows: [exp('late')] }])).status, 404, 'a deleted trip cannot be written to without re-creating it');
 
+  // --- rounds of settlement: a round, the expenses' settle_id and adjustments are stored in one go and come back together
+  { const T = await make(), S1 = { id: 'r1', n: 1, at: '2026-11-10', total: 3500, transfers: [{ from: 'm2', to: 'm1', amount: 1250 }] };
+    let r = await ops(T, [{ kind: 'insert', table: 'settlements', rows: [S1] }, { kind: 'update', table: 'expenses', row: exp('e1', { settle_id: 'r1' }) }, { kind: 'update', table: 'expenses', row: exp('e2', { title: '', amount: 500, payer: 'm2', cat: 'other', split: ['m2'], settle_id: 'r1' }) }]);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    let gg = (await call(T, 'GET', '/api/trip')).body.trip;
+    assert.deepStrictEqual(gg.settlements, [S1]); assert.deepStrictEqual(gg.expenses.map(e => e.settle_id), ['r1', 'r1']);
+    // a later receipt is not settled; an adjustment is stored with its nets, then gets its settle_id when the next round closes
+    r = await ops(T, [{ kind: 'insert', table: 'expenses', rows: [exp('e3', { amount: 700 })] }, { kind: 'insert', table: 'adjustments', rows: [{ id: 'j1', settle_id: null, nets: { m1: 100, m2: -100 }, note: '「夕食」の変更', at: '2026-11-11' }] }]);
+    assert.strictEqual(r.status, 200); gg = (await call(T, 'GET', '/api/trip')).body.trip;
+    assert.strictEqual(gg.expenses.find(e => e.id === 'e3').settle_id, null); assert.deepStrictEqual(gg.adjustments[0].nets, { m1: 100, m2: -100 }); assert.strictEqual(gg.adjustments[0].settle_id, null);
+    r = await ops(T, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'r2', n: 2, at: '2026-11-12', total: 700, transfers: [] }] }, { kind: 'update', table: 'adjustments', row: { id: 'j1', settle_id: 'r2', nets: { m1: 100, m2: -100 }, note: '', at: '2026-11-11' } }]);
+    assert.strictEqual(r.status, 200); gg = (await call(T, 'GET', '/api/trip')).body.trip;
+    assert.deepStrictEqual(gg.settlements.map(x => x.id), ['r1', 'r2']); assert.strictEqual(gg.adjustments[0].settle_id, 'r2');
+    // an app that does not know about rounds updates an expense: the round it belongs to is kept
+    r = await ops(T, [{ kind: 'update', table: 'expenses', row: { id: 'e1', title: '夕食（直した）', amount: 3000, payer: 'm1', cat: 'food', spent_on: '2026-11-09', split: ['m1', 'm2'] } }]);
+    assert.strictEqual(r.status, 200); gg = (await call(T, 'GET', '/api/trip')).body.trip;
+    assert.deepStrictEqual([gg.expenses[0].title, gg.expenses[0].settle_id], ['夕食（直した）', 'r1'], 'settle_id survives an update that does not mention it');
+    // bad rows are refused as a whole
+    for (const bad of [{ kind: 'insert', table: 'settlements', rows: [{ ...S1, id: 'x y' }] }, { kind: 'insert', table: 'settlements', rows: [{ ...S1, id: 'r9', transfers: [{ from: 'm1', to: 'm2', amount: 0 }] }] },
+      { kind: 'insert', table: 'settlements', rows: [{ ...S1, id: 'r9', at: 'yesterday' }] }, { kind: 'insert', table: 'adjustments', rows: [{ id: 'j9', settle_id: null, nets: { m1: 1.5 }, at: '2026-11-11' }] },
+      { kind: 'insert', table: 'adjustments', rows: [{ id: 'j9', settle_id: null, nets: [1], at: '2026-11-11' }] }, { kind: 'update', table: 'settlements', row: S1 }, { kind: 'insert', table: 'expenses', rows: [exp('e9', { settle_id: 'bad id' })] }])
+      assert.strictEqual((await ops(T, [bad])).status, 400, JSON.stringify(bad));
+    // limits and clean-up
+    assert.strictEqual((await call(T, 'DELETE', '/api/trip')).status, 200); assert.strictEqual((await call(T, 'GET', '/api/trip')).status, 404); }
+
   // --- creating trips is rate limited (per day, per IP)
   let limited = false;
   for (let i = 0; i < 30 && !limited; i++) limited = (await make2(tok('r'))).status === 429;

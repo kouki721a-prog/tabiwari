@@ -303,6 +303,58 @@ function calcBalances(trip){
   trip.members.forEach(function(m){ net[m.id] = paid[m.id] - owed[m.id]; });
   return { paid: paid, owed: owed, net: net };
 }
+/* ---- rounds of settlement ----
+   An expense belongs to a round once settleId points at a settlement of the trip; without it, it is "not settled yet" (the current round).
+   Changing or deleting an expense of a closed round never rewrites that round: it adds an adjustment (the difference per member) to the current round. */
+function netOf(trip, amount, payer, split, seed){
+  var n = {}; trip.members.forEach(function(m){ n[m.id] = 0; });
+  if (n[payer] === undefined) return n;
+  n[payer] += amount;
+  splitShares(amount, split, seed).forEach(function(s){ if (n[s[0]] !== undefined) n[s[0]] -= s[1]; });
+  return n;
+}
+function settlementIds(trip){ var m = {}; (trip.settlements || []).forEach(function(s){ m[s.id] = true; }); return m; }
+function isSettled(trip, e){ return !!(e.settleId && settlementIds(trip)[e.settleId]); }
+function roundNo(trip, settleId){ var ss = trip.settlements || []; for (var i = 0; i < ss.length; i++) if (ss[i].id === settleId) return i + 1; return 0; }
+/* the current round: expenses not settled yet + adjustments not settled yet */
+function roundBalances(trip){
+  var sid = settlementIds(trip), paid = {}, owed = {}, adj = {}, net = {};
+  trip.members.forEach(function(m){ paid[m.id] = 0; owed[m.id] = 0; adj[m.id] = 0; });
+  trip.expenses.forEach(function(e){
+    if (e.settleId && sid[e.settleId]) return;
+    if (paid[e.payer] === undefined) return;
+    paid[e.payer] += e.amount;
+    splitShares(e.amount, e.split, e.id).forEach(function(s){ if (owed[s[0]] !== undefined) owed[s[0]] += s[1]; });
+  });
+  (trip.adjustments || []).forEach(function(a){
+    if (a.settleId && sid[a.settleId]) return;
+    Object.keys(a.nets).forEach(function(id){ if (adj[id] !== undefined) adj[id] += a.nets[id]; });
+  });
+  trip.members.forEach(function(m){ net[m.id] = paid[m.id] - owed[m.id] + adj[m.id]; });
+  return { paid: paid, owed: owed, adj: adj, net: net };
+}
+function openItems(trip){
+  var sid = settlementIds(trip), ex = trip.expenses.filter(function(e){ return !(e.settleId && sid[e.settleId]); }),
+      ad = (trip.adjustments || []).filter(function(a){ return !(a.settleId && sid[a.settleId]); });
+  return { expenses: ex, adjustments: ad, total: ex.reduce(function(s, e){ return s + e.amount; }, 0) };
+}
+/* closes the current round: everything not settled yet joins it. Returns the new settlement. */
+function confirmRound(trip, id, at){
+  var open = openItems(trip), nets = roundBalances(trip).net;
+  var st = { id: id, n: (trip.settlements || []).length + 1, at: at, total: open.total, transfers: settle(nets) };
+  open.expenses.forEach(function(e){ e.settleId = id; });
+  open.adjustments.forEach(function(a){ a.settleId = id; });
+  trip.settlements = (trip.settlements || []).concat([st]);
+  return st;
+}
+/* the adjustment that a change to a settled expense causes (null when the expense is not settled, or the money does not change).
+   newE = null means the expense was deleted. */
+function expenseAdjustment(trip, oldE, newE, adjId, note, at){
+  if (!isSettled(trip, oldE)) return null;
+  var o = netOf(trip, oldE.amount, oldE.payer, oldE.split, oldE.id), n = newE ? netOf(trip, newE.amount, newE.payer, newE.split, newE.id) : netOf(trip, 0, '', [], ''), nets = {}, any = false;
+  trip.members.forEach(function(m){ var d = n[m.id] - o[m.id]; if (d !== 0){ nets[m.id] = d; any = true; } });
+  return any ? { id: adjId, settleId: null, nets: nets, note: note, at: at } : null;
+}
 function settle(net){
   var cr = [], db = [];
   Object.keys(net).forEach(function(id){
@@ -343,12 +395,12 @@ function csvCell(v){
 }
 function tripCsv(trip, catName){
   var nm = function(id){ var m = trip.members.filter(function(x){ return x.id === id; })[0]; return m ? m.name : '(削除済み)'; };
-  var rows = [['日付', '内容', 'カテゴリ', '金額', '払った人', '割り勘の対象']];
+  var rows = [['日付', '内容', 'カテゴリ', '金額', '払った人', '割り勘の対象', '精算']];
   trip.expenses.slice().sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }).forEach(function(e){
-    rows.push([e.date, e.title, catName(e.cat), e.amount, nm(e.payer), e.split.map(nm).join('・')]);
+    rows.push([e.date, e.title, catName(e.cat), e.amount, nm(e.payer), e.split.map(nm).join('・'), roundNo(trip, e.settleId) ? '第' + roundNo(trip, e.settleId) + '回' : '未精算']);
   });
-  rows.push([], ['精算', '払う人', '受け取る人', '金額']);
-  settle(calcBalances(trip).net).forEach(function(p){ rows.push(['', nm(p.from), nm(p.to), p.amount]); });
+  rows.push([], ['精算（いまの回）', '払う人', '受け取る人', '金額']);
+  settle(roundBalances(trip).net).forEach(function(p){ rows.push(['', nm(p.from), nm(p.to), p.amount]); });
   return rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
 }
 /* CSV import (the file tripCsv writes, or anything shaped like it): 日付, 内容, カテゴリ, 金額, 払った人, 割り勘の対象. Stops at the first blank row (the settlement block follows it). */
@@ -419,14 +471,25 @@ function sanitizeTrip(raw, newId){
   if (!members.length) return null;
   var ids = {}; members.forEach(function(m){ ids[m.id] = 1; });
   var CATK = ['transport', 'stay', 'food', 'sight', 'gift', 'other'];
+  var settlements = (Array.isArray(raw.settlements) ? raw.settlements : []).slice(0, 100).map(function(st, i){
+    if (!st || !ID(st.id) || !D(st.at)) return null;
+    var tr = (Array.isArray(st.transfers) ? st.transfers : []).slice(0, 100).filter(function(x){ return x && ids[x.from] && ids[x.to] && INT(x.amount, 1, 1e9); }).map(function(x){ return { from: x.from, to: x.to, amount: x.amount }; });
+    return { id: st.id, n: INT(st.n, 1, 1e5) ? st.n : i + 1, at: st.at, total: INT(st.total, 0, 1e11) ? st.total : 0, transfers: tr }; }).filter(Boolean);
+  var sids = {}; settlements.forEach(function(st){ sids[st.id] = true; });
   var expenses = (Array.isArray(raw.expenses) ? raw.expenses : []).slice(0, 2000).map(function(e){
     if (!e || !ID(e.id) || !INT(e.amount, 1, 1e9) || !ids[e.payer] || CATK.indexOf(e.cat) < 0 || !D(e.date)) return null;
     var split = (Array.isArray(e.split) ? e.split : []).filter(function(x){ return ids[x]; }).slice(0, 12);
-    return split.length ? { id: e.id, title: S(e.title, 100), amount: e.amount, payer: e.payer, cat: e.cat, date: e.date, split: split } : null; }).filter(Boolean);
+    var x = { id: e.id, title: S(e.title, 100), amount: e.amount, payer: e.payer, cat: e.cat, date: e.date, split: split };
+    if (typeof e.settleId === 'string' && sids[e.settleId]) x.settleId = e.settleId;
+    return split.length ? x : null; }).filter(Boolean);
+  var adjustments = (Array.isArray(raw.adjustments) ? raw.adjustments : []).slice(0, 2000).map(function(a){
+    if (!a || !ID(a.id) || !D(a.at) || !a.nets || typeof a.nets !== 'object') return null;
+    var nets = {}, ok = true; Object.keys(a.nets).slice(0, 12).forEach(function(k){ if (ids[k] && INT(a.nets[k], -1e9, 1e9)) nets[k] = a.nets[k]; else ok = false; });
+    return ok ? { id: a.id, settleId: typeof a.settleId === 'string' && sids[a.settleId] ? a.settleId : null, nets: nets, note: S(a.note, 100), at: a.at } : null; }).filter(Boolean);
   var paid = {}, savings = {};
   if (raw.paid && typeof raw.paid === 'object') Object.keys(raw.paid).slice(0, 500).forEach(function(k){ if (raw.paid[k] === true && k.length <= 200) paid[k] = true; });
   if (raw.savings && typeof raw.savings === 'object') members.forEach(function(m){ if (INT(raw.savings[m.id], 0, 1e9)) savings[m.id] = raw.savings[m.id]; });
-  return { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, paid: paid, savings: savings };
+  return { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
 }
 /* ===== LOGIC_END ===== */
 
@@ -465,7 +528,7 @@ function load(){
   try { const raw = localStorage.getItem(KEY); if (raw) s = JSON.parse(raw); } catch(e){}
   s = s || memories[KEY] || { trips: [] };
   s.trips = s.trips.filter(t => !isUntouchedSample(t));
-  s.trips.forEach(t => { t.paid = t.paid || {}; t.savings = t.savings || {}; });
+  s.trips.forEach(t => { t.paid = t.paid || {}; t.savings = t.savings || {}; t.settlements = t.settlements || []; t.adjustments = t.adjustments || []; });
   return s;
 }
 function persist(){ memories[KEY] = state; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
@@ -544,7 +607,7 @@ const shareBusy = {}, shareAgain = {};
 function shareSoon(){ clearTimeout(shareSoon.t); shareSoon.t = setTimeout(() => shared().forEach(t => shareSync(t)), 80); }
 function unshare(t){ delete t.share; persist(); if (lineAcct.user) bkSoon(); }
 function applyRemote(t, r, rev){
-  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; t.expenses = r.expenses; t.paid = r.paid; t.savings = r.savings;
+  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; t.expenses = r.expenses; t.settlements = r.settlements || []; t.adjustments = r.adjustments || []; t.paid = r.paid; t.savings = r.savings;
   t.share.rev = rev; t.share.snap = Sync.flatten([t]); persist();
 }
 /* push local changes (diff against what the server last had), then pull if somebody else changed it. Resolves 'ok' | 'offline' | 'gone'. */
@@ -897,7 +960,7 @@ function expList(t, q){
       const c = CAT[e.cat] || CAT.other;
       h += '<button class="item" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
         '<div class="grow"><div class="t">' + esc(e.title || c[2]) + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
-        (e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + '</div></div>' +
+        (e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
         '<div class="amt">' + yen(e.amount) + '</div></button>';
     });
     h += '</div></div>';
@@ -910,25 +973,34 @@ function tabExp(t){
   return box + '<div id="exp-list">' + expList(t, box ? ui.q : '') + '</div>';
 }
 
-function tabSettle(t){
-  if (!t.expenses.length) return '<div class="empty"><b>精算はまだありません</b>支出を記録すると、誰が誰にいくら払えばいいかが出ます。</div>';
-  const bal = calcBalances(t), pays = settle(bal.net);
-  const key = p => p.from + '-' + p.to + '-' + p.amount;
-  const left = pays.filter(p => !t.paid[key(p)]).length;
-  let h = '<div class="sec"><h2>送金<span>' + (!pays.length ? '' : left ? 'あと' + left + '件' : 'すべて完了') + '</span></h2>';
-  if (!pays.length) h += '<div class="panel"><b>精算は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
-  else {
-    h += '<div class="list">' + pays.map(p => '<div class="xfer ' + (t.paid[key(p)] ? 'done' : '') + '"><span class="avs">' + av(t, p.from) + av(t, p.to) + '</span>' +
+const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
+const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => esc(nameOf(t, id)) + ' ' + (nets[id] > 0 ? '+' : '−') + Math.abs(nets[id]).toLocaleString('ja-JP')).join('・');
+function xferList(t, pays, n){
+  return '<div class="list">' + pays.map(p => { const k = payKey(n, p), on = !!t.paid[k];
+    return '<div class="xfer ' + (on ? 'done' : '') + '"><span class="avs">' + av(t, p.from) + av(t, p.to) + '</span>' +
       '<div class="names">' + esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to)) + '</div><div class="amt">' + yen(p.amount) + '</div>' +
-      '<button class="chk ' + (t.paid[key(p)] ? 'on' : '') + '" data-a="toggle-paid" data-k="' + key(p) + '" aria-label="支払い済みにする" aria-pressed="' + (t.paid[key(p)] ? 'true' : 'false') + '">' + icon('check', 20) + '</button></div>').join('') + '</div>' +
-      '<div style="margin-top:10px"><button class="btn line" data-a="copy-settle" style="padding:10px 16px">LINEに貼る文面をコピー</button></div>';
-    if (ui.copyText) h += '<div style="margin-top:10px"><div class="sub" style="margin-bottom:6px">コピーできないときは、ここを長押しして選択してください。</div><textarea class="copybox" readonly aria-label="精算の文面">' + esc(ui.copyText) + '</textarea></div>';
-  }
-  h += '</div><div class="sec"><h2>ひとりずつの内訳</h2><div class="list">' + t.members.map(m => {
-    const n = bal.net[m.id];
-    return '<div class="item slim">' + av(t, m.id) + '<div class="grow"><div class="t">' + esc(m.name) + '</div><div class="sub sm">立て替え ' + yen(bal.paid[m.id]) + '・負担 ' + yen(bal.owed[m.id]) + '</div></div>' +
-      '<div class="amt plus-or-minus ' + (n > 0 ? 'pos' : n < 0 ? 'neg' : '') + '">' + (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toLocaleString('ja-JP') + '円</div></div>';
+      '<button class="chk ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + icon('check', 20) + '</button></div>'; }).join('') + '</div>';
+}
+function tabSettle(t){
+  const ss = t.settlements || [];
+  if (!t.expenses.length && !ss.length) return '<div class="empty"><b>精算はまだありません</b>支出を記録すると、誰が誰にいくら払えばいいかが出ます。</div>';
+  const n = ss.length + 1, open = openItems(t), bal = roundBalances(t), pays = settle(bal.net), has = open.expenses.length > 0 || open.adjustments.length > 0;
+  const left = pays.filter(p => !t.paid[payKey(n, p)]).length;
+  let h = '<div class="sec"><h2>第' + n + '回の精算<span>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件' : 'すべて完了') + '</span></h2>';
+  if (!has) h += '<div class="panel"><b>未精算の支出はありません。</b><div class="sub">これから記録する支出は、第' + n + '回の精算になります。</div></div>';
+  else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
+  else h += xferList(t, pays, n) + '<div style="margin-top:10px"><button class="btn line" data-a="copy-settle" style="padding:10px 16px">LINEに貼る文面をコピー</button></div>';
+  if (ui.copyText) h += '<div style="margin-top:10px"><div class="sub" style="margin-bottom:6px">コピーできないときは、ここを長押しして選択してください。</div><textarea class="copybox" readonly aria-label="精算の文面" rows="5">' + esc(ui.copyText) + '</textarea></div>';
+  if (open.adjustments.length) h += '<div class="panel" style="margin-top:10px"><b>過去の精算の変更による差額</b>' + open.adjustments.map(a => '<div class="sub sm" style="margin-top:4px">' + esc(a.note || '支出の変更') + '：' + netLine(t, a.nets) + '</div>').join('') + '</div>';
+  if (has) h += '<button class="btn" data-a="settle-ask" style="margin-top:14px">この精算を完了する</button><div class="sub sm" style="margin-top:6px;text-align:center">完了すると、いまの支出が第' + n + '回にまとまります。あとから追加した支出は、第' + (n + 1) + '回になります。</div>';
+  h += '</div>';
+  if (has) h += '<div class="sec"><h2>ひとりずつの内訳<span>第' + n + '回</span></h2><div class="list">' + t.members.map(m => {
+    const v = bal.net[m.id];
+    return '<div class="item slim">' + av(t, m.id) + '<div class="grow"><div class="t">' + esc(m.name) + '</div><div class="sub sm">立て替え ' + yen(bal.paid[m.id]) + '・負担 ' + yen(bal.owed[m.id]) + (bal.adj[m.id] ? '・差額 ' + (bal.adj[m.id] > 0 ? '+' : '−') + Math.abs(bal.adj[m.id]).toLocaleString('ja-JP') + '円' : '') + '</div></div>' +
+      '<div class="amt plus-or-minus ' + (v > 0 ? 'pos' : v < 0 ? 'neg' : '') + '">' + (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toLocaleString('ja-JP') + '円</div></div>';
   }).join('') + '</div></div>';
+  if (ss.length) h += '<div class="sec"><h2>精算の履歴</h2><div class="list">' + ss.map((st, i) => ({ st: st, i: i })).reverse().map(x =>
+    '<button class="item slim acc" data-a="settle-open" data-id="' + esc(x.st.id) + '"><div class="grow"><div class="t">第' + (x.i + 1) + '回の精算</div><div class="sub sm">' + fmtDate(x.st.at) + '・支出 ' + yen(x.st.total) + '・送金 ' + x.st.transfers.length + '件</div></div>' + icon('chev', 18) + '</button>').join('') + '</div></div>';
   return h;
 }
 
@@ -953,8 +1025,9 @@ function viewSheet(){
   if (s.type === 'exp'){
     const d = s.data; ttl = s.editId ? '支出を編集' : '支出を記録';
     const today = todayStr(), alone = t.members.length === 1, canSave = parseYen(d.amount) > 0;
+    const oldE = s.editId ? t.expenses.find(q => q.id === s.editId) : null, closedNo = oldE && isSettled(t, oldE) ? roundNo(t, oldE.settleId) : 0, nextNo = (t.settlements || []).length + 1;
     const chip = (on, a2, v, inner, plain) => '<button class="chip ' + (plain ? 'plain ' : '') + (on ? 'on' : '') + '" data-a="' + a2 + '"' + (v ? ' data-v="' + v + '"' : '') + ' aria-pressed="' + on + '">' + inner + '</button>';
-    body = '<label class="amount-wrap" for="f-amount"><input class="amount" id="f-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="金額" value="' + esc(d.amount) + '" style="width:' + (Math.max(1, String(d.amount).length) + .15) + 'ch"><span>円</span></label>' +
+    body = (closedNo ? '<div class="panel" style="margin:10px 0 0"><b>第' + closedNo + '回で精算済みです。</b><div class="sub sm">金額・払った人・割り勘の対象を変えると、差額が第' + nextNo + '回の精算に入ります。第' + closedNo + '回の送金は、変わりません。</div></div>' : '') + '<label class="amount-wrap" for="f-amount"><input class="amount" id="f-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="金額" value="' + esc(d.amount) + '" style="width:' + (Math.max(1, String(d.amount).length) + .15) + 'ch"><span>円</span></label>' +
       '<div class="hint" id="f-hint">' + splitHint(d) + '</div>' +
       '<div class="memo-row"><input class="field" id="f-title" type="text" aria-label="内容" value="' + esc(d.title) + '" placeholder="内容（なくてもOK）">' +
       '<label class="field datebox"><span id="f-datetext">' + (d.date === today ? '今日' : fmtDay(d.date)) + '</span><input id="f-date" type="date" aria-label="日付" value="' + d.date + '"></label></div>' +
@@ -963,8 +1036,30 @@ function viewSheet(){
         '<span class="lab">誰が払った？</span><div class="chips">' + t.members.map(m => chip(d.payer === m.id, 'pick-payer', m.id, av(t, m.id) + esc(m.name))).join('') + '</div>' +
         '<span class="lab">誰の分？</span><div class="chips">' + chip(d.all, 'split-all', '', '全員', true) +
         t.members.map(m => chip(!d.all && d.split.indexOf(m.id) >= 0, 'toggle-split', m.id, av(t, m.id) + esc(m.name))).join('') + '</div>');
-    foot = err + '<button class="btn" data-a="save-exp"' + (canSave ? '' : ' disabled') + '>' + (s.editId ? '保存する' : '記録する') + '</button>' +
-      (s.editId ? (s.confirmDel ? '<div style="margin-top:8px"><button class="btn bad" data-a="del-exp">本当に削除する</button></div>' : '<button class="link bad" data-a="ask-del">この支出を削除</button>') : '');
+    foot = err + (s.confirmSettled ? '<div class="panel" style="margin:0 0 8px"><b>精算済みの支出を変更します。</b><div class="sub sm">変更の差額が、第' + nextNo + '回の精算に入ります。よろしいですか？</div></div>' : '') +
+      '<button class="btn" data-a="save-exp"' + (canSave ? '' : ' disabled') + '>' + (s.confirmSettled ? '変更する' : s.editId ? '保存する' : '記録する') + '</button>' + (s.confirmSettled ? '<button class="link" data-a="settled-cancel">やめる</button>' : '') +
+      (s.editId ? (s.confirmDel ? '<div style="margin-top:8px">' + (closedNo ? '<div class="sub sm" style="margin-bottom:6px">第' + closedNo + '回で精算済みです。削除すると、差額が第' + nextNo + '回の精算に入ります。</div>' : '') + '<button class="btn bad" data-a="del-exp">本当に削除する</button></div>' : '<button class="link bad" data-a="ask-del">この支出を削除</button>') : '');
+  } else if (s.type === 'settle-confirm'){
+    const n = (t.settlements || []).length + 1, open = openItems(t), pays = settle(roundBalances(t).net), left = pays.filter(p => !t.paid[payKey(n, p)]).length;
+    ttl = '第' + n + '回の精算を完了する';
+    body = '<div class="panel" style="margin-top:12px"><b>いまの未精算の支出 ' + open.expenses.length + '件（合計 ' + yen(open.total) + '）が、第' + n + '回にまとまります。</b>' +
+      (open.adjustments.length ? '<div class="sub" style="margin-top:4px">過去の精算の変更による差額 ' + open.adjustments.length + '件も含みます。</div>' : '') +
+      '<div class="sub" style="margin-top:6px">完了したあとに追加した支出は、第' + (n + 1) + '回の精算になります。完了した回の支出を変えたときの差額も、次の回に入ります。</div>' +
+      (left ? '<div class="sub" style="margin-top:6px;color:var(--bad)">支払い済みのチェックが付いていない送金が、' + left + '件あります。</div>' : '') + '</div>';
+    foot = err + '<button class="btn" data-a="settle-go">第' + n + '回の精算を完了する</button><button class="link" data-a="close-sheet">やめる</button>';
+  } else if (s.type === 'settle-detail'){
+    const st = (t.settlements || []).find(x => x.id === s.id), n = roundNo(t, s.id);
+    if (!st){ ttl = '精算の履歴'; body = '<div class="empty">見つかりませんでした。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
+    else {
+      const exps = t.expenses.filter(e => e.settleId === st.id), adjs = (t.adjustments || []).filter(a => a.settleId === st.id);
+      ttl = '第' + n + '回の精算';
+      body = '<div class="sub" style="margin-top:12px">' + fmtDate(st.at) + ' に完了・支出 ' + yen(st.total) + '</div><span class="lab">送金</span>' +
+        (st.transfers.length ? xferList(t, st.transfers, n) : '<div class="panel"><b>送金は必要ありませんでした。</b></div>') +
+        '<span class="lab">この回の支出（' + exps.length + '件）</span>' + (exps.length ? '<div class="list">' + exps.map(e => '<div class="item slim"><div class="grow"><div class="t">' + esc(e.title || (CAT[e.cat] || CAT.other)[2]) + '</div><div class="sub sm">' + fmtDate(e.date) + '・' + esc(nameOf(t, e.payer)) + 'が払った</div></div><div class="amt">' + yen(e.amount) + '</div></div>').join('') + '</div>' : '<div class="sub">支出は、あとで削除されました。</div>') +
+        (adjs.length ? '<span class="lab">この回に含めた、過去の精算の変更による差額</span><div class="list">' + adjs.map(a => '<div class="item slim"><div class="grow"><div class="t">' + esc(a.note || '支出の変更') + '</div><div class="sub sm">' + netLine(t, a.nets) + '</div></div></div>').join('') + '</div>' : '') +
+        '<div class="sub sm" style="margin-top:10px">送金の金額は、完了したときのものです。このあとに支出を変更すると、差額は、いまの回に入ります。</div>';
+      foot = '<button class="link" data-a="close-sheet">閉じる</button>';
+    }
   } else if (s.type === 'save'){
     ttl = esc(nameOf(t, s.id)) + ' の積立';
     body = '<label class="lab" for="f-save">今回の積立額（円）</label><input class="field" id="f-save" type="text" inputmode="numeric" placeholder="例：5000">' +
@@ -972,7 +1067,7 @@ function viewSheet(){
       '<div class="sub" style="margin-top:10px">間違えたときは、マイナスの金額（例：-1000）で修正できます。</div>';
     foot = err + '<button class="btn" data-a="save-saving">記録する</button>';
   } else if (s.type === 'settings'){
-    const d = s.data, used = id => t.expenses.some(e => e.payer === id || e.split.indexOf(id) >= 0);
+    const d = s.data, used = id => t.expenses.some(e => e.payer === id || e.split.indexOf(id) >= 0) || (t.adjustments || []).some(a => a.nets[id]);
     ttl = '旅行の設定';
     body = '<label class="lab" for="s-name">旅行の名前</label><input class="field" id="s-name" type="text" value="' + esc(d.name) + '">' +
       '<div class="two"><div><label class="lab" for="s-start">出発日</label><input class="field" id="s-start" type="date" value="' + d.start + '"></div>' +
@@ -1215,7 +1310,7 @@ document.addEventListener('click', e => {
     else if (!d.me.trim()) d.err = 'あなたの名前を入力してください。メンバーの一覧に、この名前で表示されます。';
     else {
       const me = d.me.trim(); state.me = me;
-      const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, savings: {},
+      const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, savings: {}, settlements: [], adjustments: [],
         members: [{ id: uid(), name: me, pos: 0 }], expenses: [] };
       state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
     }
@@ -1246,24 +1341,42 @@ document.addEventListener('click', e => {
     else {
       const order = t.members.map(m => m.id), rec = { title: dd.title.trim(), amount: amt, payer: dd.payer, cat: dd.cat, date: dd.date || todayStr(),
         split: dd.split.slice().sort((x, y) => order.indexOf(x) - order.indexOf(y)) };
-      if (s.editId){ Object.assign(t.expenses.filter(q => q.id === s.editId)[0], rec); }
+      if (s.editId){
+        const x = t.expenses.filter(q => q.id === s.editId)[0], old = JSON.parse(JSON.stringify(x));
+        const moneyChanged = old.amount !== rec.amount || old.payer !== rec.payer || old.split.join() !== rec.split.join();
+        if (isSettled(t, old) && moneyChanged && !s.confirmSettled){ s.confirmSettled = true; render(); return; }   // closed round: ask first
+        Object.assign(x, rec);
+        const adj = expenseAdjustment(t, old, x, uid(), '「' + (rec.title || (CAT[rec.cat] || CAT.other)[2]) + '」の変更', todayStr());
+        if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
+      }
       else t.expenses.push(Object.assign({ id: uid() }, rec));
       const wasEdit = !!s.editId; save(); ui.sheet = null; ui.copyText = null; render(); flash(wasEdit ? '保存しました' : '記録しました'); return;
     }
   }
+  else if (a === 'settled-cancel'){ s.confirmSettled = false; }
   else if (a === 'ask-del'){ readSheet(); s.confirmDel = true; }
   else if (a === 'del-exp'){
     const ix = t.expenses.findIndex(q => q.id === s.editId), gone = t.expenses[ix], tid = t.id;
     if (ix < 0){ ui.sheet = null; render(); return; }
+    const adj = expenseAdjustment(t, gone, null, uid(), '「' + (gone.title || (CAT[gone.cat] || CAT.other)[2]) + '」の削除', todayStr());   // a closed round's expense: the difference goes to the current round
+    if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
     t.expenses = t.expenses.filter(q => q.id !== s.editId); save(); ui.sheet = null; render();
-    flash('削除しました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt || tt.expenses.some(q => q.id === gone.id)) return; tt.expenses.splice(Math.min(ix, tt.expenses.length), 0, gone); save(); render(); flash('元に戻しました'); });
+    flash('削除しました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt || tt.expenses.some(q => q.id === gone.id)) return; tt.expenses.splice(Math.min(ix, tt.expenses.length), 0, gone);
+      if (adj) tt.adjustments = (tt.adjustments || []).filter(a => a.id !== adj.id);   // undoing the deletion also takes the difference back
+      save(); render(); flash('元に戻しました'); });
     return;
   }
   else if (a === 'undo'){ const f = ui.undo; ui.toast = null; ui.undo = null; toastN++; if (f) f(); else render(); return; }
 
   else if (a === 'toggle-paid'){ const k = el.getAttribute('data-k'); if (t.paid[k]) delete t.paid[k]; else t.paid[k] = true; save(); }
+  else if (a === 'settle-ask'){ if (openItems(t).expenses.length || openItems(t).adjustments.length) ui.sheet = { type: 'settle-confirm', err: '' }; }
+  else if (a === 'settle-go'){
+    const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; save(); render(); flash('第' + n + '回の精算を完了しました'); return;
+  }
+  else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'copy-settle'){
-    const text = '【' + t.name + ' 精算】\n' + settle(calcBalances(t).net).map(p => nameOf(t, p.from) + ' → ' + nameOf(t, p.to) + '：' + yen(p.amount)).join('\n');
+    const n = (t.settlements || []).length + 1;
+    const text = '【' + t.name + ' 第' + n + '回の精算】\n' + settle(roundBalances(t).net).map(p => nameOf(t, p.from) + ' → ' + nameOf(t, p.to) + '：' + yen(p.amount)).join('\n');
     ui.copyText = text;
     try { navigator.clipboard.writeText(text).then(() => flash('コピーしました'), () => {}); } catch(err){}
   }

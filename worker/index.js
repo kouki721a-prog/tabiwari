@@ -13,15 +13,19 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS members (trip_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (trip_id, id))`,
   `CREATE TABLE IF NOT EXISTS expenses (trip_id TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', amount INTEGER NOT NULL, payer TEXT NOT NULL,
      cat TEXT NOT NULL, spent_on TEXT NOT NULL, split TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (trip_id, id))`,
+  `CREATE TABLE IF NOT EXISTS settlements (trip_id TEXT NOT NULL, id TEXT NOT NULL, n INTEGER NOT NULL, at TEXT NOT NULL, total INTEGER NOT NULL DEFAULT 0, transfers TEXT NOT NULL, PRIMARY KEY (trip_id, id))`,
+  `CREATE TABLE IF NOT EXISTS adjustments (trip_id TEXT NOT NULL, id TEXT NOT NULL, settle_id TEXT, nets TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, PRIMARY KEY (trip_id, id))`,
   `CREATE TABLE IF NOT EXISTS paid (trip_id TEXT NOT NULL, key TEXT NOT NULL, PRIMARY KEY (trip_id, key))`,
   `CREATE TABLE IF NOT EXISTS savings (trip_id TEXT NOT NULL, member_id TEXT NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY (trip_id, member_id))`,
   `CREATE TABLE IF NOT EXISTS hits (k TEXT NOT NULL, w INTEGER NOT NULL, n INTEGER NOT NULL, t INTEGER NOT NULL, PRIMARY KEY (k, w))`,
   ...ACCOUNT_SCHEMA
 ];
 let ready = null;   // schema is created on first use, so there is no separate migration step to run
-const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prepare(s))).catch(e => { ready = null; throw e; }));
+const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
+  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN settle_id TEXT').run().catch(() => { /* the column already exists */ }))   // which round of settlement an expense belongs to (NULL = not settled yet)
+  .catch(e => { ready = null; throw e; }));
 
-const LIMITS = { members: 12, expenses: 2000, paid: 500, body: 256 * 1024, opsPerRequest: 400 };
+const LIMITS = { members: 12, expenses: 2000, settlements: 100, adjustments: 2000, paid: 500, body: 256 * 1024, opsPerRequest: 400 };
 const WRITES_PER_10MIN = 300, CREATES_PER_DAY = 20, RETENTION_DAYS = 400;
 
 const CATS = new Set(['transport', 'stay', 'food', 'sight', 'gift', 'other']);
@@ -39,12 +43,19 @@ const CLEAN = {
   expenses: r => { const title = r.title == null ? '' : r.title;
     return isId(r.id) && isStr(title, 100) && isInt(r.amount, 1, 1e9) && isId(r.payer) && CATS.has(r.cat) && isDate(r.spent_on) &&
       Array.isArray(r.split) && r.split.length >= 1 && r.split.length <= 12 && r.split.every(isId)
-      ? { id: r.id, title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: r.split } : null; },
+      && (r.settle_id == null || isId(r.settle_id))
+      ? { id: r.id, title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: r.split, settle_id: r.settle_id == null ? null : r.settle_id, has_settle: 'settle_id' in r } : null; },
+  settlements: r => isId(r.id) && isInt(r.n, 1, 100000) && isDate(r.at) && isInt(r.total == null ? 0 : r.total, 0, 1e11) &&
+    Array.isArray(r.transfers) && r.transfers.length <= 100 && r.transfers.every(x => x && isId(x.from) && isId(x.to) && isInt(x.amount, 1, 1e9))
+    ? { id: r.id, n: r.n, at: r.at, total: r.total == null ? 0 : r.total, transfers: r.transfers.map(x => ({ from: x.from, to: x.to, amount: x.amount })) } : null,
+  adjustments: r => { const nets = r.nets, ks = nets && typeof nets === 'object' && !Array.isArray(nets) ? Object.keys(nets) : null, note = r.note == null ? '' : r.note;
+    return isId(r.id) && (r.settle_id == null || isId(r.settle_id)) && isStr(note, 100) && isDate(r.at) && ks && ks.length <= 12 && ks.every(k => isId(k) && isInt(nets[k], -1e9, 1e9))
+      ? { id: r.id, settle_id: r.settle_id == null ? null : r.settle_id, nets: Object.fromEntries(ks.map(k => [k, nets[k]])), note, at: r.at } : null; },
   paid: r => isStr(r.key, 200) && r.key.length > 0 ? { key: r.key } : null,
   savings: r => isId(r.member_id) && isInt(r.amount, 0, 1e9) ? { member_id: r.member_id, amount: r.amount } : null
 };
-const UPDATABLE = new Set(['trips', 'expenses', 'savings']);
-const KEYCOL = { trips: 'id', members: 'id', expenses: 'id', paid: 'key', savings: 'member_id' };
+const UPDATABLE = new Set(['trips', 'expenses', 'savings', 'adjustments']);
+const KEYCOL = { trips: 'id', members: 'id', expenses: 'id', settlements: 'id', adjustments: 'id', paid: 'key', savings: 'member_id' };
 
 export function validateOps(ops) {
   if (!Array.isArray(ops) || ops.length === 0 || ops.length > LIMITS.opsPerRequest) return null;
@@ -73,16 +84,20 @@ async function getTrip(env, id, rev) {
   const tr = await env.DB.prepare('SELECT * FROM trips WHERE id=?').bind(id).first();
   if (!tr) return reply({ error: 'not_found' }, 404);
   if (rev && Number(rev) === tr.rev) return reply({ unchanged: true, rev: tr.rev });
-  const [m, e, p, s] = await env.DB.batch([
+  const [m, e, p, s, st, ad] = await env.DB.batch([
     env.DB.prepare('SELECT id,name,position FROM members WHERE trip_id=? ORDER BY position, id').bind(id),
-    env.DB.prepare('SELECT id,title,amount,payer,cat,spent_on,split,created_at FROM expenses WHERE trip_id=? ORDER BY created_at, id').bind(id),
+    env.DB.prepare('SELECT id,title,amount,payer,cat,spent_on,split,settle_id,created_at FROM expenses WHERE trip_id=? ORDER BY created_at, id').bind(id),
     env.DB.prepare('SELECT key FROM paid WHERE trip_id=?').bind(id),
-    env.DB.prepare('SELECT member_id,amount FROM savings WHERE trip_id=?').bind(id)
+    env.DB.prepare('SELECT member_id,amount FROM savings WHERE trip_id=?').bind(id),
+    env.DB.prepare('SELECT id,n,at,total,transfers FROM settlements WHERE trip_id=? ORDER BY n, id').bind(id),
+    env.DB.prepare('SELECT id,settle_id,nets,note,at FROM adjustments WHERE trip_id=? ORDER BY at, id').bind(id)
   ]);
   // same shape the app's Sync.assemble() already reads
   return reply({ rev: tr.rev, trip: { id, name: tr.name, start_date: tr.start_date, end_date: tr.end_date, budget: tr.budget, owner: null,
     trip_members: m.results.map(r => ({ id: r.id, name: r.name, position: r.position, user_id: null, status: 'joined' })),
-    expenses: e.results.map(r => ({ id: r.id, title: r.title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: JSON.parse(r.split), created_at: r.created_at })),
+    expenses: e.results.map(r => ({ id: r.id, title: r.title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: JSON.parse(r.split), settle_id: r.settle_id || null, created_at: r.created_at })),
+    settlements: st.results.map(r => ({ id: r.id, n: r.n, at: r.at, total: r.total, transfers: JSON.parse(r.transfers) })),
+    adjustments: ad.results.map(r => ({ id: r.id, settle_id: r.settle_id || null, nets: JSON.parse(r.nets), note: r.note, at: r.at })),
     paid: p.results.map(r => ({ trip_id: id, key: r.key })), savings: s.results.map(r => ({ trip_id: id, member_id: r.member_id, amount: r.amount })) } });
 }
 
@@ -101,24 +116,33 @@ async function applyOps(env, req, id) {
   if (await limited(env, req, 'w', WRITES_PER_10MIN, 600)) return reply({ error: 'rate_limited' }, 429);
 
   if (tr) {   // size caps (a retried insert counts twice here; that only errs on the safe side)
-    const c = await DB.prepare(`SELECT (SELECT COUNT(*) FROM members WHERE trip_id=?1) m, (SELECT COUNT(*) FROM expenses WHERE trip_id=?1) e, (SELECT COUNT(*) FROM paid WHERE trip_id=?1) p`).bind(id).first();
-    if (c.m + (ins.members || []).length > LIMITS.members || c.e + (ins.expenses || []).length > LIMITS.expenses || c.p + (ins.paid || []).length > LIMITS.paid) return reply({ error: 'limit' }, 413);
-  } else if ((ins.members || []).length > LIMITS.members || (ins.expenses || []).length > LIMITS.expenses || (ins.paid || []).length > LIMITS.paid) return reply({ error: 'limit' }, 413);
+    const c = await DB.prepare(`SELECT (SELECT COUNT(*) FROM members WHERE trip_id=?1) m, (SELECT COUNT(*) FROM expenses WHERE trip_id=?1) e, (SELECT COUNT(*) FROM paid WHERE trip_id=?1) p, (SELECT COUNT(*) FROM settlements WHERE trip_id=?1) s, (SELECT COUNT(*) FROM adjustments WHERE trip_id=?1) a`).bind(id).first();
+    if (c.m + (ins.members || []).length > LIMITS.members || c.e + (ins.expenses || []).length > LIMITS.expenses || c.p + (ins.paid || []).length > LIMITS.paid ||
+      c.s + (ins.settlements || []).length > LIMITS.settlements || c.a + (ins.adjustments || []).length > LIMITS.adjustments) return reply({ error: 'limit' }, 413);
+  } else if ((ins.members || []).length > LIMITS.members || (ins.expenses || []).length > LIMITS.expenses || (ins.paid || []).length > LIMITS.paid ||
+      (ins.settlements || []).length > LIMITS.settlements || (ins.adjustments || []).length > LIMITS.adjustments) return reply({ error: 'limit' }, 413);
 
   const S = [], P = s => DB.prepare(s);
   if (ins.trips) { const t = ins.trips[0]; S.push(P('INSERT OR IGNORE INTO trips(id,name,start_date,end_date,budget,rev,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?)').bind(id, t.name, t.start_date, t.end_date, t.budget, now, now)); }
   if (ins.members) S.push(P(`INSERT OR IGNORE INTO members(trip_id,id,name,position) SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.name'), json_extract(value,'$.position') FROM json_each(?2)`).bind(id, J(ins.members)));
-  if (ins.expenses) S.push(P(`INSERT OR IGNORE INTO expenses(trip_id,id,title,amount,payer,cat,spent_on,split,created_at)
+  if (ins.expenses) S.push(P(`INSERT OR IGNORE INTO expenses(trip_id,id,title,amount,payer,cat,spent_on,split,settle_id,created_at)
       SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.title'), json_extract(value,'$.amount'), json_extract(value,'$.payer'), json_extract(value,'$.cat'),
-             json_extract(value,'$.spent_on'), json_extract(value,'$.split'), ?3 * 1000 + CAST(key AS INTEGER) FROM json_each(?2)`).bind(id, J(ins.expenses), now));
+             json_extract(value,'$.spent_on'), json_extract(value,'$.split'), json_extract(value,'$.settle_id'), ?3 * 1000 + CAST(key AS INTEGER) FROM json_each(?2)`).bind(id, J(ins.expenses), now));
+  if (ins.settlements) S.push(P(`INSERT OR IGNORE INTO settlements(trip_id,id,n,at,total,transfers) SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.n'), json_extract(value,'$.at'), json_extract(value,'$.total'), json_extract(value,'$.transfers') FROM json_each(?2)`).bind(id, J(ins.settlements)));
+  if (ins.adjustments) S.push(P(`INSERT OR IGNORE INTO adjustments(trip_id,id,settle_id,nets,note,at) SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.settle_id'), json_extract(value,'$.nets'), json_extract(value,'$.note'), json_extract(value,'$.at') FROM json_each(?2)`).bind(id, J(ins.adjustments)));
   if (ins.paid) S.push(P(`INSERT OR IGNORE INTO paid(trip_id,key) SELECT ?1, json_extract(value,'$.key') FROM json_each(?2)`).bind(id, J(ins.paid)));
   if (ins.savings) S.push(P(`INSERT OR IGNORE INTO savings(trip_id,member_id,amount) SELECT ?1, json_extract(value,'$.member_id'), json_extract(value,'$.amount') FROM json_each(?2)`).bind(id, J(ins.savings)));
 
   if (upd.trips) { const t = upd.trips[upd.trips.length - 1]; S.push(P('UPDATE trips SET name=?1, start_date=?2, end_date=?3, budget=?4 WHERE id=?5').bind(t.name, t.start_date, t.end_date, t.budget, id)); }
-  if (upd.expenses) S.push(P(`UPDATE expenses SET title=j.title, amount=j.amount, payer=j.payer, cat=j.cat, spent_on=j.spent_on, split=j.split
+  if (upd.expenses) S.push(P(`UPDATE expenses SET title=j.title, amount=j.amount, payer=j.payer, cat=j.cat, spent_on=j.spent_on, split=j.split,
+      settle_id = CASE WHEN j.has_settle = 1 THEN j.settle_id ELSE expenses.settle_id END   -- an older app that does not know about rounds must not wipe it
       FROM (SELECT json_extract(value,'$.id') AS id, json_extract(value,'$.title') AS title, json_extract(value,'$.amount') AS amount, json_extract(value,'$.payer') AS payer,
-                   json_extract(value,'$.cat') AS cat, json_extract(value,'$.spent_on') AS spent_on, json_extract(value,'$.split') AS split FROM json_each(?2)) AS j
+                   json_extract(value,'$.cat') AS cat, json_extract(value,'$.spent_on') AS spent_on, json_extract(value,'$.split') AS split,
+                   json_extract(value,'$.settle_id') AS settle_id, json_extract(value,'$.has_settle') AS has_settle FROM json_each(?2)) AS j
       WHERE expenses.trip_id=?1 AND expenses.id=j.id`).bind(id, J(upd.expenses)));
+  if (upd.adjustments) S.push(P(`UPDATE adjustments SET settle_id=j.settle_id
+      FROM (SELECT json_extract(value,'$.id') AS id, json_extract(value,'$.settle_id') AS settle_id FROM json_each(?2)) AS j
+      WHERE adjustments.trip_id=?1 AND adjustments.id=j.id`).bind(id, J(upd.adjustments)));
   if (upd.savings) S.push(P(`UPDATE savings SET amount=j.amount
       FROM (SELECT json_extract(value,'$.member_id') AS member_id, json_extract(value,'$.amount') AS amount FROM json_each(?2)) AS j
       WHERE savings.trip_id=?1 AND savings.member_id=j.member_id`).bind(id, J(upd.savings)));
@@ -134,7 +158,7 @@ async function applyOps(env, req, id) {
   return reply({ ok: true, rev: after ? after.rev : 0 });
 }
 
-const wipe = (DB, id) => ['paid', 'savings', 'expenses', 'members'].map(t => DB.prepare(`DELETE FROM ${t} WHERE trip_id=?`).bind(id)).concat(DB.prepare('DELETE FROM trips WHERE id=?').bind(id));
+const wipe = (DB, id) => ['paid', 'savings', 'expenses', 'settlements', 'adjustments', 'members'].map(t => DB.prepare(`DELETE FROM ${t} WHERE trip_id=?`).bind(id)).concat(DB.prepare('DELETE FROM trips WHERE id=?').bind(id));
 
 export default {
   async fetch(req, env) {

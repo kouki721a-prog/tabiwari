@@ -55,6 +55,16 @@ try {
   // B is "けんた": default payer on the form is B's own member
   await Bp.p.click('[data-a=add-exp]'); assert.ok(await Bp.p.locator('.chip.on', { hasText: 'けんた' }).count() >= 1); await Bp.p.click('[data-a=close-sheet]');
 
+  // ---------- rounds of settlement are shared: A closes round 1, B sees it; B's later receipt is round 2 for both; B edits a closed expense -> the adjustment reaches A
+  await A.p.click('[data-a=tab][data-t=settle]'); await A.p.click('[data-a=settle-ask]'); await A.p.click('[data-a=settle-go]'); await see(A.p, '第1回の精算を完了しました');
+  await refresh(Bp.p); await Bp.p.click('[data-a=tab][data-t=settle]'); await see(Bp.p, '未精算の支出はありません'); await see(Bp.p, '精算の履歴'); assert.strictEqual(await Bp.p.locator('[data-a=settle-open]').count(), 1, 'B sees round 1 in the history');
+  await Bp.p.click('[data-a=tab][data-t=exp]'); await see(Bp.p, '第1回で精算済み');
+  await addExpense(Bp.p, 700, 'おみやげ代'); await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, '第2回の精算');
+  await A.p.click('[data-a=tab][data-t=exp]'); await see(A.p, 'おみやげ代');
+  await Bp.p.locator('[data-a=edit-exp]', { hasText: 'コーヒー' }).click(); await Bp.p.fill('#f-amount', '2000'); await Bp.p.click('[data-a=save-exp]'); await Bp.p.click('[data-a=save-exp]'); await see(Bp.p, '保存しました');
+  await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, '過去の精算の変更による差額');
+  await A.p.click('[data-a=tab][data-t=exp]'); await Bp.p.click('[data-a=tab][data-t=exp]');
+
   // ---------- offline edits wait, then go out when the connection returns
   await Bp.ctx.setOffline(true); await addExpense(Bp.p, 500, 'ガム'); await see(Bp.p, '同期待ち');
   await Bp.ctx.setOffline(false); await Bp.p.evaluate(() => window.dispatchEvent(new Event('online')));
