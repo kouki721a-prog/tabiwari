@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, payRequestText};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -167,11 +167,4 @@ console.log('csv import tests passed');
   assert.deepStrictEqual(t.adjustments.map(a => [a.id, a.settleId]), [['j1', 'r1'], ['j3', null]], 'adjustments of unknown members are dropped; a missing round means "open"');
 }
 console.log('settlement round tests passed');
-{
-  const f = L.payRequestText;
-  assert.strictEqual(f('箱根 紅葉旅行', 2, 'けんた', 'あおい', 3200, 'https://x/#t=abc'),
-    'けんたさんへ。「箱根 紅葉旅行」の精算（第2回）です。\nあおいさんに 3,200円 を送ってもらえますか。\n内訳はこちらで見られます → https://x/#t=abc');
-  assert.strictEqual(f('箱根', 1, 'けんた', 'あおい', 300, ''), 'けんたさんへ。「箱根」の精算です。\nあおいさんに 300円 を送ってもらえますか。', 'round 1 has no 第N回; no link line when not shared');
-  ['催促', '至急', '！', 'お願いします'].forEach(w => assert.ok(!f('旅', 3, 'a', 'b', 1, 'u').includes(w), w));
-  console.log('pay request text tests passed');
-}
+

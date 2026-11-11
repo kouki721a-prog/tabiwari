@@ -1,6 +1,7 @@
 import { reply, sha256hex, limited } from './util.js';
 import { ACCOUNT_SCHEMA, handleAccount, purgeAccountData } from './account.js';
 import { runReminders } from './reminders.js';
+import { notifyOps, reachable } from './settlenotify.js';
 
 /* たびわり sharing API: Cloudflare Worker + D1.
    A shared trip is reachable only with its secret token (sent as `Authorization: Bearer <token>`).
@@ -23,6 +24,7 @@ const SCHEMA = [
 let ready = null;   // schema is created on first use, so there is no separate migration step to run
 const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
   .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN settle_id TEXT').run().catch(() => { /* the column already exists */ }))   // which round of settlement an expense belongs to (NULL = not settled yet)
+  .then(() => env.DB.prepare('ALTER TABLE users ADD COLUMN settle_notif INTEGER NOT NULL DEFAULT 1').run().catch(() => { /* the column already exists */ }))   // 精算のお知らせ on/off per account
   .catch(e => { ready = null; throw e; }));
 
 const LIMITS = { members: 12, expenses: 2000, settlements: 100, adjustments: 2000, paid: 500, body: 256 * 1024, opsPerRequest: 400 };
@@ -101,7 +103,7 @@ async function getTrip(env, id, rev) {
     paid: p.results.map(r => ({ trip_id: id, key: r.key })), savings: s.results.map(r => ({ trip_id: id, member_id: r.member_id, amount: r.amount })) } });
 }
 
-async function applyOps(env, req, id) {
+async function applyOps(env, req, id, ctx) {
   const text = await req.text();
   if (text.length > LIMITS.body) return reply({ error: 'too_large' }, 413);
   let body; try { body = JSON.parse(text); } catch (e) { return reply({ error: 'invalid' }, 400); }
@@ -154,14 +156,15 @@ async function applyOps(env, req, id) {
   if (del.trips) S.push(...wipe(DB, id));
   S.push(P('UPDATE trips SET rev = rev + 1, updated_at = ?2 WHERE id = ?1').bind(id, now));
   await DB.batch(S);   // one transaction: all of it or none of it
+  if (ctx && ctx.waitUntil && (ins.settlements || ins.paid)) ctx.waitUntil(notifyOps(env, id, ins).catch(e => console.error('settle notify failed', e && e.message)));   // after the reply: who owes / who is owed
   const after = await DB.prepare('SELECT rev FROM trips WHERE id=?').bind(id).first();
   return reply({ ok: true, rev: after ? after.rev : 0 });
 }
 
-const wipe = (DB, id) => ['paid', 'savings', 'expenses', 'settlements', 'adjustments', 'members'].map(t => DB.prepare(`DELETE FROM ${t} WHERE trip_id=?`).bind(id)).concat(DB.prepare('DELETE FROM trips WHERE id=?').bind(id));
+const wipe = (DB, id) => ['member_links', 'paid', 'savings', 'expenses', 'settlements', 'adjustments', 'members'].map(t => DB.prepare(`DELETE FROM ${t} WHERE trip_id=?`).bind(id)).concat(DB.prepare('DELETE FROM trips WHERE id=?').bind(id));
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS ? env.ASSETS.fetch(req) : new Response('not found', { status: 404 });
     try {
@@ -173,7 +176,8 @@ export default {
       if (!m || !TOKEN.test(m[1])) return reply({ error: 'unauthorized' }, 401);
       const id = await sha256hex(m[1]);
       if (url.pathname === '/api/trip' && req.method === 'GET') return await getTrip(env, id, url.searchParams.get('rev'));
-      if (url.pathname === '/api/ops' && req.method === 'POST') return await applyOps(env, req, id);
+      if (url.pathname === '/api/ops' && req.method === 'POST') return await applyOps(env, req, id, ctx);
+      if (url.pathname === '/api/reach' && req.method === 'GET') { if (!(await env.DB.prepare('SELECT 1 AS x FROM trips WHERE id=?').bind(id).first())) return reply({ error: 'not_found' }, 404); return reply({ reachable: await reachable(env, id) }); }   // which members can get 精算のお知らせ
       if (url.pathname === '/api/trip' && req.method === 'DELETE') {
         if (await limited(env, req, 'w', WRITES_PER_10MIN, 600)) return reply({ error: 'rate_limited' }, 429);
         await env.DB.batch(wipe(env.DB, id)); return reply({ ok: true });

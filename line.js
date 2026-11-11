@@ -18,6 +18,8 @@
     pushSubscribe: function (sub) { return call('POST', '/api/push/subscribe', sub); },
     pushDiagnose: function () { return call('POST', '/api/push/diagnose', {}); },
     pushTest: function () { return call('POST', '/api/push/test', {}); },
+    pushLink: function (token, member) { return call('POST', '/api/push/link', { token: token, member: member }); },
+    pushSettings: function (settle) { return call('POST', '/api/push/settings', { settle: settle }); },
     pushUnsubscribe: function (endpoint) { return call('POST', '/api/push/unsubscribe', { endpoint: endpoint }); },
     errText: function (e) {
       var s = e && e.status;

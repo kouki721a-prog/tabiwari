@@ -20,6 +20,8 @@ export const ACCOUNT_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, user_id TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS push_subs_user ON push_subs(user_id)`,
+  `CREATE TABLE IF NOT EXISTS member_links (trip_id TEXT NOT NULL, member_id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (trip_id, member_id))`,   // which signed-in person is which member of a shared trip (so 精算のお知らせ can reach them)
+  `CREATE INDEX IF NOT EXISTS member_links_user ON member_links(user_id)`,
   `CREATE TABLE IF NOT EXISTS notif_log (user_id TEXT NOT NULL, trip_id TEXT NOT NULL, kind TEXT NOT NULL, day TEXT NOT NULL, t INTEGER NOT NULL, PRIMARY KEY (user_id, trip_id, kind, day))`
 ];
 
@@ -45,7 +47,7 @@ const cookieHeader = (token, req, maxAge) => 'tw_session=' + token + '; Path=/; 
 async function userFrom(req, env) {
   const m = /(?:^|;\s*)tw_session=([A-Za-z0-9_-]{20,80})/.exec(req.headers.get('Cookie') || '');
   if (!m) return null;
-  return env.DB.prepare('SELECT u.id, u.name FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?1 AND s.expires_at > ?2').bind(await sha256hex(m[1]), nowSec()).first();
+  return env.DB.prepare('SELECT u.id, u.name, u.settle_notif FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?1 AND s.expires_at > ?2').bind(await sha256hex(m[1]), nowSec()).first();
 }
 
 function validItem(item) {
@@ -128,7 +130,7 @@ export async function handleAccount(req, env, url) {
   if (method !== 'GET' && method !== 'HEAD' && req.headers.get('Origin') !== url.origin) return reply({ error: 'origin' }, 403);   // blocks cross-site form posts
   const on = configured(env);
 
-  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name } : null, push: u ? (await getVapid(env)).publicKey : null }); }
+  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name, settle: u.settle_notif !== 0 } : null, push: u ? (await getVapid(env)).publicKey : null }); }
   if (!on) return reply({ error: 'not_configured' }, 503);
 
   if (p === '/api/auth/begin' && method === 'POST') {
@@ -199,6 +201,25 @@ export async function handleAccount(req, env, url) {
     if (await limited(env, req, 't', 10, 600)) return reply({ error: 'rate_limited' }, 429);
     return reply(await reminderReport(env, user.id));
   }
+  if (p === '/api/push/settings' && method === 'POST') {   // 精算のお知らせ on/off for the whole account
+    let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
+    if (!b || typeof b.settle !== 'boolean') return reply({ error: 'invalid' }, 400);
+    await env.DB.prepare('UPDATE users SET settle_notif = ?2 WHERE id = ?1').bind(user.id, b.settle ? 1 : 0).run();
+    return reply({ ok: true, settle: b.settle });
+  }
+  if (p === '/api/push/link' && method === 'POST') {   // "I am this member of that shared trip": needs both the login and the trip's secret link; the first person to claim a member keeps it
+    let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
+    if (!b || typeof b.token !== 'string' || !TOKEN.test(b.token) || !isId(b.member)) return reply({ error: 'invalid' }, 400);
+    if (await limited(env, req, 'p', 60, 600)) return reply({ error: 'rate_limited' }, 429);
+    const trip = await sha256hex(b.token);
+    if (!(await env.DB.prepare('SELECT 1 AS x FROM members WHERE trip_id = ?1 AND id = ?2').bind(trip, b.member).first())) return reply({ error: 'not_found' }, 404);
+    const owner = await env.DB.prepare('SELECT user_id FROM member_links WHERE trip_id = ?1 AND member_id = ?2').bind(trip, b.member).first();
+    if (owner && owner.user_id !== user.id) return reply({ error: 'taken' }, 409);   // somebody else already is this member
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM member_links WHERE trip_id = ?1 AND user_id = ?2 AND member_id != ?3').bind(trip, user.id, b.member),   // one member per person per trip
+      env.DB.prepare('INSERT OR IGNORE INTO member_links(trip_id, member_id, user_id) VALUES (?1,?2,?3)').bind(trip, b.member, user.id)]);
+    return reply({ ok: true });
+  }
   if (p === '/api/push/unsubscribe' && method === 'POST') {
     let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
     if (!b || typeof b.endpoint !== 'string') return reply({ error: 'invalid' }, 400);
@@ -206,7 +227,7 @@ export async function handleAccount(req, env, url) {
     return reply({ ok: true });
   }
   if (p === '/api/account' && method === 'DELETE') {
-    await env.DB.batch(['backups', 'sessions', 'attempts', 'push_subs', 'notif_log'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)).concat(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id)));
+    await env.DB.batch(['backups', 'sessions', 'attempts', 'push_subs', 'notif_log', 'member_links'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)).concat(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id)));
     return reply({ ok: true }, 200, { 'Set-Cookie': cookieHeader('', req, 0) });
   }
   return reply({ error: 'not_found' }, 404);
@@ -221,6 +242,7 @@ export async function purgeAccountData(env, now) {
     env.DB.prepare('DELETE FROM push_subs WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
     env.DB.prepare('DELETE FROM backups WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
     env.DB.prepare('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
+    env.DB.prepare('DELETE FROM member_links WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
     env.DB.prepare('DELETE FROM users WHERE last_login < ?1').bind(now - INACTIVE_ACCOUNT_DAYS * 86400)
   ]);
 }
