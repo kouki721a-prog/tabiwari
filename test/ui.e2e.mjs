@@ -88,6 +88,15 @@ try {
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.click('[data-a=tab][data-t=settle]');
     await see(q, '第1回の精算'); await see(q, '5,000'); const left = () => q.$eval('.t-amount', e => e.textContent);
     assert.strictEqual(await left(), '90,000円', 'budget before');
+    // payment request via LINE (stage 1): button on each unpaid row, opens the LINE share URL with the message; marking paid strikes the row and drops it from the remainder
+    { await q.route('https://line.me/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: '<p>line</p>' }));
+      assert.strictEqual(await q.locator('.xfer .ask').textContent(), '支払いのお願いを送る'); await see(q, 'あと1件・残り 5,000円');
+      const [req] = await Promise.all([q.waitForRequest(r => r.url().startsWith('https://line.me/R/msg/text/')), q.click('.xfer .ask')]);
+      assert.strictEqual(decodeURIComponent(req.url().split('/text/?')[1]), 'けんたさんへ。「箱根」の精算です。\nあおいさんに 5,000円 を送ってもらえますか。', 'unshared round 1: no round number, no link');
+      await q.goBack(); await q.click('.trip'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.xfer');
+      await q.click('.xfer .chk'); await q.waitForSelector('.xfer.done'); await see(q, 'すべて完了');
+      assert.strictEqual(await q.locator('.xfer .ask').count(), 0, 'no request button once paid'); assert.ok((await q.$eval('.xfer.done .amt', e => getComputedStyle(e).textDecorationLine)).includes('line-through'));
+      await q.click('.xfer .chk'); await q.waitForSelector('.xfer:not(.done)'); }
     await q.click('[data-a=settle-ask]'); await see(q, '第1回の精算を完了する'); await see(q, '2件（合計 10,000円）'); await q.click('[data-a=settle-go]'); await see(q, '第1回の精算を完了しました');
     await see(q, '未精算の支出はありません'); await see(q, '精算の履歴'); assert.strictEqual(await q.locator('[data-a=settle-ask]').count(), 0, 'nothing to settle'); assert.strictEqual(await left(), '90,000円', 'budget ignores rounds');
     // a receipt found later -> round 2
