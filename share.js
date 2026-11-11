@@ -32,6 +32,7 @@
     newToken: newToken, sha256hex: sha256hex, linkFor: linkFor, parseToken: parseToken, errText: errText,
     get: function (t, rev) { return call(t, 'GET', '/api/trip' + (rev ? '?rev=' + rev : '')); },
     ops: function (t, ops) { return call(t, 'POST', '/api/ops', { ops: ops }); },
+    reach: function (t) { return call(t, 'GET', '/api/reach'); },
     remove: function (t) { return call(t, 'DELETE', '/api/trip'); }
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Share; else root.Share = Share;

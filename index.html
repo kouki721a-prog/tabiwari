@@ -192,7 +192,6 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .xfer{display:flex;align-items:center;gap:10px;padding:8px 14px}
 .xfer.done{opacity:.5}
 .xfer.done .names .nm,.xfer.done .amt{text-decoration:line-through}
-.xfer .ask{display:block;margin-top:2px;padding:4px 0;background:none;border:0;color:var(--sub,#5b6b80);font:inherit;font-size:12px;font-weight:400;text-decoration:underline;cursor:pointer}
 .xfer .names{flex:1;min-width:0;font-weight:500;font-size:14px}
 .xfer .amt{font-weight:700;font-size:17px;white-space:nowrap}
 .chk{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent;flex:none}
@@ -356,10 +355,6 @@ function expenseAdjustment(trip, oldE, newE, adjId, note, at){
   var o = netOf(trip, oldE.amount, oldE.payer, oldE.split, oldE.id), n = newE ? netOf(trip, newE.amount, newE.payer, newE.split, newE.id) : netOf(trip, 0, '', [], ''), nets = {}, any = false;
   trip.members.forEach(function(m){ var d = n[m.id] - o[m.id]; if (d !== 0){ nets[m.id] = d; any = true; } });
   return any ? { id: adjId, settleId: null, nets: nets, note: note, at: at } : null;
-}
-function payRequestText(tripName, n, from, to, amount, link){
-  return from + 'さんへ。「' + tripName + '」の精算' + (n >= 2 ? '（第' + n + '回）' : '') + 'です。\n' +
-    to + 'さんに ' + amount.toLocaleString('ja-JP') + '円 を送ってもらえますか。' + (link ? '\n内訳はこちらで見られます → ' + link : '');
 }
 function settle(net){
   var cr = [], db = [];
@@ -543,7 +538,7 @@ function save(){ persist(); if (state.trips.some(t => t.share)) shareSoon(); if 
 let state = load();
 
 
-const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', inviting: null, copyText: null };
+const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', inviting: null };
 
 const CFG = window.TABIWARI || {};
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
@@ -631,6 +626,7 @@ async function shareSync(t){
       else if (!Sync.diff(sh.snap, Sync.flatten([t])).length) { applyRemote(t, Sync.assemble([g.trip])[0], g.rev); render(); }
     }
     if (sh.dirty){ sh.dirty = false; render(); }
+    linkMe(t);
   } catch(e){
     if (e && e.status === 404){ result = 'gone'; unshare(t); flash('共有が終了しました。この端末には残っています。'); render(); }
     else { result = 'offline'; if (!sh.dirty){ sh.dirty = true; render(); } }
@@ -640,6 +636,20 @@ async function shareSync(t){
   }
   return result;
 }
+/* Tell the server which member of this shared trip is this LINE account, so settlement notices can reach them (once per sign-in and trip). */
+let linkDone = {};
+async function linkMe(t){
+  if (!lineAcct.user || !t.share || linkDone[t.id]) return;
+  linkDone[t.id] = true;
+  try { await Line.pushLink(t.share.token, meId(t)); } catch(e){ if (!(e && (e.status === 404 || e.status === 409))) delete linkDone[t.id]; }   // retry later unless the member does not exist on the server
+}
+/* Who can get settlement notices in this trip (ids only), asked when the settlement tab is open. */
+function refreshReach(t){
+  const id = t.id, prev = ui.reach && ui.reach.id === id ? ui.reach.ids : null;
+  ui.reach = { id: id, ids: prev, at: Date.now() };
+  Share.reach(t.share.token).then(r => { const same = prev && prev.length === r.reachable.length && prev.every(x => r.reachable.indexOf(x) >= 0);
+    ui.reach = { id: id, ids: r.reachable, at: Date.now() }; if (!same && ui.view === 'trip' && ui.tripId === id && ui.tab === 'settle' && !ui.sheet) render(); }).catch(() => {});
+}
 async function startShare(t){
   const oldId = t.id, token = Share.newToken(), id = await Share.sha256hex(token);
   t.id = id; ui.tripId = id; t.members.forEach(m => { delete m.pending; });
@@ -648,7 +658,7 @@ async function startShare(t){
   let ok = false, why = null;
   try { const rows = Sync.flatten([t]), r = await Share.ops(token, Sync.diff(t.share.snap, rows)); t.share.snap = rows; t.share.rev = r.rev; ok = true; } catch(e){ why = e; }
   if (!ok){ t.id = oldId; ui.tripId = oldId; delete t.share; persist(); render(); flash(Share.errText(why)); return; }
-  persist(); if (lineAcct.user) bkSoon(); render(); flash('共有を始めました');
+  persist(); if (lineAcct.user) bkSoon(); linkMe(t); render(); flash('共有を始めました');
 }
 async function beginJoin(token){
   const id = await Share.sha256hex(token), have = state.trips.filter(x => x.id === id)[0];
@@ -661,7 +671,17 @@ async function captureShareHash(){
   try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
   try { const sh = await beginJoin(m[1]); if (sh){ ui.sheet = sh; render(); } } catch(e){ flash(Share.errText(e)); }
 }
+/* A tapped notification opens ./?trip=<id>&tab=settle (cold start) or sends the same URL to the open app (service worker message). */
+function openFromUrl(href){
+  let u; try { u = new URL(href, location.href); } catch(e){ return false; }
+  const id = u.searchParams.get('trip'); if (!id) return false;
+  try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
+  if (!state.trips.some(x => x.id === id)) return false;
+  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : 'exp'; ui.q = ''; ui.resetScroll = true; render(); return true;
+}
 function bootShare(){
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open) openFromUrl(e.data.open); });
+  openFromUrl(location.href);
   lineInit();
   document.addEventListener('visibilitychange', () => { if (!document.hidden && lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); if (!document.hidden){ refreshNtfHome(); checkRemote(); } else if (lineAcct.user) bkRun(); });
 window.addEventListener('online', () => { checkRemote(true); });
@@ -710,6 +730,7 @@ async function bkRunInner(){
 async function lineInit(){
   try {
     const m = await Line.me(); lineAcct.login = !!m.login; lineAcct.user = m.user; lineAcct.push = m.push || null;
+    linkDone = {}; if (m.user) shared().forEach(linkMe);
     if (m.user){ try { lineAcct.count = (await Line.backupGet()).items.length; } catch(e){} bkRun(); }
   } catch(e){ /* offline or no server: login simply is not offered */ }
   if (lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); else { lineAcct.waiting = false; }
@@ -985,7 +1006,7 @@ const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => 
 function xferList(t, pays, n){
   return '<div class="list">' + pays.map(p => { const k = payKey(n, p), on = !!t.paid[k];
     return '<div class="xfer ' + (on ? 'done' : '') + '"><span class="avs">' + av(t, p.from) + av(t, p.to) + '</span>' +
-      '<div class="names"><span class="nm">' + esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to)) + '</span>' + (on ? '' : '<button class="ask" data-a="ask-pay" data-n="' + n + '" data-f="' + esc(p.from) + '" data-to="' + esc(p.to) + '" data-amt="' + p.amount + '">支払いのお願いを送る</button>') + '</div><div class="amt">' + yen(p.amount) + '</div>' +
+      '<div class="names"><span class="nm">' + esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to)) + '</span></div><div class="amt">' + yen(p.amount) + '</div>' +
       '<button class="chk ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + icon('check', 20) + '</button></div>'; }).join('') + '</div>';
 }
 function tabSettle(t){
@@ -993,11 +1014,12 @@ function tabSettle(t){
   if (!t.expenses.length && !ss.length) return '<div class="empty"><b>精算はまだありません</b>支出を記録すると、誰が誰にいくら払えばいいかが出ます。</div>';
   const n = ss.length + 1, open = openItems(t), bal = roundBalances(t), pays = settle(bal.net), has = open.expenses.length > 0 || open.adjustments.length > 0;
   const left = pays.filter(p => !t.paid[payKey(n, p)]).length;
-  let h = '<div class="sec"><h2>第' + n + '回の精算<span>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件・残り ' + yen(pays.reduce((a, p) => a + (t.paid[payKey(n, p)] ? 0 : p.amount), 0)) : 'すべて完了') + '</span></h2>';
+  if (t.share && (!ui.reach || ui.reach.id !== t.id || Date.now() - ui.reach.at > 60000)) refreshReach(t);
+  const me = meId(t), off = t.share && ui.reach && ui.reach.id === t.id && ui.reach.ids ? t.members.filter(m => m.id !== me && ui.reach.ids.indexOf(m.id) < 0) : [];
+  let h = (off.length ? '<div class="panel" style="margin:0 0 10px"><b>まだ' + off.map(m => esc(m.name)).join('さん、') + 'さんが、お知らせを受け取れません。</b><div class="sub sm">LINEにログインして、通知をオンにすると、精算のお知らせが届きます。</div></div>' : '') + '<div class="sec"><h2>第' + n + '回の精算<span>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件・残り ' + yen(pays.reduce((a, p) => a + (t.paid[payKey(n, p)] ? 0 : p.amount), 0)) : 'すべて完了') + '</span></h2>';
   if (!has) h += '<div class="panel"><b>未精算の支出はありません。</b><div class="sub">これから記録する支出は、第' + n + '回の精算になります。</div></div>';
   else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
-  else h += xferList(t, pays, n) + '<div style="margin-top:10px"><button class="btn line" data-a="copy-settle" style="padding:10px 16px">LINEに貼る文面をコピー</button></div>';
-  if (ui.copyText) h += '<div style="margin-top:10px"><div class="sub" style="margin-bottom:6px">コピーできないときは、ここを長押しして選択してください。</div><textarea class="copybox" readonly aria-label="精算の文面" rows="5">' + esc(ui.copyText) + '</textarea></div>';
+  else h += xferList(t, pays, n);
   if (open.adjustments.length) h += '<div class="panel" style="margin-top:10px"><b>過去の精算の変更による差額</b>' + open.adjustments.map(a => '<div class="sub sm" style="margin-top:4px">' + esc(a.note || '支出の変更') + '：' + netLine(t, a.nets) + '</div>').join('') + '</div>';
   if (has) h += '<button class="btn" data-a="settle-ask" style="margin-top:14px">この精算を完了する</button><div class="sub sm" style="margin-top:6px;text-align:center">完了すると、いまの支出が第' + n + '回にまとまります。あとから追加した支出は、第' + (n + 1) + '回になります。</div>';
   h += '</div>';
@@ -1101,6 +1123,7 @@ function viewSheet(){
         '<button class="item slim acc" data-a="bk-restore"><div class="grow"><div class="t">バックアップから戻す</div><div class="sub sm">別の端末に移すときや、消した旅行を戻すとき</div></div>' + icon('chev', 18) + '</button></div>' +
       '<div class="sub sm acc-note">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを暗号化して控えます。</div>' +
       (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('この端末に通知する', ntfSub, sw) +
+        (s.ntf === 'on' || s.ntf === 'off' ? row('精算のお知らせ', '精算ができたときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
         (s.ntf === 'on' ? '<button class="item slim acc" data-a="ntf-help" aria-expanded="' + !!s.help + '"><div class="grow"><div class="t">うまく届かないとき</div></div><span class="chev' + (s.help ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
           (s.help ? row('テスト通知を送る', s.testMsg ? esc(s.testMsg) : '今すぐ、この端末に1件送ります。', smallBtn('ntf-test', '送る', s.testing)) +
             row('サーバーの状態を調べる', s.diag ? s.diag.map(l => esc(l)).join('<br>') : '端末の登録や、自動の判定の記録を確認します。', smallBtn('ntf-diag', '調べる', s.diagging)) : '') : '') + '</div>' : '') +
@@ -1195,8 +1218,8 @@ document.addEventListener('click', e => {
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
   if (a === 'bg'){ if (e.target !== el) return; ui.sheet = null; render(); return; }
 
-  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.copyText = null; ui.q = ''; }
-  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.copyText = null; ui.q = ''; }
+  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; }
+  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
     readSheet();   // keep what is typed in an open sheet
@@ -1220,6 +1243,12 @@ document.addEventListener('click', e => {
   else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
   else if (a === 'line-login'){ lineLogin(); return; }
   else if (a === 'line-cancel'){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; }
+  else if (a === 'settle-toggle'){
+    const next = lineAcct.user.settle === false;
+    Line.pushSettings(next).then(() => { lineAcct.user.settle = next; if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = ''; render(); } },
+      er => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = er && er.status ? Line.errText(er) : '設定を保存できませんでした。もう一度お試しください。'; render(); } });
+    return;
+  }
   else if (a === 'line-account'){ ui.sheet = { type: 'line-account', err: '', confirm: false, ntf: null }; ntfRefreshSheet(); Line.backupGet().then(r => { lineAcct.count = r.items.length; render(); }, () => {}); }
   else if (a === 'ntf-diag'){
     s.diagging = true; s.diag = ['調べています…']; s.err = '';
@@ -1330,7 +1359,7 @@ document.addEventListener('click', e => {
       expenses: [ex('夕食', 9000, 0, 'food', [0, 1, 2]), ex('宿', 12000, 1, 'stay', [0, 1, 2]), ex('電車', 3000, 2, 'transport', [1, 2])] };
     state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'settle'; ui.draft = null;
   }
-  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.copyText = null; ui.q = ''; ui.resetScroll = true; }
+  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.resetScroll = true; }
 
   else if (a === 'add-exp'){
     const today = todayStr();
@@ -1365,7 +1394,7 @@ document.addEventListener('click', e => {
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }
       else t.expenses.push(Object.assign({ id: uid() }, rec));
-      const wasEdit = !!s.editId; save(); ui.sheet = null; ui.copyText = null; render(); flash(wasEdit ? '保存しました' : '記録しました'); return;
+      const wasEdit = !!s.editId; save(); ui.sheet = null; render(); flash(wasEdit ? '保存しました' : '記録しました'); return;
     }
   }
   else if (a === 'settled-cancel'){ s.confirmSettled = false; }
@@ -1389,18 +1418,6 @@ document.addEventListener('click', e => {
     const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; save(); render(); flash('第' + n + '回の精算を完了しました'); return;
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
-  else if (a === 'ask-pay'){
-    const n = +el.getAttribute('data-n'), amt = +el.getAttribute('data-amt');
-    const text = payRequestText(t.name, n, nameOf(t, el.getAttribute('data-f')), nameOf(t, el.getAttribute('data-to')), amt, t.share ? Share.linkFor(t.share.token, location) : '');
-    location.href = 'https://line.me/R/msg/text/?' + encodeURIComponent(text);   // opens LINE with the message ready to send
-    return;
-  }
-  else if (a === 'copy-settle'){
-    const n = (t.settlements || []).length + 1;
-    const text = '【' + t.name + ' 第' + n + '回の精算】\n' + settle(roundBalances(t).net).map(p => nameOf(t, p.from) + ' → ' + nameOf(t, p.to) + '：' + yen(p.amount)).join('\n');
-    ui.copyText = text;
-    try { navigator.clipboard.writeText(text).then(() => flash('コピーしました'), () => {}); } catch(err){}
-  }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }
   else if (a === 'quick-save'){ document.getElementById('f-save').value = el.getAttribute('data-v'); return; }
   else if (a === 'save-saving'){

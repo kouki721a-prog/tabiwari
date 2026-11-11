@@ -1,5 +1,5 @@
 /* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls are never cached. */
-const VERSION = 'tabiwari-v43';
+const VERSION = 'tabiwari-v44';
 const FILES = ['./', './index.html', './config.js', './sync.js', './share.js', './line.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/icon-maskable-512.png', './icons/line-login-icon.png'];
 const OPTIONAL = ['./terms.html', './privacy.html', './legal.css'];   // optional: a missing one must not break the install
@@ -39,6 +39,8 @@ self.addEventListener('notificationclick', e => {
   const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(ws => {
     const w = ws.find(c => c.url.indexOf(self.registration.scope) === 0);
-    return w ? w.focus() : clients.openWindow(url);
+    if (!w) return clients.openWindow(url);
+    w.postMessage({ open: url });   // the open app switches to that trip
+    return w.focus();
   }));
 });

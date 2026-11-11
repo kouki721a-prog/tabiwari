@@ -83,6 +83,28 @@ try {
   assert.ok(await onServer('もう一つの旅'));
   assert.strictEqual((await run('2027-01-10T09:40:00Z')).sent, 0); assert.strictEqual(inbox.length, 0);
 
+  // ---- settlement notices: sharing links this account to its member; a member without notifications is shown; a confirmed round reaches the one who owes; the tap opens the settlement tab; the switch
+  { await d.p.click('[data-a=line-account]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=close-sheet]');   // back on
+    const info = await d.p.evaluate(async () => { const t = state.trips.find(x => x.name === '通知テスト旅行'); await startShare(t); return { token: t.share.token, me: t.share.me, id: t.id }; });
+    const api = (m, path, body) => fetch(base + path, { method: m, headers: { Authorization: 'Bearer ' + info.token, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }).then(r => r.json());
+    let rc = []; for (let i = 0; i < 40 && !rc.includes(info.me); i++) { await d.p.waitForTimeout(250); rc = (await api('GET', '/api/reach')).reachable; }
+    assert.deepStrictEqual(rc, [info.me], 'sharing linked this LINE account to its member');
+    await api('POST', '/api/ops', { ops: [{ kind: 'insert', table: 'members', rows: [{ id: 'm-miku', name: 'みく', position: 1 }] }, { kind: 'insert', table: 'expenses', rows: [{ id: 'ex1', title: '昼食', amount: 2000, payer: info.me, cat: 'food', spent_on: '2027-01-11', split: [info.me, 'm-miku'] }] }] });
+    await d.p.evaluate(id => { ui.view = 'trip'; ui.tripId = id; ui.tab = 'settle'; render(); }, info.id);
+    await see(d.p, 'まだみくさんが、お知らせを受け取れません。', 20000); await see(d.p, 'LINEにログインして、通知をオンにすると');
+    inbox.splice(0);
+    await api('POST', '/api/ops', { ops: [{ kind: 'insert', table: 'settlements', rows: [{ id: 'r1', n: 1, at: '2027-01-12', total: 2000, transfers: [{ from: info.me, to: 'm-miku', amount: 1000 }] }] }] });
+    for (let i = 0; i < 40 && !inbox.length; i++) await d.p.waitForTimeout(250);
+    assert.strictEqual(inbox.length, 1, 'the one who owes is told as soon as the round is confirmed');
+    const note = decrypt(await d.p.evaluate(() => window.__jwk), await d.p.evaluate(() => window.__auth), inbox.splice(0)[0].body);
+    assert.strictEqual(note.body, '通知テスト旅行の精算ができました。みくさんに 1,000円 を送ってください。'); assert.ok(note.url.includes('trip=' + info.id) && note.url.endsWith('tab=settle'), note.url);
+    await d.p.evaluate(() => { ui.view = 'home'; ui.tripId = null; render(); });
+    await d.p.evaluate(u => openFromUrl(u), note.url); await see(d.p, '第2回の精算'); assert.strictEqual(await d.p.evaluate(() => ui.view + '/' + ui.tab), 'trip/settle', 'tapping the notice opens that trip\'s settlement tab');
+    await d.p.evaluate(() => { ui.sheet = { type: 'line-account', err: '', confirm: false, ntf: 'on' }; render(); });
+    await d.p.waitForSelector('[data-a=settle-toggle][aria-checked=true]'); await d.p.click('[data-a=settle-toggle]'); await d.p.waitForSelector('[data-a=settle-toggle][aria-checked=false]');
+    assert.deepStrictEqual((await api('GET', '/api/reach')).reachable, [], 'switched off: not reachable'); await d.p.click('[data-a=settle-toggle]'); await d.p.waitForSelector('[data-a=settle-toggle][aria-checked=true]');
+    await d.p.click('[data-a=close-sheet]'); await d.p.evaluate(() => { ui.view = 'home'; ui.tripId = null; render(); }); }
+
   // ---- logging out also removes this device
   await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=line-logout]'); await see(d.p, 'ログアウトしました');
   assert.strictEqual(await d.p.evaluate(() => window.__sub), null);

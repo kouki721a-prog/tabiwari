@@ -6,8 +6,9 @@
 import { sha256hex } from './util.js';
 import { open } from './seal.js';
 import { getVapid, sendPush, reminderMessage, allowedEndpoint } from './push.js';
+import { runSettleReminders } from './settlenotify.js';
 
-const MAX_CLAIMS = 40, MAX_SENDS = 45;   // the free plan allows ~50 outgoing requests per run; what does not fit is picked up next hour
+const MAX_CLAIMS = 40, MAX_SENDS = 30;   // the free plan allows ~50 outgoing requests per run; what does not fit is picked up next hour
 const ymd = d => d.toISOString().slice(0, 10);
 
 export function jstParts(nowMs) {
@@ -69,6 +70,11 @@ export async function reminderReport(env, userId, nowMs = Date.now()) {
 }
 
 export async function runReminders(env, nowMs = Date.now()) {
+  const out = await runDaily(env, nowMs), t = jstParts(nowMs);
+  try { const n = await runSettleReminders(env, t.today, t.hour); if (n) out.again = n; } catch (e) { console.error('settle reminders failed', e && e.message); }   // one more note about an unpaid transfer, 2-3 days after a round
+  return out;
+}
+async function runDaily(env, nowMs) {
   const t = jstParts(nowMs), out = { claimed: 0, sent: 0, gone: 0, failed: 0, released: 0 };
   if (t.hour < 10) return out;
   const DB = env.DB;
