@@ -191,6 +191,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 /* settle */
 .xfer{display:flex;align-items:center;gap:10px;padding:8px 14px}
 .xfer.done{opacity:.5}
+.xfer.done .names .nm,.xfer.done .amt{text-decoration:line-through}
+.xfer .ask{display:block;margin-top:2px;padding:4px 0;background:none;border:0;color:var(--sub,#5b6b80);font:inherit;font-size:12px;font-weight:400;text-decoration:underline;cursor:pointer}
 .xfer .names{flex:1;min-width:0;font-weight:500;font-size:14px}
 .xfer .amt{font-weight:700;font-size:17px;white-space:nowrap}
 .chk{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent;flex:none}
@@ -354,6 +356,10 @@ function expenseAdjustment(trip, oldE, newE, adjId, note, at){
   var o = netOf(trip, oldE.amount, oldE.payer, oldE.split, oldE.id), n = newE ? netOf(trip, newE.amount, newE.payer, newE.split, newE.id) : netOf(trip, 0, '', [], ''), nets = {}, any = false;
   trip.members.forEach(function(m){ var d = n[m.id] - o[m.id]; if (d !== 0){ nets[m.id] = d; any = true; } });
   return any ? { id: adjId, settleId: null, nets: nets, note: note, at: at } : null;
+}
+function payRequestText(tripName, n, from, to, amount, link){
+  return from + 'さんへ。「' + tripName + '」の精算' + (n >= 2 ? '（第' + n + '回）' : '') + 'です。\n' +
+    to + 'さんに ' + amount.toLocaleString('ja-JP') + '円 を送ってもらえますか。' + (link ? '\n内訳はこちらで見られます → ' + link : '');
 }
 function settle(net){
   var cr = [], db = [];
@@ -978,7 +984,7 @@ const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => 
 function xferList(t, pays, n){
   return '<div class="list">' + pays.map(p => { const k = payKey(n, p), on = !!t.paid[k];
     return '<div class="xfer ' + (on ? 'done' : '') + '"><span class="avs">' + av(t, p.from) + av(t, p.to) + '</span>' +
-      '<div class="names">' + esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to)) + '</div><div class="amt">' + yen(p.amount) + '</div>' +
+      '<div class="names"><span class="nm">' + esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to)) + '</span>' + (on ? '' : '<button class="ask" data-a="ask-pay" data-n="' + n + '" data-f="' + esc(p.from) + '" data-to="' + esc(p.to) + '" data-amt="' + p.amount + '">支払いのお願いを送る</button>') + '</div><div class="amt">' + yen(p.amount) + '</div>' +
       '<button class="chk ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + icon('check', 20) + '</button></div>'; }).join('') + '</div>';
 }
 function tabSettle(t){
@@ -986,7 +992,7 @@ function tabSettle(t){
   if (!t.expenses.length && !ss.length) return '<div class="empty"><b>精算はまだありません</b>支出を記録すると、誰が誰にいくら払えばいいかが出ます。</div>';
   const n = ss.length + 1, open = openItems(t), bal = roundBalances(t), pays = settle(bal.net), has = open.expenses.length > 0 || open.adjustments.length > 0;
   const left = pays.filter(p => !t.paid[payKey(n, p)]).length;
-  let h = '<div class="sec"><h2>第' + n + '回の精算<span>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件' : 'すべて完了') + '</span></h2>';
+  let h = '<div class="sec"><h2>第' + n + '回の精算<span>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件・残り ' + yen(pays.reduce((a, p) => a + (t.paid[payKey(n, p)] ? 0 : p.amount), 0)) : 'すべて完了') + '</span></h2>';
   if (!has) h += '<div class="panel"><b>未精算の支出はありません。</b><div class="sub">これから記録する支出は、第' + n + '回の精算になります。</div></div>';
   else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
   else h += xferList(t, pays, n) + '<div style="margin-top:10px"><button class="btn line" data-a="copy-settle" style="padding:10px 16px">LINEに貼る文面をコピー</button></div>';
@@ -1374,6 +1380,12 @@ document.addEventListener('click', e => {
     const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; save(); render(); flash('第' + n + '回の精算を完了しました'); return;
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
+  else if (a === 'ask-pay'){
+    const n = +el.getAttribute('data-n'), amt = +el.getAttribute('data-amt');
+    const text = payRequestText(t.name, n, nameOf(t, el.getAttribute('data-f')), nameOf(t, el.getAttribute('data-to')), amt, t.share ? Share.linkFor(t.share.token, location) : '');
+    location.href = 'https://line.me/R/msg/text/?' + encodeURIComponent(text);   // opens LINE with the message ready to send
+    return;
+  }
   else if (a === 'copy-settle'){
     const n = (t.settlements || []).length + 1;
     const text = '【' + t.name + ' 第' + n + '回の精算】\n' + settle(roundBalances(t).net).map(p => nameOf(t, p.from) + ' → ' + nameOf(t, p.to) + '：' + yen(p.amount)).join('\n');
