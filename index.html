@@ -155,6 +155,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .t-bot .t-label{white-space:nowrap}
 .t-bot b{display:block;font-size:18px;font-weight:700}
 .t-bot .warn{color:#ff9a92}
+.sav-amt{font-weight:700;font-size:16px;white-space:nowrap}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good);font-weight:500}
+.ticket.c .t-sub{font-size:12px;opacity:.75;margin-top:6px}
 .t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
 .ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:30px;line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
 .ticket.m .t-bot{margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28)}.ticket.m .t-bot b{font-size:16px}.ticket.m .t-bot .t-label{font-size:12px}
@@ -270,6 +272,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .amount:focus{outline:none}
 .amount::placeholder{color:var(--line)}
 .amount-wrap span{font-size:22px;font-weight:700}
+.sheet #f-hint{margin-top:8px}
 .hint{min-height:20px;font-size:14px;color:var(--sub);font-weight:500}
 
 /* tab bar */
@@ -403,6 +406,9 @@ function dayDiff(a, b){
   var pa = a.split('-').map(Number), pb = b.split('-').map(Number);
   return Math.round((Date.UTC(pb[0], pb[1]-1, pb[2]) - Date.UTC(pa[0], pa[1]-1, pa[2])) / 86400000);
 }
+/* what the amount field shows while typing: half-width digits with thousands commas (parseYen reads it back) */
+function fmtAmountInput(s){ var d = String(s == null ? '' : s).replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/\D/g, '').slice(0, 10).replace(/^0+(?=\d)/, ''); return d.replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+const amtWidth = f => (Math.max(1, f.replace(/,/g, '').length) + (f.split(',').length - 1) * .3 + .05) + 'ch';   // a comma is narrower than a digit
 function parseYen(s){
   s = String(s).replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/[,，円¥\s]/g, '');
   return /^-?\d+$/.test(s) ? parseInt(s, 10) : NaN;
@@ -984,7 +990,10 @@ function viewTrip(){
   if (ui.tab === 'exp')   // record tab: the budget in a short card, so the list gets the room
     h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">' + lab + '</span><span class="t-label">' + yen(sp) + ' 使用 / ' + yen(t.budget) + '</span></div>' + amt + bar + '</div>' +
       '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
-  else   // settlement and savings tabs: one thin line
+  else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
+    const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = Math.min(100, Math.round(ssum / t.budget * 100));
+    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">予算 ' + yen(t.budget) + ' の ' + spct + '%</div></div>';
+  } else   // settlement tab: one thin line
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
     '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
@@ -1070,14 +1079,12 @@ function tabSettle(t){
 
 function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length);
-  const sum = t.members.reduce((s, m) => s + (t.savings[m.id] || 0), 0), pct = Math.min(100, Math.round(sum / t.budget * 100));
-  let h = '<div class="sec"><h2>旅行までの積立<span>1人 ' + yen(target) + ' が目標</span></h2><div class="panel"><div class="row between"><b>みんなの合計</b><span class="num">' + yen(sum) + '</span></div>' +
-    '<div class="bar"><i style="width:' + pct + '%"></i></div><div class="sub" style="margin-top:6px">予算 ' + yen(t.budget) + ' の ' + pct + '%</div></div></div>' +
-    '<div class="sec"><div class="list">';
+  let h = '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2><div class="list">';
   h += t.members.map(m => {
-    const v = t.savings[m.id] || 0, p = Math.min(100, Math.round(v / target * 100));
-    return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="t">' + esc(m.name) + '</div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
-      '<div class="sub sm" style="margin-top:2px">' + yen(v) + '（' + p + '%）</div></div><button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;padding:9px 14px;font-size:14px">記録</button></div>';
+    const v = t.savings[m.id] || 0, p = Math.min(100, Math.round(v / target * 100)), done = v >= target;
+    return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
+      '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '</div></div>' +
+      '<button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;padding:9px 14px;font-size:14px">積み立てる</button></div>';
   }).join('') + '</div></div>';
   return h;
 }
@@ -1091,7 +1098,7 @@ function viewSheet(){
     const today = todayStr(), alone = t.members.length === 1, canSave = parseYen(d.amount) > 0;
     const oldE = s.editId ? t.expenses.find(q => q.id === s.editId) : null, closedNo = oldE && isSettled(t, oldE) ? roundNo(t, oldE.settleId) : 0, nextNo = (t.settlements || []).length + 1;
     const chip = (on, a2, v, inner, plain) => '<button class="chip ' + (plain ? 'plain ' : '') + (on ? 'on' : '') + '" data-a="' + a2 + '"' + (v ? ' data-v="' + v + '"' : '') + ' aria-pressed="' + on + '">' + inner + '</button>';
-    body = (closedNo ? '<div class="panel" style="margin:10px 0 0"><b>第' + closedNo + '回で精算済みです。</b><div class="sub sm">金額・払った人・割り勘の対象を変えると、差額が第' + nextNo + '回の精算に入ります。第' + closedNo + '回の送金は、変わりません。</div></div>' : '') + '<label class="amount-wrap" for="f-amount"><input class="amount" id="f-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="金額" value="' + esc(d.amount) + '" style="width:' + (Math.max(1, String(d.amount).length) + .15) + 'ch"><span>円</span></label>' +
+    body = (closedNo ? '<div class="panel" style="margin:10px 0 0"><b>第' + closedNo + '回で精算済みです。</b><div class="sub sm">金額・払った人・割り勘の対象を変えると、差額が第' + nextNo + '回の精算に入ります。第' + closedNo + '回の送金は、変わりません。</div></div>' : '') + '<label class="amount-wrap" for="f-amount"><input class="amount" id="f-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="金額" value="' + esc(fmtAmountInput(d.amount)) + '" style="width:' + amtWidth(fmtAmountInput(d.amount)) + '"><span>円</span></label>' +
       '<div class="hint" id="f-hint">' + splitHint(d) + '</div>' +
       '<div class="memo-row"><input class="field" id="f-title" type="text" aria-label="内容" value="' + esc(d.title) + '" placeholder="内容（なくてもOK）">' +
       '<label class="field datebox"><span id="f-datetext">' + (d.date === today ? '今日' : fmtDay(d.date)) + '</span><input id="f-date" type="date" aria-label="日付" value="' + d.date + '"></label></div>' +
@@ -1247,7 +1254,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
-  if (e.target.id === 'f-amount' && ui.sheet){ ui.sheet.data.amount = e.target.value; e.target.style.width = (Math.max(1, e.target.value.length) + .15) + 'ch'; const sb = document.querySelector('[data-a=save-exp]'); if (sb) sb.disabled = !(parseYen(e.target.value) > 0); document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); }
+  if (e.target.id === 'f-amount' && ui.sheet){ const fa = fmtAmountInput(e.target.value); if (fa !== e.target.value) e.target.value = fa; ui.sheet.data.amount = fa; e.target.style.width = amtWidth(fa); const sb = document.querySelector('[data-a=save-exp]'); if (sb) sb.disabled = !(parseYen(e.target.value) > 0); document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); }
 });
 
 document.addEventListener('change', e => {
