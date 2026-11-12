@@ -139,6 +139,23 @@ try {
   assert.strictEqual((await sub(c2, d2)).status, 200); assert.strictEqual((await j('/api/account', { cookie: c2, method: 'DELETE' })).status, 200);
   assert.strictEqual((await run('2026-12-06T09:35:00Z')).sent, 0, 'deleted account: its devices are forgotten');
 
+  // ---- 今日の使いすぎのお知らせ: a running trip whose spending today is over the day's allowance, once a day, off switch
+  { assert.strictEqual((await sub(c1, d1)).status, 200); inbox.splice(0);
+    const runTrip = (id, name, spent) => ({ id, item: { kind: 'local', trip: { id, name, start: '2027-02-10', end: '2027-02-12', budget: 30000, members: [{ id: 'a', name: 'あおい' }], expenses: spent.map((amount, i) => ({ id: id + i, amount, payer: 'a', cat: 'food', date: '2027-02-11', split: ['a'] })) } } });
+    await j('/api/backup', { cookie: c1, method: 'PUT', body: { upsert: [runTrip('OV1', '使いすぎ旅', [12000, 8000]), runTrip('OK1', 'ふつうの旅', [3000])] } });
+    assert.strictEqual((await run('2027-02-11T00:30:00Z')).sent, 0, '09:30 in Japan: too early'); assert.strictEqual(inbox.length, 0);
+    const o1 = await run('2027-02-11T01:30:00Z'); assert.deepStrictEqual([o1.claimed, o1.sent], [1, 1], JSON.stringify(o1));   // 20,000 > floor((30,000 - 20,000) / 2) = 5,000 for OV1; 3,000 < floor(27,000 / 2) for OK1
+    const om = take(d1); assert.strictEqual(om.length, 1); assert.deepStrictEqual([om[0].title, om[0].body], ['「使いすぎ旅」 今日の支出', '今日は 20,000円 使いました。1日の目安 5,000円 を超えています。']); assert.ok(!/[！]|催促|至急/.test(om[0].title + om[0].body));
+    assert.strictEqual((await run('2027-02-11T02:30:00Z')).claimed, 0, 'once a day');
+    assert.strictEqual((await run('2027-02-11T14:00:00Z')).claimed, 0, '23:00 in Japan: still the same one, and too late for a new one'); inbox.splice(0);
+    assert.strictEqual((await j('/api/push/settings', { cookie: c1, method: 'POST', body: { over: 'x' } })).status, 400); assert.strictEqual((await j('/api/push/settings', { cookie: c1, method: 'POST', body: {} })).status, 400);
+    assert.strictEqual((await j('/api/me', { cookie: c1 })).data.user.over, true);
+    assert.strictEqual((await j('/api/push/settings', { cookie: c1, method: 'POST', body: { over: false } })).status, 200); assert.strictEqual((await j('/api/me', { cookie: c1 })).data.user.over, false);
+    assert.strictEqual((await j('/api/me', { cookie: c1 })).data.user.settle, true, 'the other switch is untouched');
+    await j('/api/backup', { cookie: c1, method: 'PUT', body: { upsert: [runTrip('OV2', '二つ目の旅', [29000])] } });
+    assert.strictEqual((await run('2027-02-11T03:30:00Z')).claimed, 0, 'switched off: no over notice'); assert.strictEqual(inbox.length, 0);
+    await j('/api/push/unsubscribe', { cookie: c1, method: 'POST', body: { endpoint: d1.endpoint } }); }
+
   // ---- device limit (per account)
   for (let k = 0; k < 10; k++) assert.strictEqual((await sub(c1, newSub('m' + k))).status, 200);
   assert.strictEqual((await sub(c1, newSub('m11'))).status, 413, '10 devices per account');

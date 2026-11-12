@@ -47,7 +47,7 @@ const cookieHeader = (token, req, maxAge) => 'tw_session=' + token + '; Path=/; 
 async function userFrom(req, env) {
   const m = /(?:^|;\s*)tw_session=([A-Za-z0-9_-]{20,80})/.exec(req.headers.get('Cookie') || '');
   if (!m) return null;
-  return env.DB.prepare('SELECT u.id, u.name, u.settle_notif FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?1 AND s.expires_at > ?2').bind(await sha256hex(m[1]), nowSec()).first();
+  return env.DB.prepare('SELECT u.id, u.name, u.settle_notif, u.over_notif FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?1 AND s.expires_at > ?2').bind(await sha256hex(m[1]), nowSec()).first();
 }
 
 function validItem(item) {
@@ -142,7 +142,7 @@ export async function handleAccount(req, env, url) {
   if (method !== 'GET' && method !== 'HEAD' && req.headers.get('Origin') !== url.origin) return reply({ error: 'origin' }, 403);   // blocks cross-site form posts
   const on = configured(env);
 
-  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name, settle: u.settle_notif !== 0 } : null, push: u ? (await getVapid(env)).publicKey : null }); }
+  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name, settle: u.settle_notif !== 0, over: u.over_notif !== 0 } : null, push: u ? (await getVapid(env)).publicKey : null }); }
   if (!on) return reply({ error: 'not_configured' }, 503);
 
   if (p === '/api/auth/begin' && method === 'POST') {
@@ -215,9 +215,10 @@ export async function handleAccount(req, env, url) {
   }
   if (p === '/api/push/settings' && method === 'POST') {   // 精算のお知らせ on/off for the whole account
     let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
-    if (!b || typeof b.settle !== 'boolean') return reply({ error: 'invalid' }, 400);
-    await env.DB.prepare('UPDATE users SET settle_notif = ?2 WHERE id = ?1').bind(user.id, b.settle ? 1 : 0).run();
-    return reply({ ok: true, settle: b.settle });
+    if (!b || (b.settle !== undefined && typeof b.settle !== 'boolean') || (b.over !== undefined && typeof b.over !== 'boolean') || (b.settle === undefined && b.over === undefined)) return reply({ error: 'invalid' }, 400);
+    if (b.settle !== undefined) await env.DB.prepare('UPDATE users SET settle_notif = ?2 WHERE id = ?1').bind(user.id, b.settle ? 1 : 0).run();
+    if (b.over !== undefined) await env.DB.prepare('UPDATE users SET over_notif = ?2 WHERE id = ?1').bind(user.id, b.over ? 1 : 0).run();
+    return reply({ ok: true, settle: b.settle, over: b.over });
   }
   if (p === '/api/push/link' && method === 'POST') {   // "I am this member of that shared trip": needs both the login and the trip's secret link; the first person to claim a member keeps it
     let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }

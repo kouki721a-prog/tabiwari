@@ -815,7 +815,7 @@ async function ntfOff(){
   if (sub){ try { await Line.pushUnsubscribe(sub.endpoint); } catch(e){} await sub.unsubscribe(); }
   return 'off';
 }
-const KIND_JA = { eve: '前日の通知', daily: '記録のし忘れ', settle: '精算' };
+const KIND_JA = { eve: '前日の通知', daily: '記録のし忘れ', settle: '精算', over: '今日の使いすぎ' };
 const jstText = ms => new Date(ms + 9 * 3600 * 1000).toISOString().slice(5, 16).replace('-', '/').replace('T', ' ');
 function diagLines(r){
   const L = ['今（日本時間）：' + jstText(r.now), '通知を受け取る端末：' + r.devices + '台'];
@@ -1230,6 +1230,7 @@ function viewSheet(){
       '<div class="sub sm acc-note">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを暗号化して控えます。</div>' +
       (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('この端末に通知する', ntfSub, sw) +
         (s.ntf === 'on' || s.ntf === 'off' ? row('精算のお知らせ', '精算ができたときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
+        (s.ntf === 'on' || s.ntf === 'off' ? row('今日の使いすぎのお知らせ', '旅行中、今日の支出が1日の目安を超えたら、1日に1回お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.over !== false) + '" aria-label="今日の使いすぎのお知らせ" data-a="over-toggle"></button>') : '') +
         (s.ntf === 'on' ? '<button class="item slim acc" data-a="ntf-help" aria-expanded="' + !!s.help + '"><div class="grow"><div class="t">うまく届かないとき</div></div><span class="chev' + (s.help ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
           (s.help ? row('テスト通知を送る', s.testMsg ? esc(s.testMsg) : '今すぐ、この端末に1件送ります。', smallBtn('ntf-test', '送る', s.testing)) +
             row('サーバーの状態を調べる', s.diag ? s.diag.map(l => esc(l)).join('<br>') : '端末の登録や、自動の判定の記録を確認します。', smallBtn('ntf-diag', '調べる', s.diagging)) : '') : '') + '</div>' : '') +
@@ -1373,6 +1374,12 @@ document.addEventListener('click', e => {
   else if (a === 'app-settings'){
     ui.sheet = { type: 'app-settings', ver: null };
     try { caches.keys().then(ks => { const k = ks.filter(x => /^tabiwari-v\d+$/.test(x)).sort().pop(); if (k && ui.sheet && ui.sheet.type === 'app-settings'){ ui.sheet.ver = k.replace('tabiwari-', ''); render(); } }, () => {}); } catch(e){}
+  }
+  else if (a === 'over-toggle'){
+    const next = lineAcct.user.over === false;
+    Line.pushSettingOver(next).then(() => { lineAcct.user.over = next; if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = ''; render(); } },
+      er => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = er && er.status ? Line.errText(er) : '設定を保存できませんでした。もう一度お試しください。'; render(); } });
+    return;
   }
   else if (a === 'settle-toggle'){
     const next = lineAcct.user.settle === false;
