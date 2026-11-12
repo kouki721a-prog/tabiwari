@@ -36,9 +36,10 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
 /* shown while the page loads (plain HTML + CSS, no waiting); removed on the first render */
-#splash{position:fixed;inset:0;z-index:99;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .2s}
+#splash{position:fixed;inset:0;z-index:99;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .2s;opacity:0;animation:splash-in .15s .3s forwards}   /* invisible for the first 0.3s: a quick start never shows it */
+@keyframes splash-in{to{opacity:1}}
 #splash img{border-radius:22px;box-shadow:0 6px 18px rgba(15,39,66,.18)}#splash b{font-size:22px;font-weight:700;letter-spacing:.04em;color:var(--ink)}
-#splash.out{opacity:0;pointer-events:none}
+#splash.out{opacity:0!important;animation:none;pointer-events:none}
 body{background:var(--paper);color:var(--ink);font-family:var(--font);font-weight:400;line-height:1.55;font-variant-numeric:tabular-nums}
 b,strong{font-weight:500}
 button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-align:inherit}
