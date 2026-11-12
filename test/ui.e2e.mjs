@@ -92,8 +92,8 @@ try {
     assert.strictEqual(await left(), '90,000円', 'budget before');
     // the manual LINE sending is gone (settlement notices are automatic); the paid check and the remaining amount stay
     { await see(q, 'あと1件・残り 5,000円'); assert.strictEqual(await q.locator('.xfer .ask, [data-a=copy-settle], textarea.copybox').count(), 0, 'no manual LINE sending');
-      await q.click('.xfer .chk'); await q.waitForSelector('.xfer.done'); await see(q, 'すべて完了'); assert.ok((await q.$eval('.xfer.done .amt', e => getComputedStyle(e).textDecorationLine)).includes('line-through'));
-      await q.click('.xfer .chk'); await q.waitForSelector('.xfer:not(.done)'); }
+      await q.click('.xfer .paidbtn'); await q.waitForSelector('.xfer.done'); await see(q, 'すべて完了'); assert.ok((await q.$eval('.xfer.done .amt', e => getComputedStyle(e).textDecorationLine)).includes('line-through'));
+      await q.click('.xfer .paidbtn'); await q.waitForSelector('.xfer:not(.done)'); }
     await q.click('[data-a=settle-ask]'); await see(q, '第1回の精算を完了する'); await see(q, '2件（合計 10,000円）'); await q.click('[data-a=settle-go]'); await see(q, '第1回の精算を完了しました');
     await see(q, '未精算の支出はありません'); await see(q, '精算の履歴'); assert.strictEqual(await q.locator('[data-a=settle-ask]').count(), 0, 'nothing to settle'); assert.strictEqual(await left(), '90,000円', 'budget ignores rounds');
     // a receipt found later -> round 2
