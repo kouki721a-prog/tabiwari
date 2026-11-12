@@ -877,6 +877,7 @@ let sheetWasOpen = false, toastN = 0;
 function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
 /* the first screen (no trips yet): one screen, no scrolling. Order: intro, the main button, join by link, the 3 steps, LINE login (small), legal links at the very bottom */
+const OA_URL = 'https://line.me/R/ti/p/%40896znnha';   // official account 「たびわり」 (@896znnha)
 const brandRow = () => '<div class="brandrow"><h1 class="brand">たびわり</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 function viewHomeEmpty(){
   const steps = [['旅行をつくる', '日程と、予算を決めます。'], ['支出を記録する', '誰が払ったか、誰の分かを選びます。'], ['精算する', '誰が誰にいくら払うかが、自動で出ます。']];
@@ -1114,6 +1115,7 @@ function viewSheet(){
     body = (lineAcct.login ? sec('LINEアカウント') + '<div class="list">' + (lineAcct.user
         ? '<button class="item slim acc" data-a="line-account"><div class="grow"><div class="t">' + esc(lineAcct.user.name || 'LINE') + '</div><div class="sub sm">バックアップ、通知、ログアウト</div></div>' + chev + '</button>'
         : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 14px 12px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
+      (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener"><div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「たびわり」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
       (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html"><div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html"><div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
       sec('このアプリについて') + '<div class="list"><div class="item slim acc"><div class="grow"><div class="t">たびわり</div><div class="sub sm">' + (s.ver ? '版 ' + esc(s.ver) : '旅行の予算管理と割り勘') + '</div></div></div></div>';
     foot = '';
