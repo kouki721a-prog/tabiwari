@@ -15,6 +15,8 @@ try {
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   await p.setViewportSize({ width: 390, height: 780 });
   await p.goto('http://localhost:8797/'); await see(p, '最初の旅行をつくりましょう');
+  // the splash is plain HTML that is there before any script runs, and it is gone once the first screen is drawn
+  assert.ok((await (await fetch('http://localhost:8797/')).text()).includes('<div id="splash"'), 'the splash is in the page itself'); await p.waitForFunction(() => !document.getElementById('splash'), null, { timeout: 3000 });
   // the first screen: one screen without scrolling; main button right under the intro, then "join by link", the 3 steps, and the legal links at the very bottom
   { const y = sel => p.$eval(sel, e => e.getBoundingClientRect().top);
     const m = await p.$eval('.home0', e => ({ s: e.scrollHeight, c: e.clientHeight }));
