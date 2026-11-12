@@ -4,7 +4,8 @@
    Every (person, notification) is claimed in notif_log before sending, so it goes out once. */
 import { getVapid, sendPush, allowedEndpoint } from './push.js';
 
-const MAX_SENDS = 15;   // outgoing requests per call; the free plan allows ~50 per invocation and the hourly job has its own share
+const MAX_SENDS = 15;
+const lineApi = env => env.LINE_API_BASE || 'https://api.line.me';   // outgoing requests per call; the free plan allows ~50 per invocation and the hourly job has its own share
 const yen = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
 export const messages = {
   settle: (trip, to, amount) => ({ title: '精算のお知らせ', body: trip + 'の精算ができました。' + to + 'さんに ' + yen(amount) + ' を送ってください。' }),
@@ -21,18 +22,29 @@ export function parsePaidKey(key, memberIds) {
 }
 export const payKey = (n, x) => { const b = x.from + '-' + x.to + '-' + x.amount; return n === 1 ? b : n + ':' + b; };
 
-/* member id -> { userId, subs[] } for the members who can be reached right now */
+/* member id -> { userId, lineSub, friend, subs[] } for the members who have 精算のお知らせ on and can be reached by an app notification or, as a friend of the official account, by LINE */
 async function recipients(env, tripId) {
-  const rows = (await env.DB.prepare('SELECT l.member_id, l.user_id, p.endpoint, p.p256dh, p.auth FROM member_links l JOIN users u ON u.id = l.user_id AND u.settle_notif = 1 JOIN push_subs p ON p.user_id = l.user_id WHERE l.trip_id = ?1').bind(tripId).all()).results;
+  const rows = (await env.DB.prepare('SELECT l.member_id, l.user_id, u.line_sub, u.friend_flag, p.endpoint, p.p256dh, p.auth FROM member_links l JOIN users u ON u.id = l.user_id AND u.settle_notif = 1 LEFT JOIN push_subs p ON p.user_id = l.user_id WHERE l.trip_id = ?1').bind(tripId).all()).results;
   const out = new Map();
   for (const r of rows) {
-    if (!allowedEndpoint(r.endpoint, env)) continue;
-    if (!out.has(r.member_id)) out.set(r.member_id, { userId: r.user_id, subs: [] });
-    out.get(r.member_id).subs.push({ endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth });
+    if (!out.has(r.member_id)) out.set(r.member_id, { userId: r.user_id, lineSub: r.line_sub, friend: r.friend_flag === 1 && !!env.LINE_OA_ACCESS_TOKEN, subs: [] });
+    if (r.endpoint && allowedEndpoint(r.endpoint, env)) out.get(r.member_id).subs.push({ endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth });
   }
+  for (const [k, v] of out) if (!v.subs.length && !v.friend) out.delete(k);
   return out;
 }
 export async function reachable(env, tripId) { return [...(await recipients(env, tripId)).keys()]; }
+
+/* Push from the official account to a friend. 'ok' | 'not_friend' (blocked or never added: stop trying) | 'retry' */
+async function linePush(env, to, text, retryKey) {
+  try {
+    const r = await fetch(lineApi(env) + '/v2/bot/message/push', { method: 'POST', headers: { Authorization: 'Bearer ' + env.LINE_OA_ACCESS_TOKEN, 'Content-Type': 'application/json', 'X-Line-Retry-Key': retryKey },
+      body: JSON.stringify({ to, messages: [{ type: 'text', text }] }) });
+    if (r.ok || r.status === 409) return 'ok';   // 409: this retry key was already accepted
+    return r.status === 400 || r.status === 403 ? 'not_friend' : 'retry';
+  } catch (e) { return 'retry'; }
+}
+const uuidFrom = async s => { const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join(''); return h.slice(0, 8) + '-' + h.slice(8, 12) + '-4' + h.slice(13, 16) + '-a' + h.slice(17, 20) + '-' + h.slice(20, 32); };
 
 /* events: [{ member, kind, msg }]. Returns how many notifications went out. */
 export async function deliver(env, tripId, events, nowSec = Math.floor(Date.now() / 1000)) {
@@ -48,7 +60,8 @@ export async function deliver(env, tripId, events, nowSec = Math.floor(Date.now(
     if (!res[i].meta.changes) continue;   // already sent
     const e = mine[i], who = rc.get(e.member);
     const release = () => env.DB.prepare("DELETE FROM notif_log WHERE user_id = ?1 AND trip_id = ?2 AND kind = ?3 AND day = '-'").bind(who.userId, tripId, e.kind).run();
-    if (who.subs.length > budget) { await release(); continue; }
+    const viaLine = e.kind.startsWith('s:') && who.friend;   // only a confirmed round falls back to the official account
+    if (who.subs.length + (viaLine ? 1 : 0) > budget) { await release(); continue; }
     let delivered = false;
     for (const s of who.subs) {
       budget--;
@@ -57,6 +70,12 @@ export async function deliver(env, tripId, events, nowSec = Math.floor(Date.now(
         if (st >= 200 && st < 300) { delivered = true; sent++; }
         else if (st === 404 || st === 410) await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ?1').bind(s.endpoint).run();
       } catch (err) { /* try the next device */ }
+    }
+    if (!delivered && viaLine) {   // no app notification got through: the official account, for people who added it as a friend
+      budget--;
+      const st = await linePush(env, who.lineSub, '【たびわり】' + e.msg.body, await uuidFrom(tripId + '|' + e.kind + '|' + who.userId));
+      if (st === 'ok') { delivered = true; sent++; }
+      else if (st === 'not_friend') await env.DB.prepare('UPDATE users SET friend_flag = 0 WHERE id = ?1').bind(who.userId).run();   // blocked or unfriended: ask again at the next login
     }
     if (!delivered) await release();
   }

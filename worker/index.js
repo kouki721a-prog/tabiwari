@@ -25,6 +25,7 @@ let ready = null;   // schema is created on first use, so there is no separate m
 const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
   .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN settle_id TEXT').run().catch(() => { /* the column already exists */ }))   // which round of settlement an expense belongs to (NULL = not settled yet)
   .then(() => env.DB.prepare('ALTER TABLE users ADD COLUMN settle_notif INTEGER NOT NULL DEFAULT 1').run().catch(() => { /* the column already exists */ }))   // 精算のお知らせ on/off per account
+  .then(() => Promise.all(['friend_flag INTEGER NOT NULL DEFAULT 0', 'friend_changed INTEGER', 'friend_checked_at INTEGER'].map(c => env.DB.prepare('ALTER TABLE users ADD COLUMN ' + c).run().catch(() => { /* already there */ }))))   // official-account friend state, saved at login
   .catch(e => { ready = null; throw e; }));
 
 const LIMITS = { members: 12, expenses: 2000, settlements: 100, adjustments: 2000, paid: 500, body: 256 * 1024, opsPerRequest: 400 };

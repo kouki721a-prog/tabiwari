@@ -11,7 +11,7 @@ const inbox = []; let status = 201;
 const pushSrv = http.createServer((req, res) => { const c = []; req.on('data', d => c.push(d)); req.on('end', () => { inbox.push({ url: req.url, headers: req.headers, body: Buffer.concat(c) }); res.writeHead(status); res.end(); }); });
 await new Promise(r => pushSrv.listen(9923, r));
 const line = await startFakeLine(9912);
-const srv = await startServer(8789, { LINE_CHANNEL_ID: line.clientId, LINE_CHANNEL_SECRET: line.clientSecret, AUTH_SECRET: 'notify-test-secret-0123456789abcdef0123', LINE_AUTH_BASE: line.base, LINE_API_BASE: line.base, TEST_HOOKS: '1', PUSH_TEST_HOST: 'localhost:9923' });
+const srv = await startServer(8789, { LINE_CHANNEL_ID: line.clientId, LINE_CHANNEL_SECRET: line.clientSecret, AUTH_SECRET: 'notify-test-secret-0123456789abcdef0123', LINE_AUTH_BASE: line.base, LINE_API_BASE: line.base, TEST_HOOKS: '1', LINE_OA_ACCESS_TOKEN: 'oa-test-token', PUSH_TEST_HOST: 'localhost:9923' });
 const B = srv.base;
 const j = async (p, { cookie, method = 'GET', body, headers = {} } = {}) => {
   const r = await fetch(B + p, { method, headers: { ...(method !== 'GET' ? { Origin: B } : {}), ...(cookie ? { Cookie: cookie } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined, redirect: 'manual' });
@@ -106,4 +106,36 @@ try {
   assert.strictEqual((await fetch(B + '/api/reach', { headers: { Authorization: 'Bearer ' + T } })).status, 404);
 
   console.log('settle notify api tests passed');
+} catch (e) { srv.stop(); line.stop(); pushSrv.close(); throw e; }
+
+// ---- the official account: friends who cannot get the app notification are told by LINE; non-friends are told nothing
+try {
+  line.setFriend('U-ma', true); line.setFriend('U-mb', false); line.setFriend('U-mc', true);
+  const cA = await login('U-ma', 'エー'), cB = await login('U-mb', 'ビー'), cC = await login('U-mc', 'シー');
+  assert.ok(line.authorizeLog.length >= 3 && line.authorizeLog.every(a => a.bot_prompt === 'normal'), 'the login asks to add the official account (bot_prompt=normal)');
+  const U = 'O'.repeat(40);
+  const dC = newSub('c-dev'); await j('/api/push/subscribe', { cookie: cC, method: 'POST', body: { endpoint: dC.endpoint, keys: dC.keys } });   // シー also has the app notification
+  await ops(U, [{ kind: 'insert', table: 'trips', rows: [{ id: 'x', name: '熱海', start_date: '2026-11-18', end_date: '2026-11-19', budget: 50000 }] },
+    { kind: 'insert', table: 'members', rows: [{ id: 'ma', name: 'エー', position: 0 }, { id: 'mb', name: 'ビー', position: 1 }, { id: 'mc', name: 'シー', position: 2 }, { id: 'md', name: 'ディー', position: 3 }] }]);
+  for (const [c, m] of [[cA, 'ma'], [cB, 'mb'], [cC, 'mc']]) assert.strictEqual((await link(c, U, m)).status, 200);
+  assert.deepStrictEqual((await fetch(B + '/api/reach', { headers: { Authorization: 'Bearer ' + U } }).then(r => r.json())).reachable.sort(), ['ma', 'mc'], 'a friend counts as reachable; a non-friend without a device does not');
+  const owe = [{ from: 'ma', to: 'md', amount: 2000 }, { from: 'mb', to: 'md', amount: 1000 }, { from: 'mc', to: 'md', amount: 500 }];
+  await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q1', n: 1, at: '2026-11-20', total: 3500, transfers: owe }] }]);
+  for (let i = 0; i < 40 && !line.pushes.length; i++) await wait(100); await wait(500);
+  assert.deepStrictEqual(line.pushes.map(x => [x.to, x.text]), [['U-ma', '【たびわり】熱海の精算ができました。ディーさんに 2,000円 を送ってください。']], 'only the friend without the app notification gets a LINE message');
+  assert.ok(/^[0-9a-f-]{36}$/.test(line.pushes[0].retryKey), 'a retry key makes a repeated request harmless');
+  assert.strictEqual(take(dC).length, 1, 'シー got the app notification'); assert.ok(!line.pushes.some(x => x.to === 'U-mc'), 'and no second one by LINE');
+  await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q1', n: 1, at: '2026-11-20', total: 3500, transfers: owe }] }]); await wait(700); assert.strictEqual(line.pushes.length, 1, 'not sent twice');
+  // a paid mark is not sent by LINE (only the confirmed round is)
+  await ops(U, [{ kind: 'insert', table: 'paid', rows: [{ key: 'ma-md-2000' }] }]); await wait(600); assert.strictEqual(line.pushes.length, 1);
+  // 精算のお知らせ off: nothing at all; blocked / unfriended: the flag is reset and nothing is retried
+  await j('/api/push/settings', { cookie: cA, method: 'POST', body: { settle: false } });
+  await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q2', n: 2, at: '2026-11-21', total: 100, transfers: [{ from: 'ma', to: 'md', amount: 100 }] }] }]); await wait(700); assert.strictEqual(line.pushes.length, 1, 'switched off');
+  await j('/api/push/settings', { cookie: cA, method: 'POST', body: { settle: true } }); line.setPushStatus(403);
+  await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q3', n: 3, at: '2026-11-21', total: 100, transfers: [{ from: 'ma', to: 'md', amount: 300 }] }] }]); await wait(900);
+  assert.strictEqual(line.pushes.length, 2, 'one attempt'); line.setPushStatus(200);
+  assert.deepStrictEqual((await fetch(B + '/api/reach', { headers: { Authorization: 'Bearer ' + U } }).then(r => r.json())).reachable.sort(), ['mc'], 'a refused push resets the friend flag');
+  // logging in again re-reads the state (a newly added friend)
+  line.setFriend('U-mb', true); await login('U-mb', 'ビー'); assert.deepStrictEqual((await fetch(B + '/api/reach', { headers: { Authorization: 'Bearer ' + U } }).then(r => r.json())).reachable.sort(), ['mb', 'mc'], 'the friend state is refreshed at login');
+  console.log('official account push tests passed');
 } finally { srv.stop(); line.stop(); pushSrv.close(); }
