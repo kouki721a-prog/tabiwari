@@ -43,7 +43,7 @@ const device = async (opts = {}) => {
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   return { ctx, p };
 };
-const login = async p => { await p.goto(base + '/'); await p.click('[data-a=line-login]'); await p.waitForURL(/\/api\/auth\/line\/callback/); await p.click('a[href="/"]'); await p.waitForSelector('[data-a=line-account]'); };
+const login = async p => { await p.goto(base + '/'); await p.click('[data-a=line-login]'); await p.waitForURL(/\/api\/auth\/line\/callback/); await p.click('a[href="/"]'); await p.waitForFunction(() => lineAcct.user); };
 const newTrip = async (p, name, start, end) => { await p.click('[data-a=new]'); await p.fill('#d-name', name); await p.fill('#d-start', start); await p.fill('#d-end', end); await p.fill('#d-budget', '30000'); await p.fill('#d-me', 'あおい'); await p.click('[data-a=save-trip]'); await p.click('[data-a=home]'); };
 
 try {
@@ -51,7 +51,7 @@ try {
   const d = await device(); await login(d.p);
 
   // ---- turning notifications on
-  await d.p.click('[data-a=line-account]'); await see(d.p, 'この端末に通知する');
+  await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await see(d.p, 'この端末に通知する');
   try { await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]', { timeout: 4000 }); } catch (e) { console.log('DEBUG', await d.p.evaluate(async () => JSON.stringify({ state: await ntfState(), push: lineAcct.push && lineAcct.push.length, perm: Notification.permission, sw: !!(await navigator.serviceWorker.getRegistration()) })), (await d.p.locator('.sheet-body').innerText()).replace(/\n+/g, ' | ')); throw e; }
   await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]');
   // "if it does not arrive": the help rows are folded away until asked for; the test notification and the diagnosis work from there
@@ -76,7 +76,7 @@ try {
   assert.deepStrictEqual([msg.title, msg.url], ['明日から 「通知テスト旅行」', './']);
 
   // ---- turning it off: nothing more is sent
-  await d.p.click('[data-a=line-account]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]');
+  await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]');
   assert.strictEqual(await d.p.evaluate(() => window.__sub), null, 'the browser subscription is removed too'); await d.p.click('[data-a=close-sheet]');
   await newTrip(d.p, 'もう一つの旅', '2027-01-11', '2027-01-12');
   for (let i = 0; i < 30 && !(await onServer('もう一つの旅')); i++) await d.p.waitForTimeout(500);
@@ -84,7 +84,7 @@ try {
   assert.strictEqual((await run('2027-01-10T09:40:00Z')).sent, 0); assert.strictEqual(inbox.length, 0);
 
   // ---- settlement notices: sharing links this account to its member; a member without notifications is shown; a confirmed round reaches the one who owes; the tap opens the settlement tab; the switch
-  { await d.p.click('[data-a=line-account]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=close-sheet]');   // back on
+  { await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=close-sheet]');   // back on
     const info = await d.p.evaluate(async () => { const t = state.trips.find(x => x.name === '通知テスト旅行'); await startShare(t); return { token: t.share.token, me: t.share.me, id: t.id }; });
     const api = (m, path, body) => fetch(base + path, { method: m, headers: { Authorization: 'Bearer ' + info.token, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }).then(r => r.json());
     let rc = []; for (let i = 0; i < 40 && !rc.includes(info.me); i++) { await d.p.waitForTimeout(250); rc = (await api('GET', '/api/reach')).reachable; }
@@ -106,19 +106,19 @@ try {
     await d.p.click('[data-a=close-sheet]'); await d.p.evaluate(() => { ui.view = 'home'; ui.tripId = null; render(); }); }
 
   // ---- logging out also removes this device
-  await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=line-logout]'); await see(d.p, 'ログアウトしました');
+  await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=line-logout]'); await see(d.p, 'ログアウトしました');
   assert.strictEqual(await d.p.evaluate(() => window.__sub), null);
 
   // ---- if the person has blocked notifications in the system settings, the sheet says what to do
   await login(d.p); await d.p.evaluate(() => { window.__denied = true; });
   if (await d.p.locator('.sheet-bg').count()) console.log('DEBUG sheet open after login:', (await d.p.locator('.sheet').innerText()).replace(/\n+/g, ' | ').slice(0, 200));
-  await d.p.click('[data-a=line-account]'); await see(d.p, '端末の設定で、通知を許可してください。');
-  assert.strictEqual(await d.p.locator('[data-a=ntf-toggle]').count(), 0); await d.p.click('[data-a=close-sheet]'); await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=line-logout]'); await see(d.p, 'ログアウトしました');
+  await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await see(d.p, '端末の設定で、通知を許可してください。');
+  assert.strictEqual(await d.p.locator('[data-a=ntf-toggle]').count(), 0); await d.p.click('[data-a=close-sheet]'); await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=line-logout]'); await see(d.p, 'ログアウトしました');
 
   // ---- an iPhone that has not been added to the home screen cannot receive Web Push: say so instead of showing a dead button
   const ios = await device({ ...devices['iPhone 13'], serviceWorkers: 'block' }); line.setIdentity('U-notify', 'ほしい人');
   await login(ios.p); await see(ios.p, '選んだ旅行を戻す'); await ios.p.click('[data-a=close-sheet]');   // a new device is offered the restore sheet first
-  await ios.p.click('[data-a=line-account]'); await see(ios.p, 'ホーム画面に追加すると、通知を使えます。');
+  await ios.p.click('[data-a=app-settings]'); await ios.p.click('[data-a=line-account]'); await see(ios.p, 'ホーム画面に追加すると、通知を使えます。');
   assert.strictEqual(await ios.p.locator('[data-a=ntf-toggle]').count(), 0);
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
