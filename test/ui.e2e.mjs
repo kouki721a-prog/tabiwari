@@ -206,6 +206,19 @@ try {
     assert.ok(await q.locator('.xfer').count() >= 1, 'the demo trip has transfers');
     await q.click('[data-a=tab][data-t=settle]'); assert.strictEqual(await q.locator('.item', { hasText: 'こうき' }).count() >= 1, true); assert.deepStrictEqual(qerrs, []); }
 
+  // home cards: one line that says what to do next, yellow bar, the running trip stands out
+  { const c5 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c5.newPage(); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }, ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }];
+      const T = (id, name, s, e, ex, extra = {}) => ({ id, name, start: d(s), end: d(e), budget: 30000, members: ms, paid: {}, savings: {}, expenses: ex, ...extra });
+      const e1 = { id: 'e1', title: '食事', amount: 6000, payer: 'a', cat: 'food', date: d(-10), split: ['a', 'b'] };
+      localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [T('now', '旅行中の旅', -1, 1, []), T('soon', '準備中の旅', 3, 4, []), T('open', '精算前の旅', -12, -9, [e1]),
+        T('done', '精算済みの旅', -30, -28, [{ ...e1, id: 'e2', settleId: 's1' }], { settlements: [{ id: 's1', n: 1, at: d(-27), total: 6000, transfers: [{ from: 'b', to: 'a', amount: 3000 }] }] })] })); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.home1');
+    const hint = async name => q.$eval('.trip:has-text("' + name + '") .hint', e => e.textContent).catch(() => null);
+    assert.ok(/^今日の目安 30,000円$|^今日の目安 1[0-9],[0-9]{3}円$/.test(await hint('旅行中の旅')), 'running: ' + await hint('旅行中の旅')); assert.strictEqual(await hint('準備中の旅'), 'あと3日で出発');
+    assert.strictEqual(await hint('精算前の旅'), '精算があと1件'); assert.strictEqual(await hint('精算済みの旅'), '精算は済んでいます');
+    assert.strictEqual(await q.locator('.trip.now').count(), 1, 'only the running trip stands out'); assert.strictEqual(await q.$eval('.trip .bar>i', e => getComputedStyle(e).backgroundColor), 'rgb(255, 200, 61)', 'the bar is the yellow accent'); await c5.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }

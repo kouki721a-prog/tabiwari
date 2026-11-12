@@ -82,7 +82,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .trip{display:block;width:100%;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px 16px;margin-top:10px}
 .trip-name{font-size:18px;font-weight:700;overflow-wrap:anywhere}
 .bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:12px}
-.bar>i{display:block;height:100%;background:var(--navy);border-radius:99px}
+.bar>i{display:block;height:100%;background:var(--sun);border-radius:99px}
+.trip.now{border-color:var(--sun);box-shadow:0 0 0 1px var(--sun)}
+.trip .hint{font-weight:700;color:var(--ink)}
 .bar.over>i{background:var(--bad)}
 .legal a{color:var(--sub)}
 .chip .x{width:24px;height:24px;display:grid;place-items:center;color:var(--sub);font-size:18px;line-height:1;margin-left:2px}
@@ -901,14 +903,26 @@ function viewHomeEmpty(){
     '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol></div>' +
     '<div class="home0-bottom">' + line + legalLinks() + '</div></div>';
 }
+/* the one line on a home card that says what to do next */
+function homeHint(t){
+  const st = status(t)[0], today = todayStr(), left = t.budget - total(t);
+  if (st === '旅行中'){ const dl = dayDiff(today, t.end) + 1; return '今日の目安 ' + yen(Math.max(0, Math.floor(left / dl))); }
+  if (st === '準備中'){ const d = dayDiff(today, t.start); return 'あと' + d + '日で出発'; }
+  const ss = t.settlements || [], open = openItems(t), has = open.expenses.length > 0 || open.adjustments.length > 0;
+  if (!has) return ss.length ? '精算は済んでいます' : '';
+  const pays = settle(roundBalances(t).net); if (!pays.length) return '';
+  const n = ss.length + 1, un = pays.filter(p => !t.paid[payKey(n, p)]).length;
+  return un ? '精算があと' + un + '件' : '精算を完了しましょう';
+}
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
   let h = brandRow() + remoteCard() + installBanner() + lineCard();
   const order = { '旅行中': 0, '準備中': 1, '終了': 2 };
   state.trips.slice().sort((a, b) => order[status(a)[0]] - order[status(b)[0]] || (a.start < b.start ? -1 : 1)).forEach(t => {
     const sp = total(t), left = t.budget - sp, pct = Math.min(100, Math.round(sp / t.budget * 100));
-    h += '<button class="trip" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
-      '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + '</div>' +
+    const hint = homeHint(t);
+    h += '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
+      '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '　<span class="hint">' + esc(hint) + '</span>' : '') + '</div>' +
       '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
       '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>' +
       '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="予算の ' + pct + '%を使用"><i style="width:' + pct + '%"></i></div></button>';
