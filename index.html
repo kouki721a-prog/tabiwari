@@ -148,6 +148,10 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .t-bot .t-label{white-space:nowrap}
 .t-bot b{display:block;font-size:18px;font-weight:700}
 .t-bot .warn{color:#ff9a92}
+.t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
+.ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:30px;line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
+.ticket.m .t-bot{margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28)}.ticket.m .t-bot b{font-size:16px}.ticket.m .t-bot .t-label{font-size:12px}
+.ticket.c{border-radius:16px;padding:9px 16px 11px}.ticket.c .t-amount{font-size:22px;line-height:1.2}.ticket.c .t-bar{height:5px;margin-top:6px}
 
 /* lists */
 /* LINE account sheet */
@@ -949,12 +953,12 @@ function viewTrip(){
   }
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1>' + pill(st) + '</div>' +
     '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' : '') + '</div>';
-  h += '<i class="sp"></i><div class="ticket"><div class="t-top"><div class="t-label">' + (over ? '予算オーバー' : '予算の残り') + '</div>' +
-    '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>' +
-    '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>' +
-    '<div class="t-label" style="margin-top:8px">' + yen(sp) + ' 使用 / 予算 ' + yen(t.budget) + '</div></div>' +
-    '<div class="t-perf"></div><div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div>' +
-    '<div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
+  const lab = over ? '予算オーバー' : '予算の残り', amt = '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>', bar = '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>';
+  if (ui.tab === 'exp')   // record tab: the budget in a short card, so the list gets the room
+    h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">' + lab + '</span><span class="t-label">' + yen(sp) + ' 使用 / ' + yen(t.budget) + '</span></div>' + amt + bar + '</div>' +
+      '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
+  else   // settlement and savings tabs: one thin line
+    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
     '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
   if (ui.tab === 'exp') h += '<i class="sp"></i>' + usageBar(t);
