@@ -242,6 +242,18 @@ try {
     const names = await q.evaluate(async () => { const ks = await caches.keys(); const out = []; for (const k of ks) for (const r of await (await caches.open(k)).keys()) out.push(new URL(r.url).pathname); return { ks, out }; });
     assert.ok(names.ks.some(k => /^tabiwari-v\d+$/.test(k)) && names.out.includes('/') && !names.out.some(x => x.startsWith('/api/')), JSON.stringify(names)); await c6.close(); }
 
+  // ひとことで記録: "夕食 2000円" is recorded at once (me paid, split among everyone, today), the toast can undo it, a line without an amount says what to write
+  { const c7 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c7.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }], paid: {}, savings: {}, expenses: [] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('#q-quick');
+    await q.fill('#q-quick', '夕食'); await q.press('#q-quick', 'Enter'); await see(q, '金額が見つかりませんでした'); assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 0, 'nothing recorded');
+    await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 2,000円を記録しました');
+    assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 1); assert.strictEqual(await q.inputValue('#q-quick'), '', 'the field is emptied');
+    assert.ok((await q.textContent('.item[data-a=edit-exp]')).includes('あおいが払った・全員で割り勘') && (await q.textContent('.item[data-a=edit-exp]')).includes('2,000円'));
+    await q.fill('#q-quick', 'タクシー 1,200'); await q.click('.quick .btn'); await see(q, 'タクシー 1,200円を記録しました'); assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 2, 'the button works too');
+    await q.click('[data-a=undo]'); await q.waitForFunction(() => document.querySelectorAll('.item[data-a=edit-exp]').length === 1); assert.deepStrictEqual(qerrs, []); await c7.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }

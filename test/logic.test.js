@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -180,4 +180,25 @@ console.log('settlement round tests passed');
   assert.deepStrictEqual(r.members, ['あおい', 'けんた', 'みく']);
   assert.strictEqual(L.recapData({ ...t, budget: 50000 }).diff, -2600, 'over budget is a negative difference');
   console.log('recap data tests passed');
+}
+{
+  const q = L.parseQuick, pick = s => { const r = q(s); return r && [r.title, r.amount, r.cat, r.offset]; };
+  assert.deepStrictEqual(pick('夕食 2000円'), ['夕食', 2000, 'food', 0]);
+  assert.deepStrictEqual(pick('夕食2000'), ['夕食', 2000, 'food', 0]);
+  assert.deepStrictEqual(pick('2000 夕食'), ['夕食', 2000, 'food', 0]);
+  assert.deepStrictEqual(pick('夕食を2,000円'), ['夕食', 2000, 'food', 0], 'particles next to the amount are dropped');
+  assert.deepStrictEqual(pick('ランチ 1,500円だった'), ['ランチ', 1500, 'food', 0]);
+  assert.deepStrictEqual(pick('タクシー ¥1,200'), ['タクシー', 1200, 'transport', 0]);
+  assert.deepStrictEqual(pick('昨日 お土産 3千円'), ['お土産', 3000, 'gift', -1]);
+  assert.deepStrictEqual(pick('一昨日 ホテル 1.5万円'), ['ホテル', 15000, 'stay', -2]);
+  assert.deepStrictEqual(pick('ロープウェイ 2400円'), ['ロープウェイ', 2400, 'sight', 0]);
+  assert.deepStrictEqual(pick('夕食 ２０００円'), ['夕食', 2000, 'food', 0], 'full-width digits');
+  assert.deepStrictEqual(pick('夕食 3人で6000円'), ['夕食 3人', 6000, 'food', 0], 'the number with 円 wins');
+  assert.deepStrictEqual(pick('2/3 ガソリン 5000'), ['2/3 ガソリン', 5000, 'transport', 0], 'without 円 the biggest number wins');
+  assert.deepStrictEqual(pick('なんだっけ 800円'), ['なんだっけ', 800, 'other', 0]);
+  assert.deepStrictEqual(pick('1000円'), ['', 1000, 'other', 0], 'no title is fine');
+  assert.strictEqual(q('夕食'), null, 'no amount');
+  assert.strictEqual(q(''), null); assert.strictEqual(q('0円'), null, 'zero is not an amount'); assert.strictEqual(q('夕食 1.5円'), null, 'fractions of a yen are not');
+  assert.strictEqual(q('夕食 99999999999円'), null, 'too big');
+  console.log('quick input tests passed');
 }
