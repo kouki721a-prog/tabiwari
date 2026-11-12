@@ -7,7 +7,8 @@ import { createRequire } from 'node:module';
 const { chromium, devices } = createRequire(import.meta.url)('playwright');
 const dist = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'dist');
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.css': 'text/css' };
-const srv = http.createServer((q, r) => { const f = path.join(dist, q.url.split('?')[0] === '/' ? 'index.html' : q.url.split('?')[0]); fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end('{}'); } else { r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'text/plain' }); r.end(d); } }); }).listen(8797);
+let slow = 0;   // a test can make the server slow, to see what comes from the service worker's cache
+const srv = http.createServer((q, r) => { const f = path.join(dist, q.url.split('?')[0] === '/' ? 'index.html' : q.url.split('?')[0]); setTimeout(() => fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end('{}'); } else { r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'text/plain' }); r.end(d); } }), slow); }).listen(8797);
 const b = await chromium.launch(), errs = [];
 const see = (p, t, ms = 5000) => p.waitForSelector('text=' + t, { timeout: ms });
 try {
@@ -220,6 +221,15 @@ try {
     assert.ok(/^今日の目安 30,000円$|^今日の目安 1[0-9],[0-9]{3}円$/.test(await hint('旅行中の旅')), 'running: ' + await hint('旅行中の旅')); assert.strictEqual(await hint('準備中の旅'), 'あと3日で出発');
     assert.strictEqual(await hint('精算前の旅'), '精算があと1件'); assert.strictEqual(await hint('精算済みの旅'), '精算は済んでいます');
     assert.strictEqual(await q.locator('.trip.now').count(), 1, 'only the running trip stands out'); assert.strictEqual(await q.$eval('.trip .bar>i', e => getComputedStyle(e).backgroundColor), 'rgb(255, 200, 61)', 'the bar is the yellow accent'); await c5.close(); }
+
+  // service worker: cache first. The app opens from the saved copy even when the server is slow; /api/ is never saved; the cache is named after the version
+  { const c6 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'allow' }), q = await c6.newPage(); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.goto('http://localhost:8797/'); await q.evaluate(() => navigator.serviceWorker.ready); await q.waitForFunction(() => navigator.serviceWorker.controller || true);
+    await q.reload(); await q.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 5000 });
+    slow = 3000; const t0 = Date.now(); await q.reload(); await q.waitForSelector('.home0, .home1', { timeout: 6000 }); const took = Date.now() - t0; slow = 0;
+    assert.ok(took < 2000, 'opened from the cache while the server needed 3 s: ' + took + ' ms');
+    const names = await q.evaluate(async () => { const ks = await caches.keys(); const out = []; for (const k of ks) for (const r of await (await caches.open(k)).keys()) out.push(new URL(r.url).pathname); return { ks, out }; });
+    assert.ok(names.ks.some(k => /^tabiwari-v\d+$/.test(k)) && names.out.includes('/') && !names.out.some(x => x.startsWith('/api/')), JSON.stringify(names)); await c6.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');

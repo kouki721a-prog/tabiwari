@@ -1,30 +1,27 @@
 /* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls are never cached. */
-const VERSION = 'tabiwari-v51';
+const VERSION = 'tabiwari-v52';
 const FILES = ['./', './index.html', './config.js', './sync.js', './share.js', './line.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/icon-maskable-512.png', './icons/line-login-icon.png'];
 const OPTIONAL = ['./terms.html', './privacy.html', './legal.css'];   // optional: a missing one must not break the install
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES).then(() => Promise.all(OPTIONAL.map(f => c.add(f).catch(() => {}))))).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' }))).then(() => Promise.all(OPTIONAL.map(f => c.add(new Request(f, { cache: 'reload' })).catch(() => {}))))).then(() => self.skipWaiting()));   // 'reload': never save a stale copy from the browser's own cache
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
-/* Network first, so a new release shows up on the next open; the cached copy is used only when offline or slow (>4s). */
+/* Cache first: the app opens at once from the copy saved by the newest service worker (all files of one version are saved together, so they always match).
+   A new release is picked up in the background (the browser re-checks sw.js on a launch, installs it and fills a new cache); it shows on the NEXT open.
+   Server calls (/api/) never go through here, so nothing from them is saved. */
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
-  if (e.request.method !== 'GET' || u.origin !== location.origin) return;
+  if (e.request.method !== 'GET' || u.origin !== location.origin || u.pathname.startsWith('/api/')) return;
   e.respondWith((async () => {
     const cache = await caches.open(VERSION);
-    const fromCache = () => cache.match(e.request, { ignoreSearch: true });
-    try {
-      const res = await Promise.race([fetch(e.request), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 4000))]);
-      if (res && res.ok) cache.put(e.request, res.clone());
-      return res;
-    } catch (err) {
-      const hit = await fromCache();
-      if (hit) return hit;
-      throw err;
-    }
+    const hit = await cache.match(e.request, { ignoreSearch: true });
+    if (hit) return hit;
+    const res = await fetch(e.request);   // not saved yet (for example a page that was never opened): from the network
+    if (res && res.ok) cache.put(e.request, res.clone());
+    return res;
   })());
 });
 
