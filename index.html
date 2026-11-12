@@ -82,7 +82,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .trip{display:block;width:100%;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px 16px;margin-top:10px}
 .trip-name{font-size:18px;font-weight:700;overflow-wrap:anywhere}
 .bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:12px}
-.bar>i{display:block;height:100%;background:var(--navy);border-radius:99px}
+.bar>i{display:block;height:100%;background:var(--sun);border-radius:99px}
+.trip.now{border-color:var(--sun);box-shadow:0 0 0 1px var(--sun)}
+.trip .hint{font-weight:700;color:var(--ink)}
 .bar.over>i{background:var(--bad)}
 .legal a{color:var(--sub)}
 .chip .x{width:24px;height:24px;display:grid;place-items:center;color:var(--sub);font-size:18px;line-height:1;margin-left:2px}
@@ -148,6 +150,10 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .t-bot .t-label{white-space:nowrap}
 .t-bot b{display:block;font-size:18px;font-weight:700}
 .t-bot .warn{color:#ff9a92}
+.t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
+.ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:30px;line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
+.ticket.m .t-bot{margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28)}.ticket.m .t-bot b{font-size:16px}.ticket.m .t-bot .t-label{font-size:12px}
+.ticket.c{border-radius:16px;padding:9px 16px 11px}.ticket.c .t-amount{font-size:22px;line-height:1.2}.ticket.c .t-bar{height:5px;margin-top:6px}
 
 /* lists */
 /* LINE account sheet */
@@ -190,11 +196,17 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
 
 /* settle */
-.xfer{display:flex;align-items:center;gap:10px;padding:8px 14px}
-.xfer.done{opacity:.5}
+.xfer{display:flex;align-items:center;gap:8px;padding:8px 12px}
+.xfer.done .avs,.xfer.done .names,.xfer.done .amt{opacity:.5}
 .xfer.done .names .nm,.xfer.done .amt{text-decoration:line-through}
-.xfer .names{flex:1;min-width:0;font-weight:500;font-size:14px}
-.xfer .amt{font-weight:700;font-size:17px;white-space:nowrap}
+.xgroup{margin-bottom:8px}.xgroup:last-child{margin-bottom:0}.xhead{display:flex;justify-content:space-between;align-items:baseline;padding:0 6px 4px;font-size:13px;color:var(--sub);font-weight:500}
+.xhead span:first-child{color:var(--ink);font-weight:700}
+.xgroup .xfer .avs .av{width:28px;height:28px;font-size:13px}
+.xfer+.xfer{border-top:1px solid var(--line)}
+.paidbtn{flex:none;display:inline-flex;align-items:center;gap:3px;min-height:34px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:13px;font-weight:500;white-space:nowrap}
+.paidbtn.on{background:var(--good);border-color:var(--good);color:#fff}
+.xfer .names{flex:1;min-width:0;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xfer .amt{font-weight:700;font-size:16px;white-space:nowrap}
 .chk{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent;flex:none}
 .chk.on{background:var(--good);border-color:var(--good);color:#fff}
 .plus-or-minus.pos{color:var(--good)}
@@ -891,14 +903,26 @@ function viewHomeEmpty(){
     '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol></div>' +
     '<div class="home0-bottom">' + line + legalLinks() + '</div></div>';
 }
+/* the one line on a home card that says what to do next */
+function homeHint(t){
+  const st = status(t)[0], today = todayStr(), left = t.budget - total(t);
+  if (st === '旅行中'){ const dl = dayDiff(today, t.end) + 1; return '今日の目安 ' + yen(Math.max(0, Math.floor(left / dl))); }
+  if (st === '準備中'){ const d = dayDiff(today, t.start); return 'あと' + d + '日で出発'; }
+  const ss = t.settlements || [], open = openItems(t), has = open.expenses.length > 0 || open.adjustments.length > 0;
+  if (!has) return ss.length ? '精算は済んでいます' : '';
+  const pays = settle(roundBalances(t).net); if (!pays.length) return '';
+  const n = ss.length + 1, un = pays.filter(p => !t.paid[payKey(n, p)]).length;
+  return un ? '精算があと' + un + '件' : '精算を完了しましょう';
+}
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
   let h = brandRow() + remoteCard() + installBanner() + lineCard();
   const order = { '旅行中': 0, '準備中': 1, '終了': 2 };
   state.trips.slice().sort((a, b) => order[status(a)[0]] - order[status(b)[0]] || (a.start < b.start ? -1 : 1)).forEach(t => {
     const sp = total(t), left = t.budget - sp, pct = Math.min(100, Math.round(sp / t.budget * 100));
-    h += '<button class="trip" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
-      '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + '</div>' +
+    const hint = homeHint(t);
+    h += '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
+      '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '　<span class="hint">' + esc(hint) + '</span>' : '') + '</div>' +
       '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
       '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>' +
       '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="予算の ' + pct + '%を使用"><i style="width:' + pct + '%"></i></div></button>';
@@ -949,12 +973,12 @@ function viewTrip(){
   }
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1>' + pill(st) + '</div>' +
     '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' : '') + '</div>';
-  h += '<i class="sp"></i><div class="ticket"><div class="t-top"><div class="t-label">' + (over ? '予算オーバー' : '予算の残り') + '</div>' +
-    '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>' +
-    '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>' +
-    '<div class="t-label" style="margin-top:8px">' + yen(sp) + ' 使用 / 予算 ' + yen(t.budget) + '</div></div>' +
-    '<div class="t-perf"></div><div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div>' +
-    '<div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
+  const lab = over ? '予算オーバー' : '予算の残り', amt = '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>', bar = '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>';
+  if (ui.tab === 'exp')   // record tab: the budget in a short card, so the list gets the room
+    h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">' + lab + '</span><span class="t-label">' + yen(sp) + ' 使用 / ' + yen(t.budget) + '</span></div>' + amt + bar + '</div>' +
+      '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
+  else   // settlement and savings tabs: one thin line
+    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
     '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
   if (ui.tab === 'exp') h += '<i class="sp"></i>' + usageBar(t);
@@ -1003,10 +1027,15 @@ function tabExp(t){
 const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
 const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => esc(nameOf(t, id)) + ' ' + (nets[id] > 0 ? '+' : '−') + Math.abs(nets[id]).toLocaleString('ja-JP')).join('・');
 function xferList(t, pays, n){
-  return '<div class="list">' + pays.map(p => { const k = payKey(n, p), on = !!t.paid[k];
-    return '<div class="xfer ' + (on ? 'done' : '') + '"><span class="avs">' + av(t, p.from) + av(t, p.to) + '</span>' +
-      '<div class="names"><span class="nm">' + esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to)) + '</span></div><div class="amt">' + yen(p.amount) + '</div>' +
-      '<button class="chk ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + icon('check', 20) + '</button></div>'; }).join('') + '</div>';
+  const order = [], by = {};   // grouped by who receives; a receiver with two or more payers gets a header with the total
+  pays.forEach(p => { if (!by[p.to]){ by[p.to] = []; order.push(p.to); } by[p.to].push(p); });
+  const row = (p, grouped) => { const k = payKey(n, p), on = !!t.paid[k];
+    return '<div class="xfer ' + (on ? 'done' : '') + '"><span class="avs">' + (grouped ? av(t, p.from) : av(t, p.from) + av(t, p.to)) + '</span>' +
+      '<div class="names"><span class="nm">' + (grouped ? esc(nameOf(t, p.from)) : esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to))) + '</span></div><div class="amt">' + yen(p.amount) + '</div>' +
+      '<button class="paidbtn ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? icon('check', 14) + '済み' : '支払い済み') + '</button></div>'; };
+  return order.map(to => { const g = by[to];
+    return g.length > 1 ? '<div class="xgroup"><div class="xhead"><span>' + esc(nameOf(t, to)) + 'さんへ</span><span>合計 ' + yen(g.reduce((a, p) => a + p.amount, 0)) + '</span></div><div class="list">' + g.map(p => row(p, true)).join('') + '</div></div>'
+      : '<div class="list">' + row(g[0], false) + '</div>'; }).join('');
 }
 function tabSettle(t){
   const ss = t.settlements || [];
@@ -1020,7 +1049,7 @@ function tabSettle(t){
   else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
   else h += xferList(t, pays, n);
   if (open.adjustments.length) h += '<div class="panel" style="margin-top:10px"><b>過去の精算の変更による差額</b>' + open.adjustments.map(a => '<div class="sub sm" style="margin-top:4px">' + esc(a.note || '支出の変更') + '：' + netLine(t, a.nets) + '</div>').join('') + '</div>';
-  if (has) h += '<button class="btn" data-a="settle-ask" style="margin-top:14px">この精算を完了する</button><div class="sub sm" style="margin-top:6px;text-align:center">完了すると、いまの支出が第' + n + '回にまとまります。あとから追加した支出は、第' + (n + 1) + '回になります。</div>';
+  if (has) h += '<button class="btn" data-a="settle-ask" style="margin-top:14px">この精算を完了する</button><div class="sub sm" style="margin-top:6px;text-align:center">完了すると、いまの支出が第' + n + '回にまとまります。</div>';
   h += '</div>';
   if (has) h += '<div class="sec"><h2>ひとりずつの内訳<span>第' + n + '回</span></h2><div class="list">' + t.members.map(m => {
     const v = bal.net[m.id];
