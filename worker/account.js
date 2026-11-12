@@ -94,6 +94,17 @@ async function backupPut(req, env, user) {
   return reply({ ok: true, count: have.size });
 }
 
+/* Is this person a friend of the official account right now? LINE tells the callback "friendship_status_changed" (a hint only); the real answer is friendFlag. */
+async function saveFriendState(env, userId, accessToken, changedParam, now) {
+  const changed = changedParam === 'true' ? 1 : changedParam === 'false' ? 0 : null;
+  try {
+    let flag = null;
+    if (accessToken) { const r = await fetch(lineApi(env) + '/friendship/v1/status', { headers: { Authorization: 'Bearer ' + accessToken } }); if (r.ok) { const d = await r.json(); if (typeof d.friendFlag === 'boolean') flag = d.friendFlag ? 1 : 0; } }
+    if (flag === null && changed === null) return;   // nothing learned: keep what we had
+    if (flag === null) await env.DB.prepare('UPDATE users SET friend_changed = ?2 WHERE id = ?1').bind(userId, changed).run();
+    else await env.DB.prepare('UPDATE users SET friend_flag = ?2, friend_changed = ?3, friend_checked_at = ?4 WHERE id = ?1').bind(userId, flag, changed, now).run();
+  } catch (e) { console.error('friend state failed', e && e.message); }
+}
 async function lineCallback(url, env) {
   const code = url.searchParams.get('code'), id = url.searchParams.get('state');
   if (!isId(id)) return page('ログインできませんでした', 'もう一度、アプリからやり直してください。', 400);
@@ -105,7 +116,7 @@ async function lineCallback(url, env) {
     const tok = await fetch(lineApi(env) + '/oauth2/v2.1/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirect, client_id: env.LINE_CHANNEL_ID, client_secret: env.LINE_CHANNEL_SECRET }) });
     if (!tok.ok) throw new Error('token ' + tok.status);
-    const { id_token } = await tok.json();
+    const { id_token, access_token } = await tok.json();
     const ver = await fetch(lineApi(env) + '/oauth2/v2.1/verify', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ id_token, client_id: env.LINE_CHANNEL_ID, nonce: att.nonce }) });
     if (!ver.ok) throw new Error('verify ' + ver.status);
@@ -115,6 +126,7 @@ async function lineCallback(url, env) {
     let u = await env.DB.prepare('SELECT id FROM users WHERE line_sub = ?').bind(c.sub).first();
     if (!u) { u = { id: randomToken(16) }; await env.DB.prepare('INSERT INTO users(id,line_sub,name,picture,created_at,last_login) VALUES (?,?,?,?,?,?)').bind(u.id, c.sub, name, picture, now, now).run(); }
     else await env.DB.prepare('UPDATE users SET name=?, picture=?, last_login=? WHERE id=?').bind(name, picture, now, u.id).run();
+    await saveFriendState(env, u.id, access_token, url.searchParams.get('friendship_status_changed'), now);   // never blocks the login
     await env.DB.prepare("UPDATE attempts SET status='done', user_id=? WHERE id=? AND status='pending'").bind(u.id, id).run();
     return page('ログインできました', 'このページを閉じて、たびわりのアプリに戻ってください。自動で、ログインが完了します。');
   } catch (e) {
@@ -143,7 +155,7 @@ export async function handleAccount(req, env, url) {
     const id = url.searchParams.get('a');
     const att = isId(id) ? await env.DB.prepare('SELECT * FROM attempts WHERE id = ?').bind(id).first() : null;
     if (!att || att.status !== 'pending' || att.created_at < nowSec() - ATTEMPT_SECONDS) return page('ログインできませんでした', '時間が過ぎたか、すでに使われています。アプリからやり直してください。', 400);
-    const q = new URLSearchParams({ response_type: 'code', client_id: env.LINE_CHANNEL_ID, redirect_uri: url.origin + '/api/auth/line/callback', state: id, scope: 'profile openid', nonce: att.nonce });
+    const q = new URLSearchParams({ response_type: 'code', client_id: env.LINE_CHANNEL_ID, redirect_uri: url.origin + '/api/auth/line/callback', state: id, scope: 'profile openid', nonce: att.nonce, bot_prompt: 'normal' });   // bot_prompt: offer to add the official account as a friend on the consent screen
     return new Response(null, { status: 302, headers: { Location: lineAuth(env) + '/oauth2/v2.1/authorize?' + q, 'Cache-Control': 'no-store' } });
   }
   if (p === '/api/auth/line/callback' && method === 'GET') return lineCallback(url, env);
