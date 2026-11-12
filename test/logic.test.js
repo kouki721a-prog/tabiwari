@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -168,3 +168,16 @@ console.log('csv import tests passed');
 }
 console.log('settlement round tests passed');
 
+{
+  const t = { name: '箱根', start: '2026-11-10', end: '2026-11-11', budget: 80000, members: [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'けんた' }, { id: 'c', name: 'みく' }], expenses: [
+    { id: '1', title: '新幹線', amount: 9600, payer: 'a', cat: 'transport', date: '2026-11-10', split: ['a', 'b', 'c'] }, { id: '2', title: '旅館', amount: 30000, payer: 'b', cat: 'stay', date: '2026-11-10', split: ['a', 'b', 'c'] },
+    { id: '3', title: '夕食', amount: 8700, payer: 'c', cat: 'food', date: '2026-11-11', split: ['a', 'b', 'c'] }, { id: '4', title: '朝食', amount: 4300, payer: 'c', cat: 'food', date: '2026-11-11', split: ['a', 'b'] }] };
+  const r = L.recapData(t);
+  assert.strictEqual(L.recapData({ ...t, expenses: [] }), null, 'nothing recorded: no recap');
+  assert.deepStrictEqual([r.total, r.per, r.count, r.days, r.diff], [52600, 17533, 4, 2, 27400]);
+  assert.deepStrictEqual(r.cats.map(c => [c.id, c.amount, c.pct]), [['stay', 30000, 57], ['food', 13000, 25], ['transport', 9600, 18]], 'largest first, percentages of the total');
+  assert.deepStrictEqual([r.top.title, r.top.amount, r.topDay.date, r.topDay.amount], ['旅館', 30000, '2026-11-10', 39600]);
+  assert.deepStrictEqual(r.members, ['あおい', 'けんた', 'みく']);
+  assert.strictEqual(L.recapData({ ...t, budget: 50000 }).diff, -2600, 'over budget is a negative difference');
+  console.log('recap data tests passed');
+}

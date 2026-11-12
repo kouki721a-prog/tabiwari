@@ -273,6 +273,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .amount::placeholder{color:var(--line)}
 .amount-wrap span{font-size:22px;font-weight:700}
 .sheet #f-hint{margin-top:8px}
+.recap-img{display:block;width:100%;max-height:52vh;object-fit:contain;border-radius:16px;margin-top:10px;background:var(--navy)}
 .hint{min-height:20px;font-size:14px;color:var(--sub);font-weight:500}
 
 /* tab bar */
@@ -516,6 +517,17 @@ function sanitizeTrip(raw, newId){
   if (raw.paid && typeof raw.paid === 'object') Object.keys(raw.paid).slice(0, 500).forEach(function(k){ if (raw.paid[k] === true && k.length <= 200) paid[k] = true; });
   if (raw.savings && typeof raw.savings === 'object') members.forEach(function(m){ if (INT(raw.savings[m.id], 0, 1e9)) savings[m.id] = raw.savings[m.id]; });
   return { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
+}
+/* What the trip recap image shows (numbers only; null when nothing was recorded). Categories come back as ids, largest first. */
+function recapData(trip){
+  var ex = trip.expenses || []; if (!ex.length) return null;
+  var total = 0, by = {}, days = {}, top = null, topDay = null;
+  ex.forEach(function(e){ total += e.amount; by[e.cat] = (by[e.cat] || 0) + e.amount; days[e.date] = (days[e.date] || 0) + e.amount; if (!top || e.amount > top.amount) top = { title: e.title, amount: e.amount, cat: e.cat, date: e.date }; });
+  Object.keys(days).sort().forEach(function(d){ if (!topDay || days[d] > topDay.amount) topDay = { date: d, amount: days[d] }; });
+  var cats = Object.keys(by).sort(function(a, b){ return by[b] - by[a] || (a < b ? -1 : 1); }).map(function(k){ return { id: k, amount: by[k], pct: Math.round(by[k] / total * 100) }; });
+  var n = Math.max(1, trip.members.length);
+  return { name: trip.name, start: trip.start, end: trip.end, days: dayDiff(trip.start, trip.end) + 1, members: trip.members.map(function(m){ return m.name; }), total: total, per: Math.round(total / n), count: ex.length,
+    budget: trip.budget, diff: trip.budget - total, cats: cats, top: top, topDay: topDay };
 }
 /* ===== LOGIC_END ===== */
 
@@ -903,6 +915,46 @@ function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo ||
 
 /* the first screen (no trips yet): one screen, no scrolling. Order: intro, the main button, join by link, the 3 steps, LINE login (small), legal links at the very bottom */
 const OA_URL = 'https://line.me/R/ti/p/%40896znnha';   // official account 「たびわり」 (@896znnha)
+/* ---- trip recap image: drawn on a canvas on this device (nothing is uploaded) ---- */
+const RECAP_FONT = '-apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif';
+function recapCanvas(d, icon){
+  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const font = (w, px) => { g.font = w + ' ' + px + 'px ' + RECAP_FONT; }, text = (s, x, y, color, align) => { g.fillStyle = color; g.textAlign = align || 'left'; g.fillText(s, x, y); };
+  const path = (x, y, w, h, r) => { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); };
+  const rr = (x, y, w, h, r, fill) => { path(x, y, w, h, r); g.fillStyle = fill; g.fill(); };
+  const md = s => { const p = s.split('-'); return Number(p[1]) + '/' + Number(p[2]); }, y0 = n => n.toLocaleString('ja-JP') + '円', SUN = '#ffc83d', WHITE = '#ffffff', DIM = 'rgba(255,255,255,.62)';
+  g.fillStyle = '#0f2742'; g.fillRect(0, 0, W, H);
+  const PAD = 80; g.textBaseline = 'alphabetic';
+  font(500, 34); text('旅のまとめ', PAD, 120, SUN);
+  font(700, 76); const chars = Array.from(d.name); let lines = [], cur = '';
+  chars.forEach(ch => { if (g.measureText(cur + ch).width > W - PAD * 2 && cur){ lines.push(cur); cur = ch; } else cur += ch; }); lines.push(cur);
+  if (lines.length > 2){ lines = lines.slice(0, 2); lines[1] = Array.from(lines[1]).slice(0, -1).join('') + '…'; }
+  lines.forEach((l, i) => text(l, PAD, 215 + i * 92, WHITE));
+  let y = 215 + (lines.length - 1) * 92 + 62;
+  font(400, 36); text(md(d.start) + (d.end !== d.start ? ' - ' + md(d.end) : '') + '・' + d.members.length + '人' + (d.days > 1 ? '・' + d.days + '日間' : ''), PAD, y, DIM);
+  y += 150; font(500, 34); text('みんなで使った合計', PAD, y, DIM);
+  y += 118; font(700, 124); text(y0(d.total), PAD, y, SUN);
+  y += 62; font(400, 38); text('1人あたり ' + y0(d.per) + '・' + d.count + '件の支出', PAD, y, WHITE);
+  y += 86; const bw = W - PAD * 2; let x = PAD; rr(PAD, y, bw, 26, 13, 'rgba(255,255,255,.14)');
+  g.save(); path(PAD, y, bw, 26, 13); g.clip();
+  d.cats.forEach(k => { const w = bw * k.amount / d.total, h = (CAT[k.id] || CAT.other)[3]; g.fillStyle = 'hsl(' + h + ',72%,58%)'; g.fillRect(x, y, Math.max(0, w - 3), 26); x += w; }); g.restore();
+  y += 46; d.cats.slice(0, 4).forEach(k => { const cc = CAT[k.id] || CAT.other; y += 50; g.beginPath(); g.arc(PAD + 12, y - 12, 12, 0, Math.PI * 2); g.fillStyle = 'hsl(' + cc[3] + ',72%,58%)'; g.fill();
+    font(400, 38); text(cc[2], PAD + 44, y, WHITE); font(700, 38); text(y0(k.amount), W - PAD - 110, y, WHITE, 'right'); font(400, 34); text(k.pct + '%', W - PAD, y, DIM, 'right'); });
+  const cy = 1010, cw = (W - PAD * 2 - 24) / 2, ch = 170;
+  const card = (cx, label, big, small) => { rr(cx, cy, cw, ch, 28, 'rgba(255,255,255,.1)'); font(400, 30); text(label, cx + 28, cy + 52, DIM); font(700, 44); text(big, cx + 28, cy + 110, WHITE); font(400, 28); text(small, cx + 28, cy + 150, DIM); };
+  const clip = (s, n) => { s = Array.from(s || ''); return s.length > n ? s.slice(0, n - 1).join('') + '…' : s.join('') || '（内容なし）'; };
+  card(PAD, '一番高かった支出', y0(d.top.amount), clip(d.top.title, 11));
+  card(PAD + cw + 24, '一番使った日', md(d.topDay.date), y0(d.topDay.amount));
+  font(500, 36); text(d.diff >= 0 ? '予算 ' + y0(d.budget) + ' のうち、' + y0(d.diff) + ' 残りました' : '予算を ' + y0(-d.diff) + ' 超えました', PAD, 1244, WHITE);
+  if (icon) g.drawImage(icon, PAD, 1272, 44, 44);
+  font(700, 30); text('たびわり', PAD + 58, 1304, DIM);
+  return c;
+}
+async function makeRecap(t){
+  const d = recapData(t); if (!d) return null;
+  const icon = await new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = 'icons/icon-192.png'; });
+  return new Promise(r => recapCanvas(d, icon).toBlob(r, 'image/png'));
+}
 const brandRow = () => '<div class="brandrow"><h1 class="brand">たびわり</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 function viewHomeEmpty(){
   const steps = [['旅行をつくる', '日程と、予算を決めます。'], ['支出を記録する', '誰が払ったか、誰の分かを選びます。'], ['精算する', '誰が誰にいくら払うかが、自動で出ます。']];
@@ -1036,7 +1088,8 @@ function expList(t, q){
 }
 function tabExp(t){
   if (!t.expenses.length) return '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
-  const box = t.expenses.length >= 6 ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '';
+  const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:14px;padding:8px 14px">まとめ画像</button></div>' : '';
+  const box = done + (t.expenses.length >= 6 ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
   return box + '<div id="exp-list">' + expList(t, box ? ui.q : '') + '</div>';
 }
 
@@ -1146,7 +1199,7 @@ function viewSheet(){
       '<label class="lab" for="s-budget">全体の予算（円）</label><input class="field" id="s-budget" type="text" inputmode="numeric" value="' + esc(d.budget) + '">' +
       '<span class="lab">メンバー</span>' + memberChips(t, used) +
       shareSection(t, s) +
-      '<div class="row" style="justify-content:center;gap:14px;margin-top:2px"><button class="link" data-a="export-csv" style="width:auto;padding:8px 0">CSV書き出し</button>' +
+      '<div class="row" style="justify-content:center;gap:14px;margin-top:2px"><button class="link" data-a="export-csv" style="width:auto;padding:8px 0">CSV書き出し</button>' + (t.expenses.length ? '<button class="link" data-a="recap" style="width:auto;padding:8px 0">旅のまとめ画像</button>' : '') +
       '<button class="link" data-a="import-csv" style="width:auto;padding:8px 0">CSV取り込み</button><input type="file" id="csv-file" accept=".csv,text/csv,text/plain" hidden>' +
       (s.confirmDel ? '' : '<button class="link bad" data-a="ask-del-trip" style="width:auto;padding:8px 0">旅行を削除</button>') + '</div>' +
       (s.confirmDel ? '<div style="margin-top:4px">' + (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button>' + '</div>' : '');
@@ -1209,6 +1262,12 @@ function viewSheet(){
       (r.skipped.length ? '<div class="sub sm" style="margin-top:10px">取り込めない行は、飛ばします。</div><ul class="sub sm" style="margin:4px 0 0;padding-left:20px">' + r.skipped.slice(0, 5).map(x => '<li>' + x.line + '行目：' + esc(x.why) + '</li>').join('') + (r.skipped.length > 5 ? '<li>ほか ' + (r.skipped.length - 5) + '件</li>' : '') + '</ul>' : '') +
       (!r.add.length ? '<div class="sub" style="margin-top:12px">追加できる支出が、ありませんでした。「日付, 内容, カテゴリ, 金額, 払った人, 割り勘の対象」の順で、1行に1件ずつ書いてください。名前は、この旅行のメンバーと同じにします。</div>' : '<div class="sub sm" style="margin-top:10px">取り込んだあとは、「元に戻す」を押すと、すべて取り消せます。</div>');
     foot = err + (r.add.length ? '<button class="btn" data-a="csv-import-go">' + r.add.length + '件を取り込む</button>' : '') + '<button class="link" data-a="close-sheet">やめる</button>';
+  }
+  if (s.type === 'recap'){
+    ttl = '旅のまとめ';
+    const canShare = !!(navigator.canShare && s.file && navigator.canShare({ files: [s.file] }));
+    body = s.err ? '' : s.url ? '<img class="recap-img" src="' + s.url + '" alt="旅のまとめの画像">' : '<div class="sub" style="margin-top:14px">画像をつくっています…</div>';
+    foot = err + (s.url ? (canShare ? '<button class="btn" data-a="recap-share">共有する</button>' : '<a class="btn" href="' + s.url + '" download="tabiwari-recap.png" style="text-align:center;text-decoration:none">画像を保存する</a><div class="sub sm" style="text-align:center;margin-top:6px">画像を長押しして、保存することもできます。</div>') : '') + '<button class="link" data-a="close-sheet">閉じる</button>';
   }
   if (s.type === 'join-loading'){
     ttl = 'リンクを確認しています';
@@ -1300,6 +1359,17 @@ document.addEventListener('click', e => {
   else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
   else if (a === 'line-login'){ lineLogin(); return; }
   else if (a === 'line-cancel'){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; }
+  else if (a === 'recap'){
+    const cur = ui.sheet = { type: 'recap', url: null, file: null, err: '' }; render();
+    makeRecap(t).then(blob => { if (ui.sheet !== cur) return; if (!blob){ cur.err = 'まとめをつくれませんでした。支出を記録してから、もう一度お試しください。'; } else { cur.file = new File([blob], 'tabiwari-recap.png', { type: 'image/png' }); cur.url = URL.createObjectURL(blob); } render(); },
+      () => { if (ui.sheet === cur){ cur.err = 'まとめをつくれませんでした。もう一度お試しください。'; render(); } });
+    return;
+  }
+  else if (a === 'recap-share'){
+    const f = s.file; if (!f) return;
+    navigator.share({ files: [f], title: t.name + ' のまとめ' }).catch(er => { if (er && er.name !== 'AbortError' && ui.sheet && ui.sheet.type === 'recap'){ ui.sheet.err = '共有できませんでした。画像を長押しして、保存してください。'; render(); } });
+    return;
+  }
   else if (a === 'app-settings'){
     ui.sheet = { type: 'app-settings', ver: null };
     try { caches.keys().then(ks => { const k = ks.filter(x => /^tabiwari-v\d+$/.test(x)).sort().pop(); if (k && ui.sheet && ui.sheet.type === 'app-settings'){ ui.sheet.ver = k.replace('tabiwari-', ''); render(); } }, () => {}); } catch(e){}
