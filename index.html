@@ -557,6 +557,8 @@ function addDays(s, n){ const p = s.split('-').map(Number), d = new Date(p[0], p
 function uid(){ return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2, 9) + Date.now().toString(36); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const yen = n => Number(n).toLocaleString('ja-JP') + '円';
+const savedOf = t => t.members.reduce((a, m) => a + ((t.savings && t.savings[m.id]) || 0), 0);
+const savedPct = t => Math.min(100, Math.round(savedOf(t) / t.budget * 100));
 const fmtDate = s => { const p = s.split('-'); return Number(p[1]) + '/' + Number(p[2]); };
 function fmtDay(s){ const p = s.split('-').map(Number); return p[1] + '/' + p[2] + '(' + WD[new Date(p[0], p[1]-1, p[2]).getDay()] + ')'; }
 
@@ -984,13 +986,13 @@ function viewHome(){
   let h = brandRow() + remoteCard() + installBanner() + lineCard();
   const order = { '旅行中': 0, '準備中': 1, '終了': 2 };
   state.trips.slice().sort((a, b) => order[status(a)[0]] - order[status(b)[0]] || (a.start < b.start ? -1 : 1)).forEach(t => {
-    const sp = total(t), left = t.budget - sp, pct = Math.min(100, Math.round(sp / t.budget * 100));
+    const sp = total(t), left = t.budget - sp, pre = status(t)[0] === '準備中', pct = pre ? savedPct(t) : Math.min(100, Math.round(sp / t.budget * 100));
     const hint = homeHint(t);
     h += '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
       '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '　<span class="hint">' + esc(hint) + '</span>' : '') + '</div>' +
       '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
-      '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>' +
-      '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="予算の ' + pct + '%を使用"><i style="width:' + pct + '%"></i></div></button>';
+      (pre ? '<div class="right"><div class="sub sm">積立（目標 ' + yen(t.budget) + '）</div><div class="num">' + yen(savedOf(t)) + '</div></div></div>' : '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>') +
+      '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></button>';
     if (t.members.length === 1) h += '<button class="btn line inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button>';   // only while I am the only member
   });
   h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
@@ -1039,12 +1041,15 @@ function viewTrip(){
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1>' + pill(st) + '</div>' +
     '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' : '') + '</div>';
   const lab = over ? '予算オーバー' : '予算の残り', amt = '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>', bar = '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>';
-  if (ui.tab === 'exp')   // record tab: the budget in a short card, so the list gets the room
+  if (ui.tab === 'exp' && st[0] === '準備中')   // before the trip: the budget, and how much of it the group has saved
+    h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">予算</span><span class="t-label">積立 ' + yen(savedOf(t)) + '（' + savedPct(t) + '%）</span></div><div class="t-amount">' + yen(t.budget) + '</div><div class="t-bar"><i style="width:' + savedPct(t) + '%"></i></div></div>' +
+      '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b>' + yen(b[1]) + '</b></div></div></div>';
+  else if (ui.tab === 'exp')   // record tab: the budget in a short card, so the list gets the room
     h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">' + lab + '</span><span class="t-label">' + yen(sp) + ' 使用 / ' + yen(t.budget) + '</span></div>' + amt + bar + '</div>' +
       '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
   else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
     const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = Math.min(100, Math.round(ssum / t.budget * 100));
-    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">予算 ' + yen(t.budget) + ' の ' + spct + '%</div></div>';
+    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">予算 ' + yen(t.budget) + ' の ' + spct + '%' + (st[0] === '準備中' ? '・出発まで あと' + dayDiff(today, t.start) + '日' : '') + '</div>' + savePace(t, today) + '</div>';
   } else   // settlement tab: one thin line
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
@@ -1130,6 +1135,12 @@ function tabSettle(t){
   return h;
 }
 
+/* one line under the savings card: what is still missing and, before the trip, what a day of saving would take */
+function savePace(t, today){
+  const miss = t.budget - savedOf(t); if (miss <= 0) return '<div class="t-sub">目標に届きました</div>';
+  const d = dayDiff(today, t.start); if (d <= 0) return '<div class="t-sub">あと ' + yen(miss) + '</div>';
+  return '<div class="t-sub">あと ' + yen(miss) + '・1日 約' + yen(Math.ceil(miss / d)) + ' ずつで届きます</div>';
+}
 function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length);
   let h = '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2><div class="list">';
