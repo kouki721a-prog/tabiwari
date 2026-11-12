@@ -50,6 +50,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 
 /* header */
 .brand{font-size:30px;font-weight:700;letter-spacing:.02em;margin:6px 0 2px}
+.brandrow{display:flex;align-items:center;justify-content:space-between;gap:10px}.brandrow .iconbtn{margin-top:4px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #app.fit{height:100%;overflow:hidden;display:flex;flex-direction:column;padding-bottom:0}
 #app.fit>*{flex:none}
@@ -503,6 +504,7 @@ const IC = {
   swap:'<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
   coin:'<circle cx="12" cy="12" r="9"/><path d="M9 7.5l3 4.5 3-4.5M12 12v5M9.5 13.5h5M9.5 15.5h5"/>',
+  gear:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
   sliders:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   back:'<path d="M15 5l-7 7 7 7"/>',
   close:'<path d="M6 6l12 12M18 6L6 18"/>',
@@ -875,13 +877,13 @@ let sheetWasOpen = false, toastN = 0;
 function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
 /* the first screen (no trips yet): one screen, no scrolling. Order: intro, the main button, join by link, the 3 steps, LINE login (small), legal links at the very bottom */
+const brandRow = () => '<div class="brandrow"><h1 class="brand">たびわり</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 function viewHomeEmpty(){
   const steps = [['旅行をつくる', '日程と、予算を決めます。'], ['支出を記録する', '誰が払ったか、誰の分かを選びます。'], ['精算する', '誰が誰にいくら払うかが、自動で出ます。']];
   let line = '';
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">' + (isStandalone() ? 'LINEでログインすると、通知とバックアップを使えます。' : 'LINEでログインすると、旅行をバックアップできます。') + '</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
-  else if (lineAcct.user) line = '<div style="text-align:center"><button class="sub sm" data-a="line-account" style="text-decoration:underline;padding:8px 12px">アカウント</button></div>';
-  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '"><h1 class="brand">たびわり</h1><div class="home0-mid">' + remoteCard() + installBanner() +
+  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + '<div class="home0-mid">' + remoteCard() + installBanner() +
     '<div class="home0-intro"><b>最初の旅行をつくりましょう</b>予算を決めて記録するだけ。割り勘は自動で計算します。</div>' +
     '<button class="btn" data-a="new">旅行をつくる</button>' +
     '<button class="btn line" data-a="join-paste" style="margin-top:10px">共有リンクで参加する</button>' +
@@ -890,7 +892,7 @@ function viewHomeEmpty(){
 }
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
-  let h = '<h1 class="brand">たびわり</h1>' + remoteCard() + installBanner() + lineCard();
+  let h = brandRow() + remoteCard() + installBanner() + lineCard();
   const order = { '旅行中': 0, '準備中': 1, '終了': 2 };
   state.trips.slice().sort((a, b) => order[status(a)[0]] - order[status(b)[0]] || (a.start < b.start ? -1 : 1)).forEach(t => {
     const sp = total(t), left = t.budget - sp, pct = Math.min(100, Math.round(sp / t.budget * 100));
@@ -902,11 +904,7 @@ function viewHome(){
     if (t.members.length === 1) h += '<button class="btn line inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button>';   // only while I am the only member
   });
   h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
-  /* the links go to the bottom of the screen (above the main button) when the list is short, and follow the list when it is long */
-  const links = []; if (CFG.legalReady) links.push('<a href="terms.html">利用規約</a>', '<a href="privacy.html">プライバシーポリシー</a>');
-  if (lineAcct.user) links.push('<button data-a="line-account">アカウント</button>');
-  const foot = links.length ? '<div class="sub sm legal foot1">' + links.join(' ・ ') + '</div>' : '';
-  return '<div class="home1"><div>' + h + '</div><div class="home1-foot">' + foot + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
+  return '<div class="home1"><div>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
 function legalLinks(){
@@ -1110,6 +1108,16 @@ function viewSheet(){
       (s.confirmDel ? '<div style="margin-top:4px">' + (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button>' + '</div>' : '');
     foot = err + '<button class="btn" data-a="save-settings">保存する</button>';
   }
+  if (s.type === 'app-settings'){
+    ttl = '設定';
+    const chev = icon('chev', 18), sec = x => '<div class="sechd">' + x + '</div>';
+    body = (lineAcct.login ? sec('LINEアカウント') + '<div class="list">' + (lineAcct.user
+        ? '<button class="item slim acc" data-a="line-account"><div class="grow"><div class="t">' + esc(lineAcct.user.name || 'LINE') + '</div><div class="sub sm">バックアップ、通知、ログアウト</div></div>' + chev + '</button>'
+        : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 14px 12px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
+      (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html"><div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html"><div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
+      sec('このアプリについて') + '<div class="list"><div class="item slim acc"><div class="grow"><div class="t">たびわり</div><div class="sub sm">' + (s.ver ? '版 ' + esc(s.ver) : '旅行の予算管理と割り勘') + '</div></div></div></div>';
+    foot = '';
+  }
   if (s.type === 'line-account'){
     const nm = lineAcct.user ? lineAcct.user.name : ''; ttl = 'LINEアカウント';
     const row = (main, sub, right) => '<div class="item slim acc"><div class="grow"><div class="t">' + main + '</div>' + (sub ? '<div class="sub sm">' + sub + '</div>' : '') + '</div>' + (right || '') + '</div>';
@@ -1243,6 +1251,10 @@ document.addEventListener('click', e => {
   else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
   else if (a === 'line-login'){ lineLogin(); return; }
   else if (a === 'line-cancel'){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; }
+  else if (a === 'app-settings'){
+    ui.sheet = { type: 'app-settings', ver: null };
+    try { caches.keys().then(ks => { const k = ks.filter(x => /^tabiwari-v\d+$/.test(x)).sort().pop(); if (k && ui.sheet && ui.sheet.type === 'app-settings'){ ui.sheet.ver = k.replace('tabiwari-', ''); render(); } }, () => {}); } catch(e){}
+  }
   else if (a === 'settle-toggle'){
     const next = lineAcct.user.settle === false;
     Line.pushSettings(next).then(() => { lineAcct.user.settle = next; if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = ''; render(); } },

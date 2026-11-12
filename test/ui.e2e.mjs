@@ -40,10 +40,12 @@ try {
   await p.click('[data-a=close-sheet]');
   assert.strictEqual(await p.getAttribute('.tab.on', 'aria-current'), 'page');
 
-  // home with trips: the links sit at the bottom (just above the main button) while the list is short, with no extra scrolling; they follow the list when it is long
+  // home with trips: a settings button at the top right replaces the three small links at the bottom; the settings sheet holds the rules and the version
   await p.click('[data-a=home]'); await p.waitForSelector('.home1');
-  { const m = await p.evaluate(() => { const f = document.querySelector('.home1-foot').getBoundingClientRect(), fab = document.querySelector('.fab').getBoundingClientRect(); return { gap: fab.top - f.bottom, scrolls: document.documentElement.scrollHeight - innerHeight }; });
-    assert.ok(m.gap >= 0 && m.gap < 40 && m.scrolls <= 1, 'the links are pinned just above the main button: ' + JSON.stringify(m)); }
+  { const m = await p.evaluate(() => { const b = document.querySelector('[data-a=app-settings]').getBoundingClientRect(), h = document.querySelector('.brand').getBoundingClientRect(), fab = document.querySelector('.fab').getBoundingClientRect(); return { right: innerWidth - b.right, sameRow: Math.abs((b.top + b.bottom) / 2 - (h.top + h.bottom) / 2) < 14, scrolls: document.documentElement.scrollHeight - innerHeight, links: document.querySelectorAll('.home1 .legal, .foot1').length, fabBottom: innerHeight - fab.bottom }; });
+    assert.ok(m.right < 40 && m.sameRow && m.scrolls <= 1 && m.links === 0, 'settings button at the top right, no footer links: ' + JSON.stringify(m)); }
+  await p.click('[data-a=app-settings]'); await see(p, '規約'); await see(p, '利用規約'); await see(p, 'プライバシーポリシー'); await see(p, 'このアプリについて');
+  assert.strictEqual(await p.locator('.sheet [data-a=line-login]').count(), 0, 'no LINE login without the server'); await p.click('[data-a=close-sheet]');
   await p.locator('.trip').first().click(); await p.waitForSelector('[data-a=add-exp]');
 
   // trip screen, no expenses yet: short guidance without an orphaned "す。", a button that opens the same sheet as the + button, members row with an invite button, "残りN日" label
