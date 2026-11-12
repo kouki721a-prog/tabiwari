@@ -103,6 +103,7 @@ try {
     await d.p.evaluate(() => { ui.sheet = { type: 'line-account', err: '', confirm: false, ntf: 'on' }; render(); });
     await d.p.waitForSelector('[data-a=settle-toggle][aria-checked=true]'); await d.p.click('[data-a=settle-toggle]'); await d.p.waitForSelector('[data-a=settle-toggle][aria-checked=false]');
     assert.deepStrictEqual((await api('GET', '/api/reach')).reachable, [], 'switched off: not reachable'); await d.p.click('[data-a=settle-toggle]'); await d.p.waitForSelector('[data-a=settle-toggle][aria-checked=true]');
+    await d.p.waitForSelector('[data-a=over-toggle][aria-checked=true]'); await d.p.click('[data-a=over-toggle]'); await d.p.waitForSelector('[data-a=over-toggle][aria-checked=false]'); assert.strictEqual(await d.p.evaluate(async () => (await Line.me()).user.over), false, 'the switch is saved on the server'); await d.p.click('[data-a=over-toggle]'); await d.p.waitForSelector('[data-a=over-toggle][aria-checked=true]');
     await d.p.click('[data-a=close-sheet]'); await d.p.evaluate(() => { ui.view = 'home'; ui.tripId = null; render(); }); }
 
   // ---- logging out also removes this device

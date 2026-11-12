@@ -54,7 +54,7 @@ try {
 
   // --- login as U1
   const c1 = await login('U-one', 'テスト太郎');
-  { const me = (await j('/api/me', { cookie: c1 })).data; assert.deepStrictEqual([me.login, me.user], [true, { name: 'テスト太郎', settle: true }]); assert.strictEqual(me.push.length, 87, 'logged-in people are offered the push key'); }
+  { const me = (await j('/api/me', { cookie: c1 })).data; assert.deepStrictEqual([me.login, me.user], [true, { name: 'テスト太郎', settle: true, over: true }]); assert.strictEqual(me.push.length, 87, 'logged-in people are offered the push key'); }
   assert.ok(!JSON.stringify((await j('/api/me', { cookie: c1 })).data).includes('U-one'), 'the LINE user id is never sent to the app');
   assert.strictEqual((await j('/api/me', { cookie: 'tw_session=' + 'z'.repeat(43) })).data.user, null, 'a made-up cookie is nobody');
 

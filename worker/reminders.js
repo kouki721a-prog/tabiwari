@@ -18,6 +18,10 @@ export function jstParts(nowMs) {
 export function dueKinds(trip, t, ex) {
   const kinds = [];
   if (t.hour >= 18 && trip.start === t.tomorrow) kinds.push('eve');
+  if (t.hour >= 10 && t.hour <= 22 && trip.start <= t.today && t.today <= trip.end && ex.budget > 0) {   // today's spending is over the day's allowance (the same rule as the red number in the app)
+    const dl = Math.round((Date.parse(trip.end + 'T00:00:00Z') - Date.parse(t.today + 'T00:00:00Z')) / 86400000) + 1, per = Math.max(0, Math.floor((ex.budget - ex.sumAll) / dl));
+    if (ex.sumToday > per) { kinds.push('over'); ex.per = per; }
+  }
   if (t.hour >= 20 && trip.start <= t.today && t.today <= trip.end && ex.onToday === 0) kinds.push('daily');
   if (t.hour >= 10 && trip.end === t.yesterday && ex.total > 0) kinds.push('settle');
   return kinds;
@@ -39,20 +43,22 @@ async function findDue(env, t, userIds, all = false) {
     if (!all && trips.some(x => x.userId === r.user_id && x.name === src.name && x.start === src.start && x.end === src.end)) continue;   // the same trip saved twice: one reminder
     trips.push({ userId: r.user_id, tripId: r.trip_id, name: src.name, start: src.start, end: src.end, deleted: !!item.deleted,
       hash: item.kind === 'shared' && typeof item.token === 'string' ? await sha256hex(item.token) : null,
-      local: item.kind === 'local' ? (Array.isArray(item.trip.expenses) ? item.trip.expenses : []) : null });
+      local: item.kind === 'local' ? (Array.isArray(item.trip.expenses) ? item.trip.expenses : []) : null, budget: item.kind === 'local' ? item.trip.budget : null });
   }
   const hashes = trips.filter(x => x.hash).map(x => x.hash), counts = {};
   if (hashes.length) {
-    const q = await DB.prepare('SELECT trip_id, COUNT(*) AS total, SUM(spent_on = ?1) AS on_today FROM expenses WHERE trip_id IN (SELECT value FROM json_each(?2)) GROUP BY trip_id').bind(t.today, JSON.stringify(hashes)).all();
-    for (const r of q.results) counts[r.trip_id] = { total: r.total, onToday: r.on_today || 0 };
+    const q = await DB.prepare('SELECT e.trip_id, COUNT(*) AS total, SUM(e.spent_on = ?1) AS on_today, SUM(e.amount) AS sum_all, SUM(CASE WHEN e.spent_on = ?1 THEN e.amount ELSE 0 END) AS sum_today, (SELECT budget FROM trips WHERE id = e.trip_id) AS budget FROM expenses e WHERE e.trip_id IN (SELECT value FROM json_each(?2)) GROUP BY e.trip_id').bind(t.today, JSON.stringify(hashes)).all();
+    for (const r of q.results) counts[r.trip_id] = { total: r.total, onToday: r.on_today || 0, sumAll: r.sum_all || 0, sumToday: r.sum_today || 0, budget: r.budget || 0 };
   }
+  const offOver = all ? new Set() : new Set((await DB.prepare('SELECT id FROM users WHERE over_notif = 0').all()).results.map(r => r.id));   // people who turned 今日の使いすぎのお知らせ off
   const due = [];
   for (const x of trips) {
     if (x.unreadable) { due.push(x); continue; }
-    const ex = x.hash ? (counts[x.hash] || { total: 0, onToday: 0 }) : { total: x.local.length, onToday: x.local.filter(e => e && e.date === t.today).length };
+    const amt = e => (e && Number.isFinite(e.amount) ? e.amount : 0);
+    const ex = x.hash ? (counts[x.hash] || { total: 0, onToday: 0, sumAll: 0, sumToday: 0, budget: 0 }) : { total: x.local.length, onToday: x.local.filter(e => e && e.date === t.today).length, sumAll: x.local.reduce((a, e) => a + amt(e), 0), sumToday: x.local.filter(e => e && e.date === t.today).reduce((a, e) => a + amt(e), 0), budget: Number.isInteger(x.budget) ? x.budget : 0 };
     const kinds = dueKinds(x, t, ex);
     if (all) due.push({ u: x.userId, t: x.tripId, name: x.name, start: x.start, end: x.end, kinds: x.deleted ? [] : kinds, shared: !!x.hash, expenses: ex.total, deleted: !!x.deleted });
-    else for (const kind of kinds) due.push({ u: x.userId, t: x.tripId, k: kind, name: x.name });
+    else for (const kind of kinds) { if (kind === 'over' && offOver.has(x.userId)) continue; due.push({ u: x.userId, t: x.tripId, k: kind, name: x.name, x: kind === 'over' ? { today: ex.sumToday, per: ex.per } : undefined }); }
   }
   return due;
 }
@@ -94,9 +100,9 @@ async function runDaily(env, nowMs) {
   const release = c => DB.prepare('DELETE FROM notif_log WHERE user_id = ?1 AND trip_id = ?2 AND kind = ?3 AND day = ?4').bind(c.user_id, c.trip_id, c.kind, t.today).run();
   let budget = MAX_SENDS;
   for (const c of claimed) {
-    const mine = (byUser.get(c.user_id) || []).filter(s => allowedEndpoint(s.endpoint, env)), name = due.find(d => d.u === c.user_id && d.t === c.trip_id && d.k === c.kind).name;
+    const mine = (byUser.get(c.user_id) || []).filter(s => allowedEndpoint(s.endpoint, env)), dueItem = due.find(d => d.u === c.user_id && d.t === c.trip_id && d.k === c.kind), name = dueItem.name;
     if (!mine.length || mine.length > budget) { await release(c); out.released++; continue; }
-    const msg = reminderMessage(c.kind, name); let delivered = false, transient = false;
+    const msg = reminderMessage(c.kind, name, dueItem.x); let delivered = false, transient = false;
     for (const s of mine) {
       budget--;
       try {
