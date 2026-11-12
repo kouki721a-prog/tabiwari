@@ -1119,7 +1119,7 @@ function expList(t, q){
   return h;
 }
 function quickForm(){
-  return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとことで記録（例：夕食 2000円）" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button></form>' +
+  return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとことで記録：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button></form>' +
     (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '');
 }
 function tabExp(t){
