@@ -35,6 +35,10 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
+/* shown while the page loads (plain HTML + CSS, no waiting); removed on the first render */
+#splash{position:fixed;inset:0;z-index:99;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .2s}
+#splash img{border-radius:22px;box-shadow:0 6px 18px rgba(15,39,66,.18)}#splash b{font-size:22px;font-weight:700;letter-spacing:.04em;color:var(--ink)}
+#splash.out{opacity:0;pointer-events:none}
 body{background:var(--paper);color:var(--ink);font-family:var(--font);font-weight:400;line-height:1.55;font-variant-numeric:tabular-nums}
 b,strong{font-weight:500}
 button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-align:inherit}
@@ -285,6 +289,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
 </style>
 </head>
 <body>
+<div id="splash" aria-hidden="true"><img src="icons/icon-192.png" alt="" width="96" height="96"><b>たびわり</b></div>
 <main id="app"></main>
 <script src="config.js"></script>
 <script src="sync.js"></script>
@@ -683,7 +688,8 @@ async function beginJoin(token){
 async function captureShareHash(){
   const m = /[#&]t=([A-Za-z0-9_-]{32,64})/.exec(location.hash); if (!m) return;
   try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
-  try { const sh = await beginJoin(m[1]); if (sh){ ui.sheet = sh; render(); } } catch(e){ flash(Share.errText(e)); }
+  const wait = ui.sheet = { type: 'join-loading' }; render();   // checking the link takes a moment on a slow connection
+  try { const sh = await beginJoin(m[1]); if (ui.sheet === wait){ ui.sheet = sh || null; render(); } } catch(e){ if (ui.sheet === wait){ ui.sheet = null; render(); } flash(Share.errText(e)); }
 }
 /* A tapped notification opens ./?trip=<id>&tab=settle (cold start) or sends the same URL to the open app (service worker message). */
 function openFromUrl(href){
@@ -1196,12 +1202,16 @@ function viewSheet(){
       (!r.add.length ? '<div class="sub" style="margin-top:12px">追加できる支出が、ありませんでした。「日付, 内容, カテゴリ, 金額, 払った人, 割り勘の対象」の順で、1行に1件ずつ書いてください。名前は、この旅行のメンバーと同じにします。</div>' : '<div class="sub sm" style="margin-top:10px">取り込んだあとは、「元に戻す」を押すと、すべて取り消せます。</div>');
     foot = err + (r.add.length ? '<button class="btn" data-a="csv-import-go">' + r.add.length + '件を取り込む</button>' : '') + '<button class="link" data-a="close-sheet">やめる</button>';
   }
+  if (s.type === 'join-loading'){
+    ttl = 'リンクを確認しています';
+    body = '<div class="sub" style="margin-top:14px">共有された旅行を読み込んでいます。少しお待ちください。</div>'; foot = '<button class="link" data-a="close-sheet">やめる</button>';
+  }
   if (s.type === 'join-paste'){
     ttl = '共有リンクで参加';
     body = '<div class="sub" style="margin-top:12px">友だちから届いたリンク（またはメッセージ）を、そのまま貼り付けてください。</div>' +
       '<label class="lab" for="p-link">共有リンク</label><textarea class="field" id="p-link" rows="3" placeholder="https://…/#t=…" style="resize:none">' + esc(s.text || '') + '</textarea>' +
       '<div class="sub sm" style="margin-top:8px">LINEのリンクを開くと、ホーム画面のアプリとは別の場所（Safari）で開いてしまいます。アプリの中で参加したいときは、リンクをコピーして、ここに貼り付けます。</div>';
-    foot = err + '<button class="btn" data-a="join-paste-go"' + (s.busy ? ' disabled' : '') + '>確認する</button>';
+    foot = err + '<button class="btn" data-a="join-paste-go"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '確認しています…' : '確認する') + '</button>';
   }
   return '<div class="sheet-bg" data-a="bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1"><div class="row between"><h2 id="sheet-title">' + ttl + '</h2><button class="iconbtn" data-a="close-sheet" aria-label="閉じる">' + icon('close') + '</button></div>' +
     '<div class="sheet-body">' + body + '</div><div class="sheet-foot">' + foot + '</div></div></div>';
@@ -1493,6 +1503,7 @@ document.addEventListener('click', e => {
 
 render();
 bootShare();
+{ const sp = document.getElementById('splash'); if (sp){ requestAnimationFrame(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 300); }); } }   // the first screen is drawn: let the splash go
 </script>
 </body>
 </html>
