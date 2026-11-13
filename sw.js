@@ -1,5 +1,5 @@
 /* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls are never cached. */
-const VERSION = 'tabiwari-v57';
+const VERSION = 'tabiwari-v58';
 const FILES = ['./', './index.html', './config.js', './sync.js', './share.js', './line.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/icon-maskable-512.png', './icons/line-login-icon.png'];
 const OPTIONAL = ['./terms.html', './privacy.html', './legal.css'];   // optional: a missing one must not break the install
@@ -18,7 +18,7 @@ self.addEventListener('fetch', e => {
   e.respondWith((async () => {
     const cache = await caches.open(VERSION);
     const hit = await cache.match(e.request, { ignoreSearch: true });
-    if (hit) return hit;
+    if (hit) return hit.redirected ? new Response(await hit.blob(), { status: hit.status, statusText: hit.statusText, headers: hit.headers }) : hit;   // a saved copy that came through a redirect (terms.html -> /terms) is refused by the browser for a page load: hand out a plain copy
     const res = await fetch(e.request);   // not saved yet (for example a page that was never opened): from the network
     if (res && res.ok) cache.put(e.request, res.clone());
     return res;
