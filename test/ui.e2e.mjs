@@ -8,7 +8,8 @@ const { chromium, devices } = createRequire(import.meta.url)('playwright');
 const dist = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'dist');
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.css': 'text/css' };
 let slow = 0;   // a test can make the server slow, to see what comes from the service worker's cache
-const srv = http.createServer((q, r) => { const f = path.join(dist, q.url.split('?')[0] === '/' ? 'index.html' : q.url.split('?')[0]); setTimeout(() => fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end('{}'); } else { r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'text/plain' }); r.end(d); } }), slow); }).listen(8797);
+const srv = http.createServer((q, r) => { const pth = q.url.split('?')[0]; if (/^\/(terms|privacy)\.html$/.test(pth)){ r.writeHead(308, { Location: pth.replace('.html', '') }); return r.end(); }   // like the real host: x.html redirects to /x
+  const f = path.join(dist, pth === '/' ? 'index.html' : /^\/(terms|privacy)$/.test(pth) ? pth + '.html' : pth); setTimeout(() => fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end('{}'); } else { r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'text/plain' }); r.end(d); } }), slow); }).listen(8797);
 const b = await chromium.launch(), errs = [];
 const see = (p, t, ms = 5000) => p.waitForSelector('text=' + t, { timeout: ms });
 try {
@@ -239,6 +240,8 @@ try {
     await q.reload(); await q.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 5000 });
     slow = 3000; const t0 = Date.now(); await q.reload(); await q.waitForSelector('.home0, .home1', { timeout: 6000 }); const took = Date.now() - t0; slow = 0;
     assert.ok(took < 2000, 'opened from the cache while the server needed 3 s: ' + took + ' ms');
+    // the terms and privacy pages: the host redirects x.html to /x, and a saved copy that came through a redirect must still open as a page
+    await q.goto('http://localhost:8797/terms.html'); await see(q, '利用規約'); await q.goto('http://localhost:8797/privacy.html'); await see(q, 'プライバシーポリシー'); await q.goto('http://localhost:8797/');
     const names = await q.evaluate(async () => { const ks = await caches.keys(); const out = []; for (const k of ks) for (const r of await (await caches.open(k)).keys()) out.push(new URL(r.url).pathname); return { ks, out }; });
     assert.ok(names.ks.some(k => /^tabiwari-v\d+$/.test(k)) && names.out.includes('/') && !names.out.some(x => x.startsWith('/api/')), JSON.stringify(names)); await c6.close(); }
 
