@@ -273,6 +273,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .amount::placeholder{color:var(--line)}
 .amount-wrap span{font-size:22px;font-weight:700}
 .sheet #f-hint{margin-top:8px}
+.quick{display:flex;gap:8px;align-items:stretch;margin-top:4px}.quick .field{flex:1;min-width:0;padding:11px 14px}.quick .btn{width:auto;padding:0 16px;flex:none}
 .recap-img{display:block;width:100%;max-height:52vh;object-fit:contain;border-radius:16px;margin-top:10px;background:var(--navy)}
 .hint{min-height:20px;font-size:14px;color:var(--sub);font-weight:500}
 
@@ -529,6 +530,32 @@ function recapData(trip){
   return { name: trip.name, start: trip.start, end: trip.end, days: dayDiff(trip.start, trip.end) + 1, members: trip.members.map(function(m){ return m.name; }), total: total, per: Math.round(total / n), count: ex.length,
     budget: trip.budget, diff: trip.budget - total, cats: cats, top: top, topDay: topDay };
 }
+/* One line like "夕食 2000円" -> { title, amount, cat, offset } (offset: 0 today, -1 yesterday, -2 the day before). null when no amount is found. */
+var QUICK_CATS = [
+  ['transport', ['電車', '新幹線', 'バス', 'タクシー', '飛行機', '航空', '高速', 'ガソリン', '駐車', 'レンタカー', 'ETC', 'フェリー', '乗船', '切符', '乗車', 'ケーブルカー', 'モノレール', '特急']],
+  ['stay', ['宿', 'ホテル', '旅館', '民宿', '宿泊', 'ゲストハウス', 'コテージ', 'キャンプ場']],
+  ['gift', ['お土産', 'おみやげ', 'みやげ', '土産']],
+  ['sight', ['入場', '観光', '拝観', '美術館', '博物館', '水族館', '動物園', '遊園地', 'ロープウェイ', 'ガイド', 'ツアー', '体験', 'アクティビティ', '入館', '入園', 'チケット', '温泉']],
+  ['food', ['朝食', '昼食', '夕食', 'ごはん', 'ご飯', 'ランチ', 'ディナー', 'モーニング', 'カフェ', 'コーヒー', '居酒屋', '飲み', 'ラーメン', '寿司', 'すし', 'そば', 'うどん', '食', '弁当', 'ビール', 'お酒', 'スイーツ', 'アイス', 'おやつ', 'ドリンク', '飲み物', 'レストラン', '定食', '焼肉', 'パン', 'コンビニ']]
+];
+function parseQuick(text){
+  var s = String(text == null ? '' : text).replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/，/g, ',').replace(/．/g, '.').replace(/[\u3000]/g, ' ').trim();
+  if (!s) return null;
+  var re = /([¥￥]\s*)?(\d[\d,]*(?:\.\d+)?)(\s*[万千])?(\s*(?:円|えん))?/g, m, cands = [];
+  while ((m = re.exec(s))){
+    var n = parseFloat(m[2].replace(/,/g, '')), unit = m[3] ? m[3].trim() : '', val = unit === '万' ? n * 10000 : unit === '千' ? n * 1000 : n;
+    if (isNaN(val) || (!unit && val !== Math.floor(val)) || val !== Math.round(val)) continue;
+    cands.push({ val: val, yen: !!(m[1] || m[4]), start: m.index, end: m.index + m[0].length });
+  }
+  var pool = cands.filter(function(c){ return c.yen; }); if (!pool.length) pool = cands;
+  if (!pool.length) return null;
+  var pick = pool.reduce(function(a, c){ return c.val > a.val ? c : a; });
+  if (!(pick.val >= 1 && pick.val <= 1e9)) return null;
+  var rest = s.slice(0, pick.start) + ' ' + s.slice(pick.end), offset = /一昨日|おととい/.test(rest) ? -2 : /昨日|きのう/.test(rest) ? -1 : 0;
+  var title = rest.replace(/一昨日|おととい|昨日|きのう|今日|きょう/g, ' ').replace(/(だった|でした|です|だよ|だね|かかった|払った|使った|買った)+[。.!！]*\s*$/, ' ').replace(/\s+/g, ' ').replace(/^[\s、,。・]+|[\s、,。・をはがでに]+$/g, '');
+  var cat = 'other'; for (var i = 0; i < QUICK_CATS.length && cat === 'other'; i++) for (var j = 0; j < QUICK_CATS[i][1].length; j++) if (rest.indexOf(QUICK_CATS[i][1][j]) >= 0){ cat = QUICK_CATS[i][0]; break; }
+  return { title: Array.from(title).slice(0, 100).join(''), amount: pick.val, cat: cat, offset: offset };
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -578,7 +605,7 @@ function save(){ persist(); if (state.trips.some(t => t.share)) shareSoon(); if 
 let state = load();
 
 
-const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', inviting: null };
+const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', quick: '', quickErr: '', inviting: null };
 
 const CFG = window.TABIWARI || {};
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
@@ -1091,11 +1118,15 @@ function expList(t, q){
   });
   return h;
 }
+function quickForm(){
+  return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとことで記録：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button></form>' +
+    (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '');
+}
 function tabExp(t){
-  if (!t.expenses.length) return '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
+  if (!t.expenses.length) return quickForm() + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:14px;padding:8px 14px">まとめ画像</button></div>' : '';
   const box = done + (t.expenses.length >= 6 ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
-  return box + '<div id="exp-list">' + expList(t, box ? ui.q : '') + '</div>';
+  return quickForm() + box + '<div id="exp-list">' + expList(t, box ? ui.q : '') + '</div>';
 }
 
 const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
@@ -1320,7 +1351,19 @@ function readSheet(){
   }
 }
 
+document.addEventListener('submit', e => {   // "ひとことで記録": a line like 夕食 2000円 is recorded at once (me paid, split among everyone, today), with an undo
+  if (e.target.id !== 'quick-form') return; e.preventDefault();
+  const t = trip(); if (!t) return;
+  const inp = document.getElementById('q-quick'), text = inp ? inp.value : ui.quick, r = parseQuick(text);
+  ui.quick = text;
+  if (!r){ ui.quickErr = '金額が見つかりませんでした。「夕食 2000円」のように書いてください。'; render(); return; }
+  const today = todayStr(), base = (today < t.start || today > t.end) ? t.start : today; let date = addDays(base, r.offset); if (date < t.start) date = t.start; if (date > t.end) date = t.end;
+  const rec = { id: uid(), title: r.title, amount: r.amount, payer: meId(t), cat: r.cat, date: date, split: t.members.map(m => m.id) }, tid = t.id;
+  t.expenses.push(rec); ui.quick = ''; ui.quickErr = ''; save(); render();
+  flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + 'を記録しました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
+});
 document.addEventListener('input', e => {
+  if (e.target.id === 'q-quick'){ ui.quick = e.target.value; return; }
   if (e.target.id === 'q-exp'){ ui.q = e.target.value; const t = trip(), box = document.getElementById('exp-list'); if (t && box) box.innerHTML = expList(t, ui.q); return; }
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
