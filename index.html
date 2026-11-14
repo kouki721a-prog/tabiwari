@@ -947,106 +947,42 @@ const OA_URL = 'https://line.me/R/ti/p/%40896znnha';   // official account 「�
 /* ---- trip recap image: drawn on a canvas on this device (nothing is uploaded) ---- */
 const RECAP_FONT = '-apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif';
 function recapCanvas(d, icon){
-  // 1080x1920 (9:16: a full screen for Instagram stories and the like). The content sits inside the safe area (the top and bottom ~250px are covered by the app's own buttons) and is spread out to fill it.
-  const W = 1080, H = 1920, PAD = 84, SAFE_TOP = 250, SAFE_H = H - 2 * SAFE_TOP, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
-  const font = (w, px) => { g.font = w + ' ' + px + 'px ' + RECAP_FONT; }, text = (s, x, y, color, align) => { g.fillStyle = color; g.textAlign = align || 'left'; g.fillText(s, x, y); };
-  const path = (x, y, w, h, r) => { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); };
-  const rr = (x, y, w, h, r, fill) => { path(x, y, w, h, r); g.fillStyle = fill; g.fill(); };
-  const md = s => { const p = s.split('-'); return Number(p[1]) + '/' + Number(p[2]); }, y0 = n => n.toLocaleString('ja-JP'), yen = n => y0(n) + '円', SUN = '#ffc83d', WHITE = '#ffffff', DIM = 'rgba(255,255,255,.62)', CW = W - PAD * 2;
-  const clip = (s, n) => { s = Array.from(s || ''); return s.length > n ? s.slice(0, n - 1).join('') + '…' : s.join('') || '（内容なし）'; };
-  font(700, 84); const chars = Array.from(d.name); let lines = [], cur = '';
-  chars.forEach(ch => { if (g.measureText(cur + ch).width > CW && cur){ lines.push(cur); cur = ch; } else cur += ch; }); lines.push(cur);
-  if (lines.length > 2){ lines = lines.slice(0, 2); lines[1] = Array.from(lines[1]).slice(0, -1).join('') + '…'; }
-  let amtPx = 150; font(700, amtPx); while (g.measureText(yen(d.total)).width > CW && amtPx > 60){ amtPx -= 6; font(700, amtPx); }
-  const cats = d.cats.slice(0, 5), CARD_H = 190;
-  const secs = [   // [height, draw(y)]
-    [40 + 40 + lines.length * 100 + 20 + 44, y => { font(500, 36); text('旅のまとめ', PAD, y + 36, SUN); font(700, 84); lines.forEach((l, i) => text(l, PAD, y + 40 + 40 + 84 + i * 100 - 8, WHITE));
-      font(400, 38); text(md(d.start) + (d.end !== d.start ? ' - ' + md(d.end) : '') + '・' + d.members.length + '人' + (d.days > 1 ? '・' + d.days + '日間' : ''), PAD, y + 40 + 40 + lines.length * 100 + 20 + 34, DIM); }],
-    [36 + 24 + amtPx + 24 + 44, y => { font(500, 36); text('みんなで使った合計', PAD, y + 36, DIM); font(700, amtPx); text(yen(d.total), PAD, y + 36 + 24 + amtPx - 14, SUN);
-      font(400, 40); text('1人あたり ' + yen(d.per) + '・' + d.count + '件の支出', PAD, y + 36 + 24 + amtPx + 24 + 34, WHITE); }],
-    [30 + 36 + cats.length * 62, y => { let x = PAD; rr(PAD, y, CW, 30, 15, 'rgba(255,255,255,.14)'); g.save(); path(PAD, y, CW, 30, 15); g.clip();
-      d.cats.forEach(k => { const w = CW * k.amount / d.total, h = (CAT[k.id] || CAT.other)[3]; g.fillStyle = 'hsl(' + h + ',72%,58%)'; g.fillRect(x, y, Math.max(0, w - 3), 30); x += w; }); g.restore();
-      cats.forEach((k, i) => { const cc = CAT[k.id] || CAT.other, yy = y + 30 + 36 + 46 + i * 62 - 8; g.beginPath(); g.arc(PAD + 13, yy - 13, 13, 0, Math.PI * 2); g.fillStyle = 'hsl(' + cc[3] + ',72%,58%)'; g.fill();
-        font(400, 42); text(cc[2], PAD + 48, yy, WHITE); font(700, 42); text(yen(k.amount), W - PAD - 120, yy, WHITE, 'right'); font(400, 36); text(k.pct + '%', W - PAD, yy, DIM, 'right'); }); }],
-    [CARD_H, y => { const cw = (CW - 28) / 2, card = (cx, label, big, small) => { rr(cx, y, cw, CARD_H, 30, 'rgba(255,255,255,.1)'); font(400, 32); text(label, cx + 30, y + 56, DIM); font(700, 48); text(big, cx + 30, y + 118, WHITE); font(400, 30); text(small, cx + 30, y + 162, DIM); };
-      card(PAD, '一番高かった支出', yen(d.top.amount), clip(d.top.title, 11)); card(PAD + cw + 28, '一番使った日', md(d.topDay.date), yen(d.topDay.amount)); }],
-    [44, y => { const line = d.diff >= 0 ? '予算 ' + yen(d.budget) + ' のうち、' + yen(d.diff) + ' 残りました' : '予算を ' + yen(-d.diff) + ' 超えました'; let px = 38; font(500, px); while (g.measureText(line).width > CW && px > 24){ px -= 2; font(500, px); } text(line, PAD, y + 38, WHITE); }],
-    [56, y => { if (icon) g.drawImage(icon, PAD, y, 56, 56); font(700, 34); text('たびわり', PAD + 72, y + 40, DIM); }]
-  ];
-  const total = secs.reduce((a, s) => a + s[0], 0), gap = Math.max(36, Math.min(120, (SAFE_H - total) / (secs.length - 1)));
-  g.fillStyle = '#0f2742'; g.fillRect(0, 0, W, H); g.textBaseline = 'alphabetic';
-  let y = SAFE_TOP + Math.max(0, (SAFE_H - total - gap * (secs.length - 1)) / 2);
-  secs.forEach(sec => { sec[1](y); y += sec[0] + gap; });
-  return c;
-}
-/* Three looks for the recap image (all 1080x1920): ticket, poster, receipt. Same numbers (recapData), different drawing. */
-function recapStyled(d, icon, style, members){
+  // A paper receipt on navy, 1080x1920 (9:16: a full screen for Instagram stories and the like). Same numbers as the screen (recapData).
   const W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
-  const NAVY = '#0f2742', SUN = '#ffc83d', INK = '#0e2238';
+  const NAVY = '#0f2742', INK = '#0e2238';
   const font = (w, px) => { g.font = w + ' ' + px + 'px ' + RECAP_FONT; }, text = (t, x, y, color, align) => { g.fillStyle = color; g.textAlign = align || 'left'; g.fillText(t, x, y); }, w = t => g.measureText(t).width;
-  const path = (x, y, ww, hh, r) => { g.beginPath(); if (g.roundRect) g.roundRect(x, y, ww, hh, r); else g.rect(x, y, ww, hh); };
-  const rr = (x, y, ww, hh, r, fill) => { path(x, y, ww, hh, r); g.fillStyle = fill; g.fill(); };
-  const md = t => { const q = t.split('-'); return Number(q[1]) + '/' + Number(q[2]); }, num = n => n.toLocaleString('ja-JP'), yen = n => num(n) + '円';
+  const md = t => { const q = t.split('-'); return Number(q[1]) + '/' + Number(q[2]); }, yen = n => n.toLocaleString('ja-JP') + '円';
   const clip = (t, n) => { t = Array.from(t || ''); return t.length > n ? t.slice(0, n - 1).join('') + '…' : t.join('') || '（内容なし）'; };
   const when = md(d.start) + (d.end !== d.start ? ' - ' + md(d.end) : '') + '・' + d.members.length + '人' + (d.days > 1 ? '・' + d.days + '日間' : '');
   const budget = d.diff >= 0 ? '予算 ' + yen(d.budget) + ' のうち、' + yen(d.diff) + ' 残りました' : '予算を ' + yen(-d.diff) + ' 超えました';
   const fit = (t, weight, px, max, min) => { font(weight, px); while (w(t) > max && px > min){ px -= 4; font(weight, px); } return px; };
   const wrap = (t, weight, px, max, maxLines) => { font(weight, px); let lines = [], cur = ''; Array.from(t).forEach(ch => { if (w(cur + ch) > max && cur){ lines.push(cur); cur = ch; } else cur += ch; }); lines.push(cur); if (lines.length > maxLines){ lines = lines.slice(0, maxLines); lines[maxLines - 1] = Array.from(lines[maxLines - 1]).slice(0, -1).join('') + '…'; } return lines; };
-  const catColor = k => 'hsl(' + (CAT[k.id] || CAT.other)[3] + ',72%,58%)', catName = k => (CAT[k.id] || CAT.other)[2];
-  const avatars = (x, y, size, bg) => { members.slice(0, 6).forEach((m, i) => { const cx = x + i * (size * .72) + size / 2, hue = HUES[i % HUES.length]; g.beginPath(); g.arc(cx, y + size / 2, size / 2, 0, Math.PI * 2); g.fillStyle = 'hsl(' + hue + ',75%,88%)'; g.fill(); g.lineWidth = 5; g.strokeStyle = bg; g.stroke();
-    font(700, size * .46); text(Array.from(m.name)[0] || '?', cx, y + size * .66, 'hsl(' + hue + ',55%,28%)', 'center'); }); };
-  const logo = (x, y, color, size) => { if (icon) g.drawImage(icon, x, y, size, size); font(700, size * .6); text('たびわり', x + size * 1.3, y + size * .72, color); };
-
-  if (style === 'poster'){   // yellow poster: the total is the picture
-    g.fillStyle = SUN; g.fillRect(0, 0, W, H); const P = 84, CW = W - P * 2;
-    font(700, 40); text('旅のまとめ', P, 330, NAVY); rr(P, 352, 90, 8, 4, NAVY);
-    const lines = wrap(d.name, 700, 104, CW, 2); font(700, 104); lines.forEach((l, i) => text(l, P, 480 + i * 118, NAVY));
-    let y = 480 + (lines.length - 1) * 118 + 70; font(500, 40); g.globalAlpha = .7; text(when, P, y, NAVY); g.globalAlpha = 1;
-    y += 150; font(700, 40); text('みんなで使った合計', P, y, NAVY);
-    const amt = yen(d.total); const px = fit(amt, 700, 230, CW, 80); y += px * .9 + 20; font(700, px); text(amt, P - 6, y, NAVY);
-    y += 56; const per = '1人あたり ' + yen(d.per); font(700, 44); const pw = w(per) + 64; rr(P, y - 52, pw, 84, 42, NAVY); text(per, P + 32, y + 8, SUN);
-    y += 120; rr(P, y, CW, 70 + Math.min(3, d.cats.length) * 100, 44, NAVY);
-    d.cats.slice(0, 3).forEach((k, i) => { const yy = y + 60 + i * 100, bw = CW - 72; font(500, 38); text(catName(k), P + 36, yy, '#fff'); font(700, 38); text(yen(k.amount), P + CW - 36, yy, '#fff', 'right'); rr(P + 36, yy + 18, bw, 18, 9, 'rgba(255,255,255,.16)'); rr(P + 36, yy + 18, Math.max(18, bw * k.amount / d.total), 18, 9, catColor(k)); });
-    y += 70 + Math.min(3, d.cats.length) * 100 + 60; font(500, 38); text('一番高かった支出　' + yen(d.top.amount) + '（' + clip(d.top.title, 8) + '）', P, y, NAVY); y += 62; text('一番使った日　' + md(d.topDay.date) + '（' + yen(d.topDay.amount) + '）', P, y, NAVY);
-    y += 62; font(700, fit(budget, 700, 40, CW, 26)); text(budget, P, y, NAVY); logo(P, 1650, NAVY, 60);
-  } else if (style === 'receipt'){   // a long paper receipt on navy
-    g.fillStyle = NAVY; g.fillRect(0, 0, W, H); const RX = 120, RW = W - 240, P = 64, IN = RX + P, IW = RW - P * 2, ROW = 78;
-    const cats = d.cats.slice(0, 6), body = 150 + 230 + 50 + cats.length * ROW + 40 + 3 * ROW + 60 + 3 * ROW + 130 + 150;
-    const top = Math.max(210, Math.round((H - body) / 2)), tilt = 22;
-    g.fillStyle = '#fffdf5'; g.beginPath(); g.moveTo(RX, top); for (let x = RX; x < RX + RW; x += tilt){ g.lineTo(x + tilt / 2, top - 14); g.lineTo(x + tilt, top); } g.lineTo(RX + RW, top + body);
-    for (let x = RX + RW; x > RX; x -= tilt){ g.lineTo(x - tilt / 2, top + body + 14); g.lineTo(x - tilt, top + body); } g.closePath(); g.fill();
-    const dash = y => { g.save(); g.strokeStyle = 'rgba(14,34,56,.35)'; g.lineWidth = 3; g.setLineDash([12, 10]); g.beginPath(); g.moveTo(IN, y); g.lineTo(IN + IW, y); g.stroke(); g.restore(); };
-    const row = (l, r, y, weight, px, col) => { font(weight, px); const rw = w(r), lw = w(l); text(l, IN, y, col || INK); text(r, IN + IW, y, col || INK, 'right'); g.save(); g.fillStyle = 'rgba(14,34,56,.35)'; for (let x = IN + lw + 18; x < IN + IW - rw - 18; x += 14) g.fillRect(x, y - 8, 4, 4); g.restore(); };
-    let y = top + 100; if (icon) g.drawImage(icon, W / 2 - 38, y - 70, 76, 76); y += 56; font(700, 38); text('たびわり　レシート', W / 2, y, INK, 'center');
-    y += 70; const lines = wrap(d.name, 700, 60, IW, 2); font(700, 60); lines.forEach((l, i) => text(l, W / 2, y + i * 72, INK, 'center')); y += (lines.length - 1) * 72 + 60; font(400, 34); g.globalAlpha = .65; text(when, W / 2, y, INK, 'center'); g.globalAlpha = 1;
-    y += 50; dash(y); y += 70; cats.forEach(k => { row(catName(k), yen(k.amount), y, 500, 42); y += ROW; });
-    y -= 30; dash(y); y += 80; font(700, 50); text('合計', IN, y, INK); const tp = fit(yen(d.total), 700, 78, IW - 150, 44); font(700, tp); text(yen(d.total), IN + IW, y + 4, INK, 'right');
-    y += 76; row('1人あたり', yen(d.per), y, 500, 42); y += ROW; row('支出', d.count + '件', y, 500, 42); y += ROW - 20; dash(y); y += 70;
-    row('一番高かった', yen(d.top.amount), y, 500, 38); y += ROW; font(400, 30); g.globalAlpha = .6; text(clip(d.top.title, 14), IN, y - 30, INK); g.globalAlpha = 1; row('一番使った日', md(d.topDay.date), y + 10, 500, 38); y += ROW + 24; dash(y); y += 64;
-    font(700, fit(budget, 700, 38, IW, 26)); text(budget, W / 2, y, INK, 'center'); y += 50; let seed = 7; Array.from(d.name).forEach(ch => { seed = (seed * 31 + ch.charCodeAt(0)) % 9973; });
-    let bx = IN + 30; while (bx < IN + IW - 40){ seed = (seed * 1103 + 12345) % 65536; const bw2 = 4 + (seed % 3) * 4; g.fillStyle = INK; g.fillRect(bx, y + 10, bw2, 90); bx += bw2 + 6 + (seed % 4) * 2; }
-    font(400, 32); g.globalAlpha = .7; text('ありがとうございました。またいい旅を。', W / 2, y + 150, INK, 'center'); g.globalAlpha = 1;
-  } else {   // ticket: a boarding-pass card
-    const grad = g.createLinearGradient(0, 0, 0, H); grad.addColorStop(0, '#16335a'); grad.addColorStop(1, NAVY); g.fillStyle = grad; g.fillRect(0, 0, W, H);
-    const TX = 80, TW = W - 160, TOPH = 560, BOTH = 760, ty = Math.round((H - TOPH - BOTH) / 2) - 20, R = 56;
-    g.save(); path(TX, ty, TW, TOPH + BOTH, R); g.clip(); g.fillStyle = SUN; g.fillRect(TX, ty, TW, TOPH); g.fillStyle = '#fff'; g.fillRect(TX, ty + TOPH, TW, BOTH);
-    g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(TX, ty + TOPH, 38, 0, Math.PI * 2); g.arc(TX + TW, ty + TOPH, 38, 0, Math.PI * 2); g.fill(); g.restore();
-    g.save(); g.strokeStyle = 'rgba(14,34,56,.3)'; g.lineWidth = 4; g.setLineDash([16, 14]); g.beginPath(); g.moveTo(TX + 56, ty + TOPH); g.lineTo(TX + TW - 56, ty + TOPH); g.stroke(); g.restore();
-    const P = TX + 64, CW = TW - 128; font(700, 38); text('旅のまとめ', P, ty + 96, NAVY); const lines = wrap(d.name, 700, 92, CW, 2); font(700, 92); lines.forEach((l, i) => text(l, P, ty + 210 + i * 106, NAVY));
-    font(500, 38); g.globalAlpha = .75; text(when, P, ty + 210 + (lines.length - 1) * 106 + 70, NAVY); g.globalAlpha = 1; avatars(P, ty + TOPH - 150, 92, SUN);
-    let y = ty + TOPH + 100; font(500, 36); g.globalAlpha = .6; text('みんなで使った合計', P, y, INK); g.globalAlpha = 1;
-    const amt = yen(d.total), px = fit(amt, 700, 150, CW, 70); y += px * .92 + 14; font(700, px); text(amt, P - 4, y, INK);
-    y += 30; font(500, 40); text('1人あたり ' + yen(d.per) + '・' + d.count + '件', P, y + 36, INK);
-    y += 96; let x = P; const bw = CW; rr(P, y, bw, 28, 14, '#e6ecf5'); g.save(); path(P, y, bw, 28, 14); g.clip(); d.cats.forEach(k => { const cw2 = bw * k.amount / d.total; g.fillStyle = catColor(k); g.fillRect(x, y, Math.max(0, cw2 - 3), 28); x += cw2; }); g.restore();
-    y += 36; d.cats.slice(0, 3).forEach((k, i) => { const yy = y + 40 + i * 60; g.beginPath(); g.arc(P + 12, yy - 12, 12, 0, Math.PI * 2); g.fillStyle = catColor(k); g.fill(); font(500, 40); text(catName(k), P + 44, yy, INK); font(700, 40); text(yen(k.amount), P + CW - 120, yy, INK, 'right'); font(400, 34); g.globalAlpha = .55; text(k.pct + '%', P + CW, yy, INK, 'right'); g.globalAlpha = 1; });
-    font(500, fit(budget, 500, 36, CW, 24)); text(budget, P, ty + TOPH + BOTH - 56, INK); logo(TX + 8, ty + TOPH + BOTH + 56, 'rgba(255,255,255,.7)', 52);
-  }
+  const catName = k => (CAT[k.id] || CAT.other)[2];
+  g.fillStyle = NAVY; g.fillRect(0, 0, W, H);
+  const RX = 110, RW = W - 220, P = 60, IN = RX + P, IW = RW - P * 2, ROW = 64, cats = d.cats.slice(0, 5), lines = wrap(d.name, 700, 58, IW, 2);
+  const body = 96 + 52 + 74 + (lines.length - 1) * 68 + 54 + 44 + 62 + cats.length * ROW + 28 + 70 + 70 + ROW + ROW + 26 + 62 + ROW + 34 + ROW + 22 + 58 + 40 + 96 + 70 + 70 - 235;
+  const top = Math.round((H - body) / 2), n = Math.round(RW / 22), st = RW / n, sc = Math.min(1.16, 1500 / (body + 28));   // a short receipt is enlarged a little so it fills the screen
+  g.save(); g.translate(W / 2, H / 2); g.scale(sc, sc); g.translate(-W / 2, -H / 2);
+  g.fillStyle = '#fffdf5'; g.beginPath(); g.moveTo(RX, top); for (let k = 0; k < n; k++){ g.lineTo(RX + k * st + st / 2, top - 14); g.lineTo(RX + (k + 1) * st, top); }
+  g.lineTo(RX + RW, top + body); for (let k = n; k > 0; k--){ g.lineTo(RX + k * st - st / 2, top + body + 14); g.lineTo(RX + (k - 1) * st, top + body); } g.closePath(); g.fill();
+  const dash = y => { g.save(); g.strokeStyle = 'rgba(14,34,56,.35)'; g.lineWidth = 3; g.setLineDash([12, 10]); g.beginPath(); g.moveTo(IN, y); g.lineTo(IN + IW, y); g.stroke(); g.restore(); };
+  const row = (l, r, y, weight, px) => { font(weight, px); const rw = w(r), lw = w(l); text(l, IN, y, INK); text(r, IN + IW, y, INK, 'right'); g.save(); g.fillStyle = 'rgba(14,34,56,.35)'; for (let x = IN + lw + 18; x < IN + IW - rw - 18; x += 14) g.fillRect(x, y - 8, 4, 4); g.restore(); };
+  let y = top + 96; if (icon) g.drawImage(icon, W / 2 - 36, y - 66, 72, 72); y += 52; font(700, 34); text('たびわり　レシート', W / 2, y, INK, 'center');
+  y += 74; font(700, 58); lines.forEach((l, i) => text(l, W / 2, y + i * 68, INK, 'center')); y += (lines.length - 1) * 68 + 54; font(400, 32); g.globalAlpha = .65; text(when, W / 2, y, INK, 'center'); g.globalAlpha = 1;
+  y += 44; dash(y); y += 62; cats.forEach(k => { row(catName(k), yen(k.amount), y, 500, 40); y += ROW; });
+  y -= 36; dash(y); y += 70; font(700, 48); text('合計', IN, y, INK); const tp = fit(yen(d.total), 700, 74, IW - 150, 40); font(700, tp); text(yen(d.total), IN + IW, y + 2, INK, 'right');
+  y += 70; row('1人あたり', yen(d.per), y, 500, 40); y += ROW; row('支出', d.count + '件', y, 500, 40); y += 26; dash(y); y += 62;
+  row('一番高かった', yen(d.top.amount), y, 500, 36); font(400, 28); g.globalAlpha = .6; text('　' + clip(d.top.title, 16), IN, y + 34, INK); g.globalAlpha = 1; y += ROW + 34; row('一番使った日', md(d.topDay.date), y, 500, 36); y += 22; dash(y + 10); y += 58 + 10;
+  font(700, fit(budget, 700, 36, IW, 24)); text(budget, W / 2, y, INK, 'center'); y += 40; let seed = 7; Array.from(d.name).forEach(ch => { seed = (seed * 31 + ch.charCodeAt(0)) % 9973; });
+  let bx = IN + 30; while (bx < IN + IW - 40){ seed = (seed * 1103 + 12345) % 65536; const bw2 = 4 + (seed % 3) * 4; g.fillStyle = INK; g.fillRect(bx, y, bw2, 70); bx += bw2 + 6 + (seed % 4) * 2; }   // a barcode that is always the same for the same trip name
+  font(400, 30); g.globalAlpha = .7; text('ありがとうございました。またいい旅を。', W / 2, y + 70 + 52, INK, 'center'); g.globalAlpha = 1;
+  g.restore();
   return c;
 }
-async function makeRecap(t, style){
+async function makeRecap(t){
   const d = recapData(t); if (!d) return null;
   const icon = await new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = 'icons/icon-192.png'; });
-  return new Promise(r => (style ? recapStyled(d, icon, style, t.members) : recapCanvas(d, icon)).toBlob(r, 'image/png'));
+  return new Promise(r => recapCanvas(d, icon).toBlob(r, 'image/png'));
 }
 const brandRow = () => '<div class="brandrow"><h1 class="brand">たびわり</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 function viewHomeEmpty(){
