@@ -274,7 +274,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .amount-wrap span{font-size:22px;font-weight:700}
 .sheet #f-hint{margin-top:8px}
 .quick{display:flex;gap:8px;align-items:stretch;margin-top:4px}.quick .field{flex:1;min-width:0;padding:11px 14px}.quick .btn{width:auto;padding:0 16px;flex:none}
-.recap-img{display:block;width:100%;max-height:52vh;object-fit:contain;border-radius:16px;margin-top:10px;background:var(--navy)}
+.recap-img{display:block;width:100%;max-height:58vh;object-fit:contain;border-radius:16px;margin-top:10px;background:var(--navy)}
 .hint{min-height:20px;font-size:14px;color:var(--sub);font-weight:500}
 
 /* tab bar */
@@ -947,36 +947,36 @@ const OA_URL = 'https://line.me/R/ti/p/%40896znnha';   // official account 「�
 /* ---- trip recap image: drawn on a canvas on this device (nothing is uploaded) ---- */
 const RECAP_FONT = '-apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif';
 function recapCanvas(d, icon){
-  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  // 1080x1920 (9:16: a full screen for Instagram stories and the like). The content sits inside the safe area (the top and bottom ~250px are covered by the app's own buttons) and is spread out to fill it.
+  const W = 1080, H = 1920, PAD = 84, SAFE_TOP = 250, SAFE_H = H - 2 * SAFE_TOP, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const font = (w, px) => { g.font = w + ' ' + px + 'px ' + RECAP_FONT; }, text = (s, x, y, color, align) => { g.fillStyle = color; g.textAlign = align || 'left'; g.fillText(s, x, y); };
   const path = (x, y, w, h, r) => { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); };
   const rr = (x, y, w, h, r, fill) => { path(x, y, w, h, r); g.fillStyle = fill; g.fill(); };
-  const md = s => { const p = s.split('-'); return Number(p[1]) + '/' + Number(p[2]); }, y0 = n => n.toLocaleString('ja-JP') + '円', SUN = '#ffc83d', WHITE = '#ffffff', DIM = 'rgba(255,255,255,.62)';
-  g.fillStyle = '#0f2742'; g.fillRect(0, 0, W, H);
-  const PAD = 80; g.textBaseline = 'alphabetic';
-  font(500, 34); text('旅のまとめ', PAD, 120, SUN);
-  font(700, 76); const chars = Array.from(d.name); let lines = [], cur = '';
-  chars.forEach(ch => { if (g.measureText(cur + ch).width > W - PAD * 2 && cur){ lines.push(cur); cur = ch; } else cur += ch; }); lines.push(cur);
-  if (lines.length > 2){ lines = lines.slice(0, 2); lines[1] = Array.from(lines[1]).slice(0, -1).join('') + '…'; }
-  lines.forEach((l, i) => text(l, PAD, 215 + i * 92, WHITE));
-  let y = 215 + (lines.length - 1) * 92 + 62;
-  font(400, 36); text(md(d.start) + (d.end !== d.start ? ' - ' + md(d.end) : '') + '・' + d.members.length + '人' + (d.days > 1 ? '・' + d.days + '日間' : ''), PAD, y, DIM);
-  y += 150; font(500, 34); text('みんなで使った合計', PAD, y, DIM);
-  y += 118; font(700, 124); text(y0(d.total), PAD, y, SUN);
-  y += 62; font(400, 38); text('1人あたり ' + y0(d.per) + '・' + d.count + '件の支出', PAD, y, WHITE);
-  y += 86; const bw = W - PAD * 2; let x = PAD; rr(PAD, y, bw, 26, 13, 'rgba(255,255,255,.14)');
-  g.save(); path(PAD, y, bw, 26, 13); g.clip();
-  d.cats.forEach(k => { const w = bw * k.amount / d.total, h = (CAT[k.id] || CAT.other)[3]; g.fillStyle = 'hsl(' + h + ',72%,58%)'; g.fillRect(x, y, Math.max(0, w - 3), 26); x += w; }); g.restore();
-  y += 46; d.cats.slice(0, 4).forEach(k => { const cc = CAT[k.id] || CAT.other; y += 50; g.beginPath(); g.arc(PAD + 12, y - 12, 12, 0, Math.PI * 2); g.fillStyle = 'hsl(' + cc[3] + ',72%,58%)'; g.fill();
-    font(400, 38); text(cc[2], PAD + 44, y, WHITE); font(700, 38); text(y0(k.amount), W - PAD - 110, y, WHITE, 'right'); font(400, 34); text(k.pct + '%', W - PAD, y, DIM, 'right'); });
-  const cy = 1010, cw = (W - PAD * 2 - 24) / 2, ch = 170;
-  const card = (cx, label, big, small) => { rr(cx, cy, cw, ch, 28, 'rgba(255,255,255,.1)'); font(400, 30); text(label, cx + 28, cy + 52, DIM); font(700, 44); text(big, cx + 28, cy + 110, WHITE); font(400, 28); text(small, cx + 28, cy + 150, DIM); };
+  const md = s => { const p = s.split('-'); return Number(p[1]) + '/' + Number(p[2]); }, y0 = n => n.toLocaleString('ja-JP'), yen = n => y0(n) + '円', SUN = '#ffc83d', WHITE = '#ffffff', DIM = 'rgba(255,255,255,.62)', CW = W - PAD * 2;
   const clip = (s, n) => { s = Array.from(s || ''); return s.length > n ? s.slice(0, n - 1).join('') + '…' : s.join('') || '（内容なし）'; };
-  card(PAD, '一番高かった支出', y0(d.top.amount), clip(d.top.title, 11));
-  card(PAD + cw + 24, '一番使った日', md(d.topDay.date), y0(d.topDay.amount));
-  font(500, 36); text(d.diff >= 0 ? '予算 ' + y0(d.budget) + ' のうち、' + y0(d.diff) + ' 残りました' : '予算を ' + y0(-d.diff) + ' 超えました', PAD, 1244, WHITE);
-  if (icon) g.drawImage(icon, PAD, 1272, 44, 44);
-  font(700, 30); text('たびわり', PAD + 58, 1304, DIM);
+  font(700, 84); const chars = Array.from(d.name); let lines = [], cur = '';
+  chars.forEach(ch => { if (g.measureText(cur + ch).width > CW && cur){ lines.push(cur); cur = ch; } else cur += ch; }); lines.push(cur);
+  if (lines.length > 2){ lines = lines.slice(0, 2); lines[1] = Array.from(lines[1]).slice(0, -1).join('') + '…'; }
+  let amtPx = 150; font(700, amtPx); while (g.measureText(yen(d.total)).width > CW && amtPx > 60){ amtPx -= 6; font(700, amtPx); }
+  const cats = d.cats.slice(0, 5), CARD_H = 190;
+  const secs = [   // [height, draw(y)]
+    [40 + 40 + lines.length * 100 + 20 + 44, y => { font(500, 36); text('旅のまとめ', PAD, y + 36, SUN); font(700, 84); lines.forEach((l, i) => text(l, PAD, y + 40 + 40 + 84 + i * 100 - 8, WHITE));
+      font(400, 38); text(md(d.start) + (d.end !== d.start ? ' - ' + md(d.end) : '') + '・' + d.members.length + '人' + (d.days > 1 ? '・' + d.days + '日間' : ''), PAD, y + 40 + 40 + lines.length * 100 + 20 + 34, DIM); }],
+    [36 + 24 + amtPx + 24 + 44, y => { font(500, 36); text('みんなで使った合計', PAD, y + 36, DIM); font(700, amtPx); text(yen(d.total), PAD, y + 36 + 24 + amtPx - 14, SUN);
+      font(400, 40); text('1人あたり ' + yen(d.per) + '・' + d.count + '件の支出', PAD, y + 36 + 24 + amtPx + 24 + 34, WHITE); }],
+    [30 + 36 + cats.length * 62, y => { let x = PAD; rr(PAD, y, CW, 30, 15, 'rgba(255,255,255,.14)'); g.save(); path(PAD, y, CW, 30, 15); g.clip();
+      d.cats.forEach(k => { const w = CW * k.amount / d.total, h = (CAT[k.id] || CAT.other)[3]; g.fillStyle = 'hsl(' + h + ',72%,58%)'; g.fillRect(x, y, Math.max(0, w - 3), 30); x += w; }); g.restore();
+      cats.forEach((k, i) => { const cc = CAT[k.id] || CAT.other, yy = y + 30 + 36 + 46 + i * 62 - 8; g.beginPath(); g.arc(PAD + 13, yy - 13, 13, 0, Math.PI * 2); g.fillStyle = 'hsl(' + cc[3] + ',72%,58%)'; g.fill();
+        font(400, 42); text(cc[2], PAD + 48, yy, WHITE); font(700, 42); text(yen(k.amount), W - PAD - 120, yy, WHITE, 'right'); font(400, 36); text(k.pct + '%', W - PAD, yy, DIM, 'right'); }); }],
+    [CARD_H, y => { const cw = (CW - 28) / 2, card = (cx, label, big, small) => { rr(cx, y, cw, CARD_H, 30, 'rgba(255,255,255,.1)'); font(400, 32); text(label, cx + 30, y + 56, DIM); font(700, 48); text(big, cx + 30, y + 118, WHITE); font(400, 30); text(small, cx + 30, y + 162, DIM); };
+      card(PAD, '一番高かった支出', yen(d.top.amount), clip(d.top.title, 11)); card(PAD + cw + 28, '一番使った日', md(d.topDay.date), yen(d.topDay.amount)); }],
+    [44, y => { const line = d.diff >= 0 ? '予算 ' + yen(d.budget) + ' のうち、' + yen(d.diff) + ' 残りました' : '予算を ' + yen(-d.diff) + ' 超えました'; let px = 38; font(500, px); while (g.measureText(line).width > CW && px > 24){ px -= 2; font(500, px); } text(line, PAD, y + 38, WHITE); }],
+    [56, y => { if (icon) g.drawImage(icon, PAD, y, 56, 56); font(700, 34); text('たびわり', PAD + 72, y + 40, DIM); }]
+  ];
+  const total = secs.reduce((a, s) => a + s[0], 0), gap = Math.max(36, Math.min(120, (SAFE_H - total) / (secs.length - 1)));
+  g.fillStyle = '#0f2742'; g.fillRect(0, 0, W, H); g.textBaseline = 'alphabetic';
+  let y = SAFE_TOP + Math.max(0, (SAFE_H - total - gap * (secs.length - 1)) / 2);
+  secs.forEach(sec => { sec[1](y); y += sec[0] + gap; });
   return c;
 }
 async function makeRecap(t){
