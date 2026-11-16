@@ -355,6 +355,19 @@ try {
     await q.click('[data-a=fx-off]'); await q.waitForFunction(() => !document.querySelector('.fxin')); await q.click('[data-a=save-exp]'); await see(q, '全員で割り勘'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses[0].fixed), undefined, 'equal again: no fixed amounts kept');
     assert.deepStrictEqual(qerrs, []); await c12.close(); }
 
+  // ひとことで記録: 金額の指定 (「けんたは1000円だけ」)
+  { const c13 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c13.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }], paid: {}, savings: {}, expenses: [] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('#q-quick');
+    await q.fill('#q-quick', '夕食 5000円 けんたは1000円だけ'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 5,000円（けんた 1,000円だけ）を記録しました');
+    assert.deepStrictEqual(await q.evaluate(() => { const e = state.trips[0].expenses[0]; return [e.amount, e.fixed, e.split]; }), [5000, { b: 1000 }, ['a', 'b', 'c']]);
+    assert.deepStrictEqual(await q.evaluate(() => calcBalances(state.trips[0]).owed), { a: 2000, b: 1000, c: 2000 }); assert.ok((await q.textContent('#exp-list')).includes('金額を指定して割り勘'));
+    await q.fill('#q-quick', '夕食 5000円 けんたは9000円だけ'); await q.press('#q-quick', 'Enter'); await see(q, '指定の合計が、金額を超えています。'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses.length), 1, 'nothing recorded');
+    await q.fill('#q-quick', '夕食 5000円 あおいは1000円だけ けんたは1000円だけ みくは1000円だけ'); await q.press('#q-quick', 'Enter'); await see(q, '全員を指定するときは、合計を金額と同じにしてください。');
+    await q.fill('#q-quick', '夕食 5000円 みくなし あおいは1000円だけ'); await q.press('#q-quick', 'Enter'); await see(q, 'あおい 1,000円だけ'); assert.deepStrictEqual(await q.evaluate(() => { const e = state.trips[0].expenses[1]; return [e.split, e.fixed]; }), [['a', 'b'], { a: 1000 }], 'a person left out and a fixed amount together');
+    assert.deepStrictEqual(qerrs, []); await c13.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
