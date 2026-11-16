@@ -304,6 +304,8 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .pamt{background:none;border:0;border-bottom:1px dotted var(--sub);padding:0 0 1px;font:inherit;color:inherit;flex:none}.fxin{width:92px;margin:0;padding:6px 10px;text-align:right;border-color:var(--sun)}.fxnote{padding:6px 0 8px;border-top:1px solid var(--line)}
 .step{display:grid;place-items:center;padding:0;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:20px;line-height:1;flex:none}.step:disabled{opacity:.35}.pval{min-width:3.2em;text-align:center;font-weight:700}.pamt{min-width:5.5em;text-align:right;font-weight:500;color:var(--sub);font-size:14px}
 .ut{display:flex;border-bottom:1px solid var(--line);margin:0 0 12px}.ut button{flex:1;padding:10px 4px 11px;font:inherit;font-size:14px;color:var(--sub);border-bottom:3px solid transparent;margin-bottom:-1px;display:flex;gap:6px;justify-content:center;align-items:center}.ut button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--sun)}.ut .n{font-size:11px;background:var(--soft);border-radius:99px;padding:1px 7px;color:var(--sub)}.ut button.on .n{background:var(--sun);color:var(--sun-ink)}
+.tiles{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:8px;margin:4px 0 0}.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:7px 2px;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;font:inherit;font-size:12px;color:var(--ink)}.tile svg{color:var(--sub)}
+.delrow{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;color:var(--bad);font:inherit;font-size:14px;margin-top:2px;padding:5px 0 0}
 .chkbox{width:22px;height:22px;border-radius:7px;border:2px solid var(--ink);display:grid;place-items:center;flex:none;color:var(--card)}.chkbox.on{background:var(--ink)}.aichk{text-align:left;width:100%;gap:10px}
 .aibtn{padding:0 10px!important;display:grid;place-items:center}.aibtn svg{display:block}
 .quick{display:flex;gap:8px;align-items:stretch;margin-top:4px}.quick .field{flex:1;min-width:0;padding:11px 14px}.quick .btn{width:auto;padding:0 16px;flex:none}
@@ -673,6 +675,10 @@ const IC = {
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   chev:'<path d="M9 5l7 7-7 7"/>',
+  upload:'<path d="M12 15V3M8 7l4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>',
+  download:'<path d="M12 3v12M8 11l4 4 4-4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>',
+  image:'<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+  trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
   camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   share:'<path d="M12 15V3M8 7l4-4 4 4M7 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>'
 };
@@ -1451,10 +1457,11 @@ function viewSheet(){
       '<label class="lab" for="s-budget">全体の予算（円）</label><input class="field" id="s-budget" type="text" inputmode="numeric" value="' + esc(d.budget) + '">' +
       '<span class="lab">メンバー</span>' + memberChips(t, used) +
       shareSection(t, s) +
-      '<div class="row" style="justify-content:center;gap:14px;margin-top:2px"><button class="link" data-a="export-csv" style="width:auto;padding:8px 0">CSV書き出し</button>' + (t.expenses.length ? '<button class="link" data-a="recap" style="width:auto;padding:8px 0">旅のまとめ画像</button>' : '') +
-      '<button class="link" data-a="import-csv" style="width:auto;padding:8px 0">CSV取り込み</button><input type="file" id="csv-file" accept=".csv,text/csv,text/plain" hidden>' +
-      (s.confirmDel ? '' : '<button class="link bad" data-a="ask-del-trip" style="width:auto;padding:8px 0">旅行を削除</button>') + '</div>' +
-      (s.confirmDel ? '<div style="margin-top:4px">' + (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button>' + '</div>' : '');
+      '<div class="tiles" style="--n:' + (t.expenses.length ? 3 : 2) + '"><button class="tile" data-a="export-csv">' + icon('upload', 18) + 'CSV書き出し</button>' +
+      '<button class="tile" data-a="import-csv">' + icon('download', 18) + 'CSV取り込み</button><input type="file" id="csv-file" accept=".csv,text/csv,text/plain" hidden>' +
+      (t.expenses.length ? '<button class="tile" data-a="recap">' + icon('image', 18) + 'まとめ画像</button>' : '') + '</div>' +
+      (s.confirmDel ? '<div style="margin-top:10px">' + (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button>' + '</div>'
+        : '<button class="delrow" data-a="ask-del-trip">' + icon('trash', 18) + 'この旅行を削除</button>');
     foot = err + '<button class="btn" data-a="save-settings">保存する</button>';
   }
   if (s.type === 'app-settings'){
