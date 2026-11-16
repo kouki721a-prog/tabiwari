@@ -303,6 +303,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .parts{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px 12px;margin-top:6px}.prow{display:flex;align-items:center;gap:8px;padding:6px 0}.prow+.prow{border-top:1px solid var(--line)}.prow .grow{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .pamt{background:none;border:0;border-bottom:1px dotted var(--sub);padding:0 0 1px;font:inherit;color:inherit;flex:none}.fxin{width:92px;margin:0;padding:6px 10px;text-align:right;border-color:var(--sun)}.fxnote{padding:6px 0 8px;border-top:1px solid var(--line)}
 .step{display:grid;place-items:center;padding:0;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:20px;line-height:1;flex:none}.step:disabled{opacity:.35}.pval{min-width:3.2em;text-align:center;font-weight:700}.pamt{min-width:5.5em;text-align:right;font-weight:500;color:var(--sub);font-size:14px}
+.aibtn{padding:0 10px!important;display:grid;place-items:center}.aibtn svg{display:block}
 .quick{display:flex;gap:8px;align-items:stretch;margin-top:4px}.quick .field{flex:1;min-width:0;padding:11px 14px}.quick .btn{width:auto;padding:0 16px;flex:none}
 .recap-img{display:block;width:100%;max-height:58vh;object-fit:contain;border-radius:16px;margin-top:10px;background:var(--navy)}
 .hint{min-height:20px;font-size:14px;color:var(--sub);font-weight:500}
@@ -661,6 +662,7 @@ const IC = {
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   chev:'<path d="M9 5l7 7-7 7"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   share:'<path d="M12 15V3M8 7l4-4 4 4M7 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>'
 };
 const icon = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>';
@@ -692,7 +694,7 @@ function save(){ persist(); if (state.trips.some(t => t.share)) shareSoon(); if 
 let state = load();
 
 
-const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', quick: '', quickErr: '', inviting: null };
+const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', quick: '', quickErr: '', inviting: null, ai: { enabled: false, login: false, remaining: null } };
 
 const CFG = window.TABIWARI || {};
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
@@ -889,7 +891,7 @@ async function lineInit(){
     if (m.user){ try { lineAcct.count = (await Line.backupGet()).items.length; } catch(e){} bkRun(); }
   } catch(e){ /* offline or no server: login simply is not offered */ }
   if (lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); else { lineAcct.waiting = false; }
-  render(); refreshNtfHome(); checkRemote(true);
+  render(); refreshNtfHome(); checkRemote(true); refreshAi();
 }
 async function lineLogin(){
   try { const a = await Line.begin(); lsSet(LINE_ATTEMPT, JSON.stringify({ id: a.id, secret: a.secret, t: Date.now() })); location.href = a.url; }
@@ -1226,8 +1228,57 @@ function expList(t, q){
   });
   return h;
 }
+/* ---- たびまる: reads a sentence or a photo of a receipt and proposes an expense (the person confirms it; nothing is recorded by itself) ---- */
+const tabimaru = n => '<svg width="' + n + '" height="' + n + '" viewBox="0 0 34 34" aria-hidden="true" style="flex:none"><circle cx="17" cy="17" r="16" fill="#ffc83d"/><circle cx="12" cy="15" r="2.2" fill="#2a1d00"/><circle cx="22" cy="15" r="2.2" fill="#2a1d00"/><path d="M11 21c2 3 10 3 12 0" stroke="#2a1d00" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
+async function refreshAi(){
+  try { const s = await Line.aiStatus(); ui.ai = { enabled: !!s.enabled, login: !!s.login, remaining: s.remaining == null ? null : s.remaining }; render(); } catch(e){ /* offline: the buttons stay as they were */ }
+}
+function aiButtons(){
+  if (!ui.ai.enabled) return '';
+  return '<button class="btn line aibtn" type="button" data-a="ai-text" aria-label="たびまるに頼む">' + tabimaru(26) + '</button><button class="btn line aibtn" type="button" data-a="ai-photo" aria-label="レシートを読み取る">' + icon('camera', 22) + '</button><input type="file" id="ai-file" accept="image/*" hidden>';
+}
+const AI_ERR = { limit: '今日は、たびまるに頼める回数を使い切りました。明日、また頼めます。', paused: '今月は、たびまるがお休みです。来月、また頼めます。',
+  unreadable: 'うまく読み取れませんでした。文章を少し変えるか、記録の画面で入力してください。', upstream: 'たびまるにつながりませんでした。少し待って、もう一度お試しください。回数は、減っていません。' };
+async function resizeImage(file){   // the picture is made small on this device before it is sent (and it is not kept anywhere)
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = url; });
+    const k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight)), cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(img.naturalWidth * k)); cv.height = Math.max(1, Math.round(img.naturalHeight * k));
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); return cv.toDataURL('image/jpeg', 0.8);
+  } finally { URL.revokeObjectURL(url); }
+}
+async function runAi(t, payload){
+  if (!ui.ai.login){ ui.quickErr = 'LINEでログインすると、たびまるに頼めます。'; render(); return; }
+  if (ui.ai.remaining === 0){ ui.quickErr = AI_ERR.limit; render(); return; }
+  ui.quickErr = ''; const tid = t.id, cur = ui.sheet = { type: 'ai', busy: true, err: '', result: null }; render();
+  const me = t.members.find(m => m.id === meId(t));
+  try {
+    const r = await Line.aiParse(Object.assign({ names: t.members.map(m => m.name), me: me && me.name, today: todayStr(), start: t.start, end: t.end }, payload));
+    if (ui.sheet !== cur) return; cur.busy = false; cur.result = r.result; cur.tid = tid; ui.ai.remaining = r.remaining;
+  } catch(e){
+    if (ui.sheet !== cur) return; cur.busy = false; const k = e && e.message;
+    cur.err = e && e.status === 401 ? 'LINEでログインすると、たびまるに頼めます。' : k === 'unknown_name' ? '書かれた名前が、この旅行のメンバーにいないようです。名前を確かめてください。' : AI_ERR[k] || AI_ERR.upstream;
+    if (k === 'limit') ui.ai.remaining = 0;
+  }
+  render();
+}
+function aiExpense(t, res){   // the proposal -> an expense of this trip (names -> ids, the date kept inside the trip)
+  const idOf = n => (t.members.find(m => m.name === n) || {}).id, today = todayStr(), base = (today < t.start || today > t.end) ? t.start : today;
+  let date = res.date || base; if (date < t.start) date = t.start; if (date > t.end) date = t.end;
+  const split = res.split === 'all' ? t.members.map(m => m.id) : res.split.map(idOf).filter(Boolean), fx = {};
+  Object.keys(res.fixed || {}).forEach(n => { const id = idOf(n); if (id && split.indexOf(id) >= 0) fx[id] = res.fixed[n]; });
+  const rec = { title: res.title, amount: res.amount, payer: res.payer ? idOf(res.payer) : meId(t), cat: res.category, date: date, split: split }, ff = cleanFixed(fx, split, res.amount); if (ff) rec.fixed = ff;
+  return split.length && rec.payer ? rec : null;
+}
+function aiSummary(t, rec){ const nm = id => esc(nameOf(t, id));
+  return [['内容', esc(rec.title || (CAT[rec.cat] || CAT.other)[2]), yen(rec.amount)], ['払った人', nm(rec.payer), ''],
+    ['割る人', rec.split.length === t.members.length ? '全員（' + t.members.map(m => esc(m.name)).join('・') + '）' : rec.split.map(nm).join('・'), ''],
+    ['日付・カテゴリ', fmtDay(rec.date) + '・' + (CAT[rec.cat] || CAT.other)[2], ''],
+    ].concat(rec.fixed ? [['金額の指定', Object.keys(rec.fixed).map(id => nm(id) + ' ' + yen(rec.fixed[id])).join('、'), '']] : []);
+}
 function quickForm(){
-  return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとことで記録：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button></form>' +
+  return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとことで記録：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button>' + aiButtons() + '</form>' +
     (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '');
 }
 function tabExp(t){
@@ -1350,6 +1401,17 @@ function viewSheet(){
       '<div class="chips" style="margin-top:10px">' + [['PayPay', 'PayPay：'], ['現金', '現金でOK'], ['銀行振込', '銀行振込：']].map(c => '<button class="chip plain" data-a="note-chip" data-v="' + esc(c[1]) + '">' + c[0] + '</button>').join('') + '</div>' +
       '<div class="sub" style="margin-top:10px">この旅行のメンバーに見えます。口座番号など、大事な情報は、書かないでください。</div>';
     foot = err + '<button class="btn" data-a="note-save">保存する</button>' + (mine && mine.note ? '<button class="link" data-a="note-clear">メモを消す</button>' : '');
+  } else if (s.type === 'ai'){
+    const rec = s.result && aiExpense(t, s.result);
+    ttl = s.busy ? 'たびまるが読み取っています' : s.err || !rec ? 'たびまるからのお知らせ' : 'たびまるが読み取りました';
+    if (s.busy){ body = '<div style="display:flex;gap:10px;align-items:center;margin:10px 0">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>少し待ってくださいね。</b></div></div>'; foot = '<button class="link" data-a="close-sheet">やめる</button>'; }
+    else if (s.err || !rec){ body = '<div style="display:flex;gap:10px;align-items:center;margin:10px 0">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>' + esc(s.err || AI_ERR.unreadable) + '</b></div></div>'; foot = '<button class="btn" data-a="close-sheet">とじる</button>'; }
+    else {
+      body = '<div style="display:flex;gap:10px;align-items:center;margin:6px 0 12px">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>' + esc(s.result.comment || '読み取りました。内容を確かめてくださいね。') + '</b></div></div>' +
+        '<div class="list">' + aiSummary(t, rec).map(r => '<div class="item slim"><div class="grow"><div class="sub sm">' + r[0] + '</div><div class="t">' + r[1] + '</div></div>' + (r[2] ? '<div class="amt">' + r[2] + '</div>' : '') + '</div>').join('') + '</div>' +
+        '<div class="sub sm" style="margin-top:8px">まだ記録していません。合っていれば、［記録する］を押してください。' + (ui.ai.remaining != null ? '今日は、あと' + ui.ai.remaining + '回、たびまるに頼めます。' : '') + '</div>';
+      foot = '<button class="btn" data-a="ai-record">記録する</button><button class="link" data-a="ai-edit">記録の画面で直す</button>';
+    }
   } else if (s.type === 'caps'){
     const caps = t.caps || {};
     ttl = 'カテゴリごとの上限';
@@ -1558,6 +1620,8 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('change', e => {
+  if (e.target.id === 'ai-file' && e.target.files && e.target.files[0]){ const t = trip(), f = e.target.files[0]; e.target.value = ''; if (!t) return;
+    resizeImage(f).then(img => runAi(t, { image: img, text: (document.getElementById('q-quick') || {}).value || '' }), () => { ui.quickErr = 'この写真は、読み込めませんでした。別の写真をお試しください。'; render(); }); return; }
   if (e.target.id === 'f-date' && ui.sheet && ui.sheet.type === 'exp'){ ui.sheet.data.date = e.target.value; const tx = document.getElementById('f-datetext'); if (tx && e.target.value) tx.textContent = e.target.value === todayStr() ? '今日' : fmtDay(e.target.value); return; }
   if (e.target.id !== 'csv-file' || !e.target.files || !e.target.files[0]) return;
   const f = e.target.files[0], t = trip(); if (!t) return;
@@ -1829,6 +1893,20 @@ document.addEventListener('click', e => {
     ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
   }
   else if (a === 'copy-note'){ const m = t.members.find(x => x.id === id), v = m && m.note; if (!v) return; try { navigator.clipboard.writeText(v).then(() => flash('コピーしました'), () => flash(v)); } catch(err){ flash(v); } return; }
+  else if (a === 'ai-text'){ const v = (document.getElementById('q-quick') || {}).value || ''; ui.quick = v; if (!v.trim()){ ui.quickErr = 'たびまるに頼む文章を、入力欄に書いてください（例：昨日の夕食、けんたが立て替えて3人で割った 6000円）。'; render(); return; } runAi(t, { text: v.trim() }); return; }
+  else if (a === 'ai-photo'){ if (!ui.ai.login){ ui.quickErr = 'LINEでログインすると、たびまるに頼めます。'; render(); return; } const f = document.getElementById('ai-file'); if (f){ f.value = ''; f.click(); } return; }
+  else if (a === 'ai-record' || a === 'ai-edit'){
+    const rec = s.result && aiExpense(t, s.result); if (!rec){ ui.sheet = null; render(); return; }
+    if (a === 'ai-edit'){
+      ui.sheet = { type: 'exp', err: '', editId: null, partsOpen: !!rec.fixed, data: { amount: String(rec.amount), title: rec.title, cat: rec.cat, payer: rec.payer, all: rec.split.length === t.members.length, split: rec.split.slice(), date: rec.date, parts: {},
+        fixed: rec.fixed ? Object.fromEntries(Object.keys(rec.fixed).map(k => [k, String(rec.fixed[k])])) : {} } };
+    } else {
+      const tid = t.id, before = catSums(t), full = Object.assign({ id: uid() }, rec); t.expenses.push(full); ui.sheet = null; ui.quick = ''; save(); render();
+      const cn = capNotice(t, before);
+      flash((rec.title || (CAT[rec.cat] || CAT.other)[2]) + ' ' + yen(rec.amount) + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== full.id); save(); render(); });
+      return;
+    }
+  }
   else if (a === 'caps-edit'){ ui.sheet = { type: 'caps', err: '' }; }
   else if (a === 'caps-save'){
     const caps = {}; let bad = false;

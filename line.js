@@ -14,6 +14,8 @@
     logout: function () { return call('POST', '/api/auth/logout', {}); },
     backupGet: function () { return call('GET', '/api/backup'); },
     backupPut: function (upsert, remove, deleted) { return call('PUT', '/api/backup', { upsert: upsert || [], remove: remove || [], deleted: deleted || [] }); },
+    aiStatus: function () { return call('GET', '/api/ai/status'); },
+    aiParse: function (body) { return call('POST', '/api/ai/parse', body); },
     deleteAccount: function () { return call('DELETE', '/api/account'); },
     pushSubscribe: function (sub) { return call('POST', '/api/push/subscribe', sub); },
     pushDiagnose: function () { return call('POST', '/api/push/diagnose', {}); },

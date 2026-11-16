@@ -10,8 +10,10 @@ import { reply, sha256hex, limited, randomToken } from './util.js';
 import { seal, open } from './seal.js';
 import { reminderReport } from './reminders.js';
 import { getVapid, allowedEndpoint, validKeys, sendPush } from './push.js';
+import { AI_SCHEMA, aiStatus, aiParse } from './ai.js';
 
 export const ACCOUNT_SCHEMA = [
+  ...AI_SCHEMA,
   `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, line_sub TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', picture TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, last_login INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id)`,
@@ -137,13 +139,15 @@ async function lineCallback(url, env) {
 
 export async function handleAccount(req, env, url) {
   const p = url.pathname;
-  if (!(p === '/api/me' || p.startsWith('/api/auth/') || p.startsWith('/api/push/') || p === '/api/backup' || p === '/api/account')) return null;
+  if (!(p === '/api/me' || p.startsWith('/api/auth/') || p.startsWith('/api/push/') || p === '/api/backup' || p === '/api/account' || p.startsWith('/api/ai/'))) return null;
   const method = req.method;
   if (method !== 'GET' && method !== 'HEAD' && req.headers.get('Origin') !== url.origin) return reply({ error: 'origin' }, 403);   // blocks cross-site form posts
   const on = configured(env);
 
+  if (p === '/api/ai/status' && method === 'GET') return aiStatus(env, on ? await userFrom(req, env) : null);
   if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name, settle: u.settle_notif !== 0, over: u.over_notif !== 0 } : null, push: u ? (await getVapid(env)).publicKey : null }); }
   if (!on) return reply({ error: 'not_configured' }, 503);
+  if (p === '/api/ai/parse' && method === 'POST') return aiParse(req, env, await userFrom(req, env));
 
   if (p === '/api/auth/begin' && method === 'POST') {
     if (await limited(env, req, 'a', 20, 3600)) return reply({ error: 'rate_limited' }, 429);
@@ -240,7 +244,7 @@ export async function handleAccount(req, env, url) {
     return reply({ ok: true });
   }
   if (p === '/api/account' && method === 'DELETE') {
-    await env.DB.batch(['backups', 'sessions', 'attempts', 'push_subs', 'notif_log', 'member_links'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)).concat(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id)));
+    await env.DB.batch(['backups', 'sessions', 'attempts', 'push_subs', 'notif_log', 'member_links', 'ai_usage'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)).concat(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id)));
     return reply({ ok: true }, 200, { 'Set-Cookie': cookieHeader('', req, 0) });
   }
   return reply({ error: 'not_found' }, 404);
@@ -252,6 +256,7 @@ export async function purgeAccountData(env, now) {
     env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now),
     env.DB.prepare('DELETE FROM attempts WHERE created_at < ?').bind(now - 86400),
     env.DB.prepare('DELETE FROM notif_log WHERE t < ?').bind(now - 3 * 86400),
+    env.DB.prepare("DELETE FROM ai_usage WHERE day < date(?, 'unixepoch', '-3 days')").bind(now),
     env.DB.prepare('DELETE FROM push_subs WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
     env.DB.prepare('DELETE FROM backups WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
     env.DB.prepare('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE last_login < ?1)').bind(now - INACTIVE_ACCOUNT_DAYS * 86400),
