@@ -1,13 +1,18 @@
 import { reply } from './util.js';
 
 /* たびまる: reads one sentence (or a photo of a receipt) and proposes an expense. Nothing is recorded here: the app shows the proposal and the person confirms.
-   Only logged-in people can use it, DAILY times a day each, and MONTHLY times a month in all (the money stays predictable). Without ANTHROPIC_API_KEY it is off.
+   Only logged-in people can use it, DAILY times a day each, and MONTHLY times a month in all (the money stays predictable).
+   Two ways to think: with ANTHROPIC_API_KEY it asks Anthropic (paid); otherwise, with the Workers AI binding `AI` (wrangler.jsonc), it asks Cloudflare's own free AI
+   (a free daily allowance for the whole account: TOTAL calls a day are allowed here so the allowance is not used up; past it, たびまる rests until tomorrow, nothing is charged
+   on the Free plan). Without either it is off; AI_OFF=1 (a variable in Cloudflare) turns it off at once.
    What is sent to the AI service: the sentence or the picture, the names of the trip's members, today's date and the trip's dates. The picture is not stored. */
-const DAILY = 5, MONTHLY = 2000, MODEL = 'claude-haiku-5-5', MAX_TEXT = 300, MAX_IMAGE = 1500000, MAX_NAMES = 12;
+const DAILY = 5, MONTHLY = 2000, TOTAL = 100, MODEL = 'claude-haiku-5-5', WORKERS_MODEL = '@cf/google/gemma-3-12b-it', MAX_TEXT = 300, MAX_IMAGE = 1500000, MAX_NAMES = 12;
 const CATS = ['transport', 'stay', 'food', 'sight', 'gift', 'other'];
 const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v));
 const jstDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-const limits = env => ({ day: Math.max(1, parseInt(env.AI_DAILY_LIMIT, 10) || DAILY), month: Math.max(1, parseInt(env.AI_MONTHLY_LIMIT, 10) || MONTHLY) });
+const limits = env => ({ day: Math.max(1, parseInt(env.AI_DAILY_LIMIT, 10) || DAILY), month: Math.max(1, parseInt(env.AI_MONTHLY_LIMIT, 10) || MONTHLY), total: Math.max(1, parseInt(env.AI_DAILY_TOTAL, 10) || TOTAL) });
+const testAi = env => env.TEST_HOOKS === '1' && env.AI_FAKE_URL;   // tests only: a stand-in for the Workers AI binding (it cannot run on a laptop)
+const backend = env => env.AI_OFF === '1' ? null : env.ANTHROPIC_API_KEY ? 'anthropic' : (env.AI || testAi(env)) ? 'workers' : null;
 
 export const AI_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS ai_usage (user_id TEXT NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (user_id, day))`,
@@ -36,12 +41,13 @@ const TOOL = {
 };
 
 async function bump(env, sql, ...binds) { return env.DB.prepare(sql).bind(...binds).first(); }
-async function refund(env, uid, day, month) {
-  await env.DB.batch([env.DB.prepare('UPDATE ai_usage SET n = MAX(0, n - 1) WHERE user_id = ?1 AND day = ?2').bind(uid, day), env.DB.prepare('UPDATE ai_month SET n = MAX(0, n - 1) WHERE m = ?1').bind(month)]).catch(() => {});
+async function refund(env, uid, day, month, total) {
+  await env.DB.batch([env.DB.prepare('UPDATE ai_usage SET n = MAX(0, n - 1) WHERE user_id = ?1 AND day = ?2').bind(uid, day), env.DB.prepare('UPDATE ai_month SET n = MAX(0, n - 1) WHERE m = ?1').bind(month)]
+    .concat(total ? [env.DB.prepare("UPDATE ai_usage SET n = MAX(0, n - 1) WHERE user_id = '*' AND day = ?1").bind(day)] : [])).catch(() => {});
 }
 
 export async function aiStatus(env, user) {
-  const on = !!env.ANTHROPIC_API_KEY;
+  const on = !!backend(env);
   if (!on || !user) return reply({ enabled: on, login: !!user, remaining: null });
   const L = limits(env), row = await env.DB.prepare('SELECT n FROM ai_usage WHERE user_id = ?1 AND day = ?2').bind(user.id, jstDay()).first();
   return reply({ enabled: true, login: true, remaining: Math.max(0, L.day - (row ? row.n : 0)), limit: L.day });
@@ -67,7 +73,7 @@ export function cleanAnswer(a, names) {
 }
 
 export async function aiParse(req, env, user) {
-  if (!env.ANTHROPIC_API_KEY) return reply({ error: 'not_configured' }, 503);
+  const be = backend(env); if (!be) return reply({ error: 'not_configured' }, 503);
   if (!user) return reply({ error: 'login' }, 401);
   const raw = await req.text(); if (raw.length > MAX_IMAGE + 20000) return reply({ error: 'too_large' }, 413);
   let b; try { b = JSON.parse(raw); } catch (e) { return reply({ error: 'invalid' }, 400); }
@@ -80,20 +86,59 @@ export async function aiParse(req, env, user) {
   const L = limits(env), day = jstDay(), month = day.slice(0, 7);
   const mo = await bump(env, 'INSERT INTO ai_month(m,n) VALUES (?1,1) ON CONFLICT(m) DO UPDATE SET n = n + 1 RETURNING n', month);
   if (mo.n > L.month) { await env.DB.prepare('UPDATE ai_month SET n = n - 1 WHERE m = ?1').bind(month).run(); return reply({ error: 'paused' }, 429); }
+  if (be === 'workers') {   // the free allowance is for everybody together
+    const tt = await bump(env, "INSERT INTO ai_usage(user_id,day,n) VALUES ('*',?1,1) ON CONFLICT(user_id,day) DO UPDATE SET n = n + 1 RETURNING n", day);
+    if (tt.n > L.total) { await env.DB.batch([env.DB.prepare("UPDATE ai_usage SET n = n - 1 WHERE user_id = '*' AND day = ?1").bind(day), env.DB.prepare('UPDATE ai_month SET n = MAX(0, n - 1) WHERE m = ?1').bind(month)]); return reply({ error: 'busy' }, 429); }
+  }
   const us = await bump(env, 'INSERT INTO ai_usage(user_id,day,n) VALUES (?1,?2,1) ON CONFLICT(user_id,day) DO UPDATE SET n = n + 1 RETURNING n', user.id, day);
-  if (us.n > L.day) { await refund(env, user.id, day, month); return reply({ error: 'limit', remaining: 0 }, 429); }
+  const tot = be === 'workers';
+  if (us.n > L.day) { await refund(env, user.id, day, month, tot); return reply({ error: 'limit', remaining: 0 }, 429); }
   const remaining = Math.max(0, L.day - us.n);
-
-  const content = [];
-  if (m) content.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } });
-  content.push({ type: 'text', text: 'メンバー: ' + names.join('、') + '\nアプリを使っている本人: ' + me + '\n今日: ' + b.today + '\n旅行の日程: ' + b.start + ' から ' + b.end + '\n' + (m ? 'レシートの写真です。' : '') + (text ? '<user_text>' + text.replace(/<\/?user_text>/g, '') + '</user_text>' : '') });
+  const note = 'メンバー: ' + names.join('、') + '\nアプリを使っている本人: ' + me + '\n今日: ' + b.today + '\n旅行の日程: ' + b.start + ' から ' + b.end + '\n' + (m ? 'レシートの写真です。' : '') + (text ? '<user_text>' + text.replace(/<\/?user_text>/g, '') + '</user_text>' : '');
   try {
-    const r = await fetch((env.ANTHROPIC_API_BASE || 'https://api.anthropic.com') + '/v1/messages', { method: 'POST', signal: AbortSignal.timeout(25000),
-      headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: env.AI_MODEL || MODEL, max_tokens: 700, system: SYSTEM, tools: [TOOL], tool_choice: { type: 'tool', name: 'record_expense' }, messages: [{ role: 'user', content }] }) });
-    if (!r.ok) { console.error('ai upstream', r.status); await refund(env, user.id, day, month); return reply({ error: 'upstream' }, 502); }
-    const d = await r.json(), tu = (d.content || []).find(x => x && x.type === 'tool_use'), ans = cleanAnswer(tu && tu.input, names);
+    const input = be === 'anthropic' ? await askAnthropic(env, m, note) : await askWorkers(env, m, note), ans = cleanAnswer(input, names);
     if (!ans.ok) { return reply({ error: ans.error, name: ans.name, remaining }, 422); }   // the call was made, so it counts
     return reply({ ok: true, result: ans, remaining });
-  } catch (e) { console.error('ai failed', e && e.message); await refund(env, user.id, day, month); return reply({ error: 'upstream' }, 502); }
+  } catch (e) {
+    await refund(env, user.id, day, month, tot);
+    if (e && e.busy) return reply({ error: 'busy' }, 429);   // the free allowance of the day is used up
+    console.error('ai failed', e && e.message); return reply({ error: 'upstream' }, 502);
+  }
+}
+
+async function askAnthropic(env, m, note) {
+  const content = []; if (m) content.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }); content.push({ type: 'text', text: note });
+  const r = await fetch((env.ANTHROPIC_API_BASE || 'https://api.anthropic.com') + '/v1/messages', { method: 'POST', signal: AbortSignal.timeout(25000),
+    headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: env.AI_MODEL || MODEL, max_tokens: 700, system: SYSTEM, tools: [TOOL], tool_choice: { type: 'tool', name: 'record_expense' }, messages: [{ role: 'user', content }] }) });
+  if (!r.ok) throw new Error('anthropic ' + r.status);
+  const d = await r.json(), tu = (d.content || []).find(x => x && x.type === 'tool_use'); return tu && tu.input;
+}
+
+/* Cloudflare Workers AI (free allowance). The model is asked for the same JSON the tool would take. The exact shapes of the answer differ between models, so several are accepted;
+   if the model refuses "response_format" it is asked again without it; a model that wants its licence accepted ("agree") is told so once. */
+const JSON_HELP = '\n\n返事は、次の形のJSONだけにしてください（前後に文章を付けない）:\n{"readable": true, "title": "夕食", "amount": 6000, "category": "food", "date": "2026-11-15", "payer": "けんた", "split_all": true, "split_names": [], "fixed": [{"name": "みく", "amount": 1000}], "comment": "夕食 6,000円ですね。…"}\ncategory は transport / stay / food / sight / gift / other のどれか。payer と date が不明なら null。fixed が無ければ []。';
+function pickJson(out) {
+  let v = out && (out.response !== undefined ? out.response : out.result && out.result.response !== undefined ? out.result.response : out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content);
+  if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+  if (typeof v !== 'string') return null;
+  const a = v.indexOf('{'), z = v.lastIndexOf('}'); if (a < 0 || z <= a) return null;
+  try { return JSON.parse(v.slice(a, z + 1)); } catch (e) { return null; }
+}
+async function askWorkers(env, m, note) {
+  const model = env.AI_WORKERS_MODEL || WORKERS_MODEL;
+  const run = testAi(env) ? (mdl, inp) => fetch(env.AI_FAKE_URL, { method: 'POST', body: JSON.stringify({ model: mdl, input: inp }) }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'fake ' + r.status); return d; }) : (mdl, inp) => env.AI.run(mdl, inp);
+  const user = m ? [{ type: 'text', text: note + JSON_HELP }, { type: 'image_url', image_url: { url: 'data:' + m[1] + ';base64,' + m[2] } }] : note + JSON_HELP;
+  const base = { messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], max_tokens: 700, temperature: 0.1 };
+  const attempt = async (withFormat) => {
+    try { return await run(model, withFormat ? { ...base, response_format: { type: 'json_schema', json_schema: TOOL.input_schema } } : base); }
+    catch (e) {
+      const msg = String(e && e.message || e);
+      if (/allocation|neurons|4006/i.test(msg)) { const b = new Error('busy'); b.busy = true; throw b; }
+      if (/agree/i.test(msg)) { await run(model, { prompt: 'agree' }); return run(model, withFormat ? { ...base, response_format: { type: 'json_schema', json_schema: TOOL.input_schema } } : base); }
+      throw e;
+    }
+  };
+  let out; try { out = await attempt(true); } catch (e) { if (e && e.busy) throw e; out = await attempt(false); }   // some models do not take response_format
+  return pickJson(out);
 }
