@@ -99,3 +99,13 @@ console.log('sync tests passed');
     expenses: [{ id: 'e1', title: 'x', amount: 3000, payer: 'a', cat: 'food', spent_on: '2026-11-09', split: ['a', 'b'], settle_id: null, parts: null, fixed: { b: 500 }, created_at: 1 }], settlements: [], adjustments: [], paid: [], savings: [] }];
   assert.deepStrictEqual(S.assemble(rows)[0].expenses[0].fixed, { b: 500 });
   console.log('sync fixed amount tests passed'); }
+
+// カテゴリごとの上限: the trip row carries `caps` only when set; taking it away is an explicit null
+{ const t0 = { id: 't', name: 'n', start: '2026-11-09', end: '2026-11-10', budget: 1, paid: {}, savings: {}, members: [{ id: 'a', name: 'あ' }], expenses: [] };
+  const f0 = S.flatten([t0]); assert.ok(!('caps' in f0.trips.t), 'no limits: no key, so rows saved before it existed stay equal');
+  const t1 = JSON.parse(JSON.stringify(t0)); t1.caps = { food: 20000 };
+  const up = S.diff(f0, S.flatten([t1])); assert.deepStrictEqual(up.map(o => [o.kind, o.table]), [['update', 'trips']]); assert.deepStrictEqual(up[0].row.caps, { food: 20000 });
+  const down = S.diff(S.flatten([t1]), f0); assert.strictEqual(down.length, 1); assert.strictEqual(down[0].row.caps, null, 'taken away: an explicit null');
+  const t2 = JSON.parse(JSON.stringify(t0)); t2.caps = {}; assert.strictEqual(S.diff(f0, S.flatten([t2])).length, 0, 'an empty object is the same as none');
+  assert.deepStrictEqual(S.assemble([{ id: 't', name: 'n', start_date: '2026-11-09', end_date: '2026-11-10', budget: 1, caps: { food: 20000 }, trip_members: [{ id: 'a', name: 'あ', position: 0, user_id: null, status: 'joined' }] }])[0].caps, { food: 20000 });
+  console.log('sync caps tests passed'); }

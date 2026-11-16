@@ -27,6 +27,7 @@ const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prep
   .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN parts TEXT').run().catch(() => { /* the column already exists */ }))   // per-person weights of an expense (JSON, NULL = equal)
   .then(() => env.DB.prepare('ALTER TABLE members ADD COLUMN note TEXT').run().catch(() => { /* the column already exists */ }))   // how a member wants to be paid (free text, 60 chars)
   .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN fixed TEXT').run().catch(() => { /* the column already exists */ }))   // exact amounts for some people of an expense (JSON, NULL = none)
+  .then(() => env.DB.prepare('ALTER TABLE trips ADD COLUMN caps TEXT').run().catch(() => { /* the column already exists */ }))   // limits per category (JSON, NULL = none)
   .then(() => env.DB.prepare('ALTER TABLE users ADD COLUMN settle_notif INTEGER NOT NULL DEFAULT 1').run().catch(() => { /* the column already exists */ }))   // 精算のお知らせ on/off per account
   .then(() => Promise.all(['over_notif INTEGER NOT NULL DEFAULT 1', 'friend_flag INTEGER NOT NULL DEFAULT 0', 'friend_changed INTEGER', 'friend_checked_at INTEGER'].map(c => env.DB.prepare('ALTER TABLE users ADD COLUMN ' + c).run().catch(() => { /* already there */ }))))   // official-account friend state, saved at login
   .catch(e => { ready = null; throw e; }));
@@ -45,12 +46,14 @@ const validParts = (p, split) => p == null || (typeof p === 'object' && !Array.i
 const validFixed = (f, split, amount) => { if (f == null) return true; if (typeof f !== 'object' || Array.isArray(f)) return false; const ks = Object.keys(f);
   if (ks.length < 1 || ks.length > 12 || !ks.every(k => split.indexOf(k) >= 0 && isInt(f[k], 0, 1e9))) return false;
   const sum = ks.reduce((a, k) => a + f[k], 0); return sum <= amount && (ks.length < split.length || sum === amount); };
+/* limits per category of a trip (カテゴリごとの上限): null/absent, or whole yen (1 or more) for known categories */
+const validCaps = c => c == null || (typeof c === 'object' && !Array.isArray(c) && Object.keys(c).length >= 1 && Object.keys(c).length <= 6 && Object.keys(c).every(k => CATS.has(k) && isInt(c[k], 1, 1e9)));
 const nonEmpty = v => typeof v === 'string' && v.trim().length > 0;
 
 /* Whitelist each row; anything unexpected rejects the whole request (nothing is applied). */
 const CLEAN = {
-  trips: r => isStr(r.name, 100) && nonEmpty(r.name) && isDate(r.start_date) && isDate(r.end_date) && r.end_date >= r.start_date && isInt(r.budget, 1, 1e9)
-    ? { name: r.name.trim(), start_date: r.start_date, end_date: r.end_date, budget: r.budget } : null,
+  trips: r => isStr(r.name, 100) && nonEmpty(r.name) && isDate(r.start_date) && isDate(r.end_date) && r.end_date >= r.start_date && isInt(r.budget, 1, 1e9) && validCaps(r.caps)
+    ? { name: r.name.trim(), start_date: r.start_date, end_date: r.end_date, budget: r.budget, caps: r.caps == null ? null : r.caps, has_caps: 'caps' in r } : null,
   members: r => isId(r.id) && isStr(r.name, 50) && nonEmpty(r.name) && isInt(r.position, 0, 1e6) && (r.note == null || isStr(r.note, 60))
     ? { id: r.id, name: r.name.trim(), position: r.position, note: r.note == null ? '' : r.note.trim(), has_note: 'note' in r } : null,   // 受け取り方のメモ (60字まで)
   expenses: r => { const title = r.title == null ? '' : r.title;
@@ -106,7 +109,7 @@ async function getTrip(env, id, rev) {
     env.DB.prepare('SELECT id,settle_id,nets,note,at FROM adjustments WHERE trip_id=? ORDER BY at, id').bind(id)
   ]);
   // same shape the app's Sync.assemble() already reads
-  return reply({ rev: tr.rev, trip: { id, name: tr.name, start_date: tr.start_date, end_date: tr.end_date, budget: tr.budget, owner: null,
+  return reply({ rev: tr.rev, trip: { id, name: tr.name, start_date: tr.start_date, end_date: tr.end_date, budget: tr.budget, caps: tr.caps ? JSON.parse(tr.caps) : null, owner: null,
     trip_members: m.results.map(r => ({ id: r.id, name: r.name, position: r.position, note: r.note || '', user_id: null, status: 'joined' })),
     expenses: e.results.map(r => ({ id: r.id, title: r.title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: JSON.parse(r.split), settle_id: r.settle_id || null, parts: r.parts ? JSON.parse(r.parts) : null, fixed: r.fixed ? JSON.parse(r.fixed) : null, created_at: r.created_at })),
     settlements: st.results.map(r => ({ id: r.id, n: r.n, at: r.at, total: r.total, transfers: JSON.parse(r.transfers) })),
@@ -136,7 +139,7 @@ async function applyOps(env, req, id, ctx) {
       (ins.settlements || []).length > LIMITS.settlements || (ins.adjustments || []).length > LIMITS.adjustments) return reply({ error: 'limit' }, 413);
 
   const S = [], P = s => DB.prepare(s);
-  if (ins.trips) { const t = ins.trips[0]; S.push(P('INSERT OR IGNORE INTO trips(id,name,start_date,end_date,budget,rev,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?)').bind(id, t.name, t.start_date, t.end_date, t.budget, now, now)); }
+  if (ins.trips) { const t = ins.trips[0]; S.push(P('INSERT OR IGNORE INTO trips(id,name,start_date,end_date,budget,rev,created_at,updated_at,caps) VALUES (?,?,?,?,?,1,?,?,?)').bind(id, t.name, t.start_date, t.end_date, t.budget, now, now, t.caps ? J(t.caps) : null)); }
   if (ins.members) S.push(P(`INSERT OR IGNORE INTO members(trip_id,id,name,position,note) SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.name'), json_extract(value,'$.position'), NULLIF(json_extract(value,'$.note'), '') FROM json_each(?2)`).bind(id, J(ins.members)));
   if (ins.expenses) S.push(P(`INSERT OR IGNORE INTO expenses(trip_id,id,title,amount,payer,cat,spent_on,split,settle_id,parts,fixed,created_at)
       SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.title'), json_extract(value,'$.amount'), json_extract(value,'$.payer'), json_extract(value,'$.cat'),
@@ -146,7 +149,7 @@ async function applyOps(env, req, id, ctx) {
   if (ins.paid) S.push(P(`INSERT OR IGNORE INTO paid(trip_id,key) SELECT ?1, json_extract(value,'$.key') FROM json_each(?2)`).bind(id, J(ins.paid)));
   if (ins.savings) S.push(P(`INSERT OR IGNORE INTO savings(trip_id,member_id,amount) SELECT ?1, json_extract(value,'$.member_id'), json_extract(value,'$.amount') FROM json_each(?2)`).bind(id, J(ins.savings)));
 
-  if (upd.trips) { const t = upd.trips[upd.trips.length - 1]; S.push(P('UPDATE trips SET name=?1, start_date=?2, end_date=?3, budget=?4 WHERE id=?5').bind(t.name, t.start_date, t.end_date, t.budget, id)); }
+  if (upd.trips) { const t = upd.trips[upd.trips.length - 1]; S.push(P('UPDATE trips SET name=?1, start_date=?2, end_date=?3, budget=?4, caps = CASE WHEN ?6 = 1 THEN ?7 ELSE caps END WHERE id=?5').bind(t.name, t.start_date, t.end_date, t.budget, id, t.has_caps ? 1 : 0, t.caps ? J(t.caps) : null)); }   // an older app that does not send caps must not wipe them
   if (upd.expenses) S.push(P(`UPDATE expenses SET title=j.title, amount=j.amount, payer=j.payer, cat=j.cat, spent_on=j.spent_on, split=j.split,
       settle_id = CASE WHEN j.has_settle = 1 THEN j.settle_id ELSE expenses.settle_id END,   -- an older app that does not know about rounds must not wipe it
       parts = CASE WHEN j.has_parts = 1 THEN j.parts ELSE expenses.parts END,                 -- nor weights

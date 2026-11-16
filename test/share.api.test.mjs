@@ -163,6 +163,16 @@ try {
     for (const bad of [{ m1: -1 }, { m1: 1.5 }, { m1: '5' }, { zz: 5 }, [5], {}, { m1: 4000 }, { m1: 1000, m2: 1000 }])
       assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'expenses', rows: [exp('e4', { fixed: bad })] }])).status, 400, JSON.stringify(bad)); }
 
+  // --- カテゴリごとの上限 (trips.caps): returned, updated, taken away; an older app that sends none must not wipe it; validated
+  { const T = await make(); const caps = async () => (await call(T, 'GET', '/api/trip')).body.trip.caps;
+    assert.strictEqual(await caps(), null, 'none by default');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'trips', row: { ...trip, caps: { food: 20000, gift: 5000 } } }])).status, 200); assert.deepStrictEqual(await caps(), { food: 20000, gift: 5000 });
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'trips', row: { ...trip, budget: 60000 } }])).status, 200); assert.deepStrictEqual(await caps(), { food: 20000, gift: 5000 }, 'an update without caps leaves them alone (older apps)');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'trips', row: { ...trip, caps: null } }])).status, 200); assert.strictEqual(await caps(), null, 'null takes them away');
+    for (const bad of [{ food: 0 }, { food: -5 }, { food: 1.5 }, { food: '5' }, { zzz: 5 }, [5], {}, { food: 1e10 }])
+      assert.strictEqual((await ops(T, [{ kind: 'update', table: 'trips', row: { ...trip, caps: bad } }])).status, 400, JSON.stringify(bad));
+    const T2 = tok('c'); assert.strictEqual((await ops(T2, [{ kind: 'insert', table: 'trips', rows: [{ ...trip, caps: { stay: 30000 } }] }])).status, 200); assert.deepStrictEqual((await call(T2, 'GET', '/api/trip')).body.trip.caps, { stay: 30000 }, 'a trip can be created with limits'); }
+
   // --- creating trips is rate limited (per day, per IP)
   let limited = false;
   for (let i = 0; i < 30 && !limited; i++) limited = (await make2(tok('r'))).status === 429;

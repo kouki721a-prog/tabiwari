@@ -14,6 +14,7 @@
     var out = empty();
     trips.forEach(function (t) {
       out.trips[t.id] = { id: t.id, name: t.name, start_date: t.start, end_date: t.end, budget: t.budget };
+      if (t.caps && Object.keys(t.caps).length) out.trips[t.id].caps = Object.assign({}, t.caps);   // カテゴリごとの上限: only when set, so rows saved before it existed still compare equal
       var ids = {};
       t.members.forEach(function (m, i) {
         ids[m.id] = 1;
@@ -52,7 +53,7 @@
         var r = next[tb][k], p = prev[tb][k];
         if (!p) rows.push(r);
         else if (tb === 'members') { if ((p.note || '') !== (r.note || '')) upd.push({ kind: 'update', table: tb, row: Object.assign({}, r, { note: r.note || '' }) }); }   // only the memo of a member can change ('' = taken away)
-        else if (UPDATABLE[tb] && JSON.stringify(p) !== JSON.stringify(r)) upd.push({ kind: 'update', table: tb, row: tb === 'expenses' ? Object.assign({}, r, (p.parts && !r.parts ? { parts: null } : {}), (p.fixed && !r.fixed ? { fixed: null } : {})) : r });   // weights taken away: say so (a missing key means "leave it" for older apps)
+        else if (UPDATABLE[tb] && JSON.stringify(p) !== JSON.stringify(r)) upd.push({ kind: 'update', table: tb, row: tb === 'trips' ? Object.assign({}, r, (p.caps && !r.caps ? { caps: null } : {})) : tb === 'expenses' ? Object.assign({}, r, (p.parts && !r.parts ? { parts: null } : {}), (p.fixed && !r.fixed ? { fixed: null } : {})) : r });   // weights taken away: say so (a missing key means "leave it" for older apps)
       });
       if (rows.length) ins.push({ kind: 'insert', table: tb, rows: rows });
     });
@@ -81,7 +82,7 @@
       var paid = {}, savings = {};
       (r.paid || []).forEach(function (p) { paid[p.key] = true; });
       (r.savings || []).forEach(function (s) { savings[s.member_id] = s.amount; });
-      return { id: r.id, name: r.name, start: r.start_date, end: r.end_date, budget: r.budget, owner: r.owner, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
+      return { id: r.id, name: r.name, start: r.start_date, end: r.end_date, budget: r.budget, caps: r.caps || undefined, owner: r.owner, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
     });
   }
 

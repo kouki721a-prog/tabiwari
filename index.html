@@ -198,6 +198,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .usage .seg{margin:0 0 8px;height:10px}
 .legend2{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--sub)}
 .legend2 span{display:inline-flex;align-items:center;gap:5px}
+.usage{display:block;width:100%;text-align:left;font:inherit;color:inherit}.usage.thin{padding:8px 14px;font-size:13px;color:var(--sub);text-align:center}.legend2 .over{color:var(--bad);font-weight:700}
 .legend2 .dot{width:8px;height:8px;border-radius:50%;background:hsl(var(--h) 70% 55%)}
 .legend2 b{color:var(--ink)}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
@@ -540,6 +541,7 @@ function sanitizeTrip(raw, newId){
   if (!members.length) return null;
   var ids = {}; members.forEach(function(m){ ids[m.id] = 1; });
   var CATK = ['transport', 'stay', 'food', 'sight', 'gift', 'other'];
+  var caps = {}, nc = 0; if (raw.caps && typeof raw.caps === 'object') CATK.forEach(function(k){ if (INT(raw.caps[k], 1, 1e9)){ caps[k] = raw.caps[k]; nc++; } });
   var settlements = (Array.isArray(raw.settlements) ? raw.settlements : []).slice(0, 100).map(function(st, i){
     if (!st || !ID(st.id) || !D(st.at)) return null;
     var tr = (Array.isArray(st.transfers) ? st.transfers : []).slice(0, 100).filter(function(x){ return x && ids[x.from] && ids[x.to] && INT(x.amount, 1, 1e9); }).map(function(x){ return { from: x.from, to: x.to, amount: x.amount }; });
@@ -559,7 +561,9 @@ function sanitizeTrip(raw, newId){
   var paid = {}, savings = {};
   if (raw.paid && typeof raw.paid === 'object') Object.keys(raw.paid).slice(0, 500).forEach(function(k){ if (raw.paid[k] === true && k.length <= 200) paid[k] = true; });
   if (raw.savings && typeof raw.savings === 'object') members.forEach(function(m){ if (INT(raw.savings[m.id], 0, 1e9)) savings[m.id] = raw.savings[m.id]; });
-  return { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
+  var out = { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
+  if (nc) out.caps = caps;
+  return out;
 }
 /* What the trip recap image shows (numbers only; null when nothing was recorded). Categories come back as ids, largest first. */
 function recapData(trip){
@@ -733,7 +737,7 @@ const shareBusy = {}, shareAgain = {};
 function shareSoon(){ clearTimeout(shareSoon.t); shareSoon.t = setTimeout(() => shared().forEach(t => shareSync(t)), 80); }
 function unshare(t){ delete t.share; persist(); if (lineAcct.user) bkSoon(); }
 function applyRemote(t, r, rev){
-  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; t.expenses = r.expenses; t.settlements = r.settlements || []; t.adjustments = r.adjustments || []; t.paid = r.paid; t.savings = r.savings;
+  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; if (r.caps) t.caps = r.caps; else delete t.caps; t.expenses = r.expenses; t.settlements = r.settlements || []; t.adjustments = r.adjustments || []; t.paid = r.paid; t.savings = r.savings;
   t.share.rev = rev; t.share.snap = Sync.flatten([t]); persist();
 }
 /* push local changes (diff against what the server last had), then pull if somebody else changed it. Resolves 'ok' | 'offline' | 'gone'. */
@@ -1162,13 +1166,19 @@ function viewTrip(){
     '<button class="tab" data-a="settings" aria-label="設定">' + icon('sliders') + '設定</button></div></nav>';
 }
 
-function usageBar(t){
-  if (!t.expenses.length) return '';
-  const sp = total(t), by = {};
-  t.expenses.forEach(e => { by[e.cat] = (by[e.cat] || 0) + e.amount; });
-  const cs = CATS.filter(c => by[c[0]]).sort((x, y) => by[y[0]] - by[x[0]]);
-  return '<div class="usage"><div class="seg">' + cs.map(c => '<i style="--h:' + c[3] + ';width:' + (by[c[0]] / sp * 100) + '%"></i>').join('') + '</div><div class="legend2">' +
-    cs.map(c => '<span><span class="dot" style="--h:' + c[3] + '"></span>' + c[2] + ' <b>' + by[c[0]].toLocaleString('ja-JP') + '</b></span>').join('') + '</div></div>';
+function catSums(t){ const by = {}; t.expenses.forEach(e => { by[e.cat] = (by[e.cat] || 0) + e.amount; }); return by; }
+function capNotice(t, before){   // "食事が、上限を 2,000円 超えました。" when an expense has just pushed a category over its limit (the first crossing only)
+  const caps = t.caps || {}, now = catSums(t), hit = CATS.filter(c => caps[c[0]] && now[c[0]] > caps[c[0]] && (before[c[0]] || 0) <= caps[c[0]])[0];
+  return hit ? hit[2] + 'が、上限を ' + yen(now[hit[0]] - caps[hit[0]]) + ' 超えました。' : '';
+}
+function usageBar(t){   // the share of each category (a tap opens the limits); a category with a limit shows "used／limit", in red when over
+  const caps = t.caps || {}, hasCaps = Object.keys(caps).length > 0, sp = total(t), by = catSums(t);
+  if (!t.expenses.length && !hasCaps) return '<button class="usage thin" data-a="caps-edit">カテゴリごとの上限を決める ›</button>';
+  const cs = CATS.filter(c => by[c[0]]).sort((x, y) => by[y[0]] - by[x[0]]), shown = CATS.filter(c => by[c[0]] || caps[c[0]]).sort((x, y) => (by[y[0]] || 0) - (by[x[0]] || 0));
+  return '<button class="usage" data-a="caps-edit" aria-label="カテゴリごとの上限を決める"><div class="seg">' + cs.map(c => '<i style="--h:' + c[3] + ';width:' + (by[c[0]] / sp * 100) + '%"></i>').join('') + '</div><div class="legend2">' +
+    shown.map(c => { const v = by[c[0]] || 0, cap = caps[c[0]], over = cap && v > cap;
+      return '<span' + (over ? ' class="over"' : '') + '><span class="dot" style="--h:' + c[3] + '"></span>' + c[2] + ' <b>' + v.toLocaleString('ja-JP') + (cap ? '／' + cap.toLocaleString('ja-JP') : '') + '</b>' + (over ? '（' + (v - cap).toLocaleString('ja-JP') + '円超え）' : '') + '</span>'; }).join('') + '</div>' +
+    (hasCaps ? '' : '<div class="sub sm" style="margin-top:6px">タップして、カテゴリごとの上限を決める ›</div>') + '</button>';
 }
 function expLabel(t, e){ return { cat: (CAT[e.cat] || CAT.other)[2], payer: nameOf(t, e.payer), split: e.split.map(id => nameOf(t, id)) }; }
 function expList(t, q){
@@ -1315,6 +1325,12 @@ function viewSheet(){
       '<div class="chips" style="margin-top:10px">' + [['PayPay', 'PayPay：'], ['現金', '現金でOK'], ['銀行振込', '銀行振込：']].map(c => '<button class="chip plain" data-a="note-chip" data-v="' + esc(c[1]) + '">' + c[0] + '</button>').join('') + '</div>' +
       '<div class="sub" style="margin-top:10px">この旅行のメンバーに見えます。口座番号など、大事な情報は、書かないでください。</div>';
     foot = err + '<button class="btn" data-a="note-save">保存する</button>' + (mine && mine.note ? '<button class="link" data-a="note-clear">メモを消す</button>' : '');
+  } else if (s.type === 'caps'){
+    const caps = t.caps || {};
+    ttl = 'カテゴリごとの上限';
+    body = '<div class="sub" style="margin:4px 0 8px">決めたカテゴリだけ、使った額と上限を並べて出します。空にすると、上限なしです。</div><div class="parts" style="padding:2px 12px">' +
+      CATS.map(c => '<div class="prow">' + tag(c) + '<div class="grow">' + c[2] + '</div><input class="field fxin" type="text" inputmode="numeric" data-cap="' + c[0] + '" value="' + (caps[c[0]] ? caps[c[0]].toLocaleString('ja-JP') : '') + '" placeholder="なし" aria-label="' + c[2] + 'の上限（円）" style="border-color:var(--line)"><span class="sub sm">円</span></div>').join('') + '</div>';
+    foot = err + '<button class="btn" data-a="caps-save">保存する</button>';
   } else if (s.type === 'save'){
     ttl = esc(nameOf(t, s.id)) + ' の積立';
     body = '<label class="lab" for="f-save">今回の積立額（円）</label><input class="field" id="f-save" type="text" inputmode="numeric" placeholder="例：5000">' +
@@ -1502,8 +1518,9 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   t.members.forEach(m => { if (left.indexOf(m.id) >= 0 && fx[m.id] === undefined && r.weights[m.name] && wp[m.id] === undefined){ wp[m.id] = r.weights[m.name]; said.push(m.name + ' ' + partLabel(r.weights[m.name])); } });
   r.excluded.forEach(n => said.push(n + 'なし'));
   const pp = cleanParts(wp, rec.split.slice()), full = {}; if (pp){ rec.split.forEach(id => { full[id] = wp[id] || 2; }); const fp = cleanParts(full, rec.split); if (fp) rec.parts = fp; }
-  t.expenses.push(rec); ui.quick = ''; ui.quickErr = ''; save(); render();
-  flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
+  const before = catSums(t); t.expenses.push(rec); ui.quick = ''; ui.quickErr = ''; save(); render();
+  const cn = capNotice(t, before);
+  flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'q-quick'){ ui.quick = e.target.value; return; }
@@ -1744,6 +1761,7 @@ document.addEventListener('click', e => {
       const order = t.members.map(m => m.id), rec = { title: dd.title.trim(), amount: amt, payer: dd.payer, cat: dd.cat, date: dd.date || todayStr(),
         split: dd.split.slice().sort((x, y) => order.indexOf(x) - order.indexOf(y)) };
       const pp = cleanParts(dd.parts, rec.split), ff = cleanFixed(fixedNums(dd), rec.split, amt); if (pp) rec.parts = pp; if (ff) rec.fixed = ff;
+      const before = catSums(t);
       if (s.editId){
         const x = t.expenses.filter(q => q.id === s.editId)[0], old = JSON.parse(JSON.stringify(x));
         const moneyChanged = old.amount !== rec.amount || old.payer !== rec.payer || old.split.join() !== rec.split.join() || JSON.stringify(old.parts || null) !== JSON.stringify(rec.parts || null) || JSON.stringify(old.fixed || null) !== JSON.stringify(rec.fixed || null);
@@ -1753,7 +1771,7 @@ document.addEventListener('click', e => {
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }
       else t.expenses.push(Object.assign({ id: uid() }, rec));
-      const wasEdit = !!s.editId; save(); ui.sheet = null; render(); flash(wasEdit ? '保存しました' : '記録しました'); return;
+      const wasEdit = !!s.editId; save(); ui.sheet = null; render(); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
     }
   }
   else if (a === 'settled-cancel'){ s.confirmSettled = false; }
@@ -1786,6 +1804,13 @@ document.addEventListener('click', e => {
     ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
   }
   else if (a === 'copy-note'){ const m = t.members.find(x => x.id === id), v = m && m.note; if (!v) return; try { navigator.clipboard.writeText(v).then(() => flash('コピーしました'), () => flash(v)); } catch(err){ flash(v); } return; }
+  else if (a === 'caps-edit'){ ui.sheet = { type: 'caps', err: '' }; }
+  else if (a === 'caps-save'){
+    const caps = {}; let bad = false;
+    document.querySelectorAll('[data-cap]').forEach(el => { const v = el.value.trim(); if (!v) return; const n = parseYen(v); if (!(n >= 1 && n <= 1e9)) bad = true; else caps[el.getAttribute('data-cap')] = n; });
+    if (bad) s.err = '上限は、1以上の数字で入力してください。空にすると、上限なしです。';
+    else { if (Object.keys(caps).length) t.caps = caps; else delete t.caps; save(); ui.sheet = null; render(); flash(Object.keys(caps).length ? '上限を保存しました' : '上限を外しました'); return; }
+  }
   else if (a === 'quick-save'){ document.getElementById('f-save').value = el.getAttribute('data-v'); return; }
   else if (a === 'save-saving'){
     const n = parseYen(document.getElementById('f-save').value);
