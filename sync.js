@@ -22,6 +22,7 @@
       });
       t.expenses.forEach(function (e) {
         out.expenses[e.id] = { id: e.id, trip_id: t.id, title: e.title || '', amount: e.amount, payer: e.payer, cat: e.cat, spent_on: e.date, split: e.split.slice(), settle_id: e.settleId || null };
+        if (e.parts) out.expenses[e.id].parts = Object.assign({}, e.parts);   // only when set, so rows of trips saved before weights existed still compare equal
       });
       (t.settlements || []).forEach(function (st, i) {
         out.settlements[t.id + '|' + st.id] = { id: st.id, trip_id: t.id, n: st.n != null ? st.n : i + 1, at: st.at, total: st.total || 0,
@@ -48,7 +49,7 @@
       Object.keys(next[tb]).forEach(function (k) {
         var r = next[tb][k], p = prev[tb][k];
         if (!p) rows.push(r);
-        else if (UPDATABLE[tb] && JSON.stringify(p) !== JSON.stringify(r)) upd.push({ kind: 'update', table: tb, row: r });
+        else if (UPDATABLE[tb] && JSON.stringify(p) !== JSON.stringify(r)) upd.push({ kind: 'update', table: tb, row: (tb === 'expenses' && p.parts && !r.parts) ? Object.assign({}, r, { parts: null }) : r });   // weights taken away: say so (a missing key means "leave it" for older apps)
       });
       if (rows.length) ins.push({ kind: 'insert', table: tb, rows: rows });
     });
@@ -69,7 +70,7 @@
       var members = (r.trip_members || []).slice().sort(function (a, b) { return a.position - b.position || (a.id < b.id ? -1 : 1); })
         .map(function (m) { return { id: m.id, name: m.name, pos: m.position, userId: m.user_id || undefined, pending: m.status !== 'joined' }; });
       var expenses = (r.expenses || []).slice().sort(function (a, b) { return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : (a.id < b.id ? -1 : 1); })
-        .map(function (e) { var x = { id: e.id, title: e.title, amount: e.amount, payer: e.payer, cat: e.cat, date: e.spent_on, split: e.split }; if (e.settle_id) x.settleId = e.settle_id; return x; });
+        .map(function (e) { var x = { id: e.id, title: e.title, amount: e.amount, payer: e.payer, cat: e.cat, date: e.spent_on, split: e.split }; if (e.settle_id) x.settleId = e.settle_id; if (e.parts) x.parts = e.parts; return x; });
       var settlements = (r.settlements || []).slice().sort(function (a, b) { return a.n - b.n || (a.id < b.id ? -1 : 1); })
         .map(function (st) { return { id: st.id, n: st.n, at: st.at, total: st.total || 0, transfers: st.transfers || [] }; });
       var adjustments = (r.adjustments || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : (a.id < b.id ? -1 : 1); })

@@ -132,6 +132,16 @@ try {
     // limits and clean-up
     assert.strictEqual((await call(T, 'DELETE', '/api/trip')).status, 200); assert.strictEqual((await call(T, 'GET', '/api/trip')).status, 404); }
 
+  // --- weights per person (parts): stored, returned, validated; an older app that sends no `parts` must not wipe them; null takes them away
+  { const T = await make(); const get = async () => (await call(T, 'GET', '/api/trip')).body.trip.expenses.find(e => e.id === 'e1');
+    assert.strictEqual((await get()).parts, null, 'no weights by default');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'expenses', row: exp('e1', { parts: { m1: 2, m2: 1 } }) }])).status, 200); assert.deepStrictEqual((await get()).parts, { m1: 2, m2: 1 });
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'expenses', row: exp('e1', { amount: 3300 }) }])).status, 200); const kept = await get(); assert.strictEqual(kept.amount, 3300); assert.deepStrictEqual(kept.parts, { m1: 2, m2: 1 }, 'an update without parts leaves them alone (older apps)');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'expenses', row: exp('e1', { parts: null }) }])).status, 200); assert.strictEqual((await get()).parts, null, 'null takes them away');
+    assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'expenses', rows: [exp('e3', { parts: { m1: 3, m2: 1 } })] }])).status, 200); assert.deepStrictEqual((await call(T, 'GET', '/api/trip')).body.trip.expenses.find(e => e.id === 'e3').parts, { m1: 3, m2: 1 });
+    for (const bad of [{ m1: 0 }, { m1: 7 }, { m1: 1.5 }, { m1: 'x' }, { zz: 2 }, [2, 2], {}, { m1: 2, m2: 2, m3: 2, m4: 2, m5: 2, m6: 2, m7: 2, m8: 2, m9: 2, m10: 2, m11: 2, m12: 2, m13: 2 }])
+      assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'expenses', rows: [exp('e4', { parts: bad })] }])).status, 400, JSON.stringify(bad)); }
+
   // --- creating trips is rate limited (per day, per IP)
   let limited = false;
   for (let i = 0; i < 30 && !limited; i++) limited = (await make2(tok('r'))).status === 429;

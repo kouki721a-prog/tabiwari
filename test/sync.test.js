@@ -64,3 +64,18 @@ assert.strictEqual(S.diff(S.flatten(st), S.flatten(S.assemble(rows))).length, 0)
   assert.strictEqual(S.diff(S.flatten([st2]), S.flatten(S.assemble(srv))).length, 0);
 }
 console.log('sync tests passed');
+{
+  // weights per person: written only when set (old rows stay equal), sent as an update, taken away with an explicit null, read back from the server
+  const t0 = { id: 't1', name: '箱根', start: '2026-11-09', end: '2026-11-11', budget: 80000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }], paid: {}, savings: {}, settlements: [], adjustments: [],
+    expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', date: '2026-11-09', split: ['a', 'b'] }] };
+  const f0 = S.flatten([t0]); assert.ok(!('parts' in f0.expenses.e1), 'no weights: no key, so rows saved before weights existed stay equal');
+  const t1 = JSON.parse(JSON.stringify(t0)); t1.expenses[0].parts = { a: 2, b: 1 };
+  const up = S.diff(f0, S.flatten([t1])); assert.deepStrictEqual(up.map(o => [o.kind, o.table]), [['update', 'expenses']]); assert.deepStrictEqual(up[0].row.parts, { a: 2, b: 1 });
+  const down = S.diff(S.flatten([t1]), f0); assert.strictEqual(down.length, 1); assert.strictEqual(down[0].row.parts, null, 'taken away: an explicit null (a missing key means "leave it" to the server)');
+  assert.strictEqual(S.diff(S.flatten([t1]), S.flatten([t1])).length, 0);
+  const srv = [{ id: 't1', name: '箱根', start_date: '2026-11-09', end_date: '2026-11-11', budget: 80000, owner: null, trip_members: [{ id: 'a', name: 'あおい', position: 0, user_id: null, status: 'joined' }, { id: 'b', name: 'けんた', position: 1, user_id: null, status: 'joined' }],
+    expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', spent_on: '2026-11-09', split: ['a', 'b'], settle_id: null, parts: { a: 2, b: 1 }, created_at: 1 }, { id: 'e2', title: '', amount: 100, payer: 'a', cat: 'food', spent_on: '2026-11-09', split: ['a'], settle_id: null, parts: null, created_at: 2 }], settlements: [], adjustments: [], paid: [], savings: [] }];
+  const back = S.assemble(srv)[0]; assert.deepStrictEqual(back.expenses[0].parts, { a: 2, b: 1 }); assert.ok(!('parts' in back.expenses[1]));
+  assert.strictEqual(S.diff(S.flatten([back]), S.flatten(S.assemble(srv))).length, 0, 'no phantom diff after a refresh');
+  console.log('sync weights tests passed');
+}
