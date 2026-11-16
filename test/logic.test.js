@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, cleanParts};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -256,3 +256,34 @@ console.log('settlement round tests passed');
   assert.deepStrictEqual(ex('夕食 3000円')[2], [], 'nobody left out by default'); assert.deepStrictEqual(ex('なしの夕食 3000円')[2], [], 'なし without a name is just text');
   console.log('quick input weights tests passed');
 }
+
+// 金額の指定 (fixed amounts): a person pays exactly that, the rest goes to the others by the usual rule (equal, or weighted)
+{ const ids = ['a', 'b', 'c'];
+  assert.deepStrictEqual(L.splitShares(5000, ids, 'x', null, { c: 1000 }), [['a', 2000], ['b', 2000], ['c', 1000]], 'けんたは1,000円だけ');
+  assert.deepStrictEqual(L.splitShares(5000, ids, 'x', { a: 4, b: 2 }, { c: 1000 }), [['a', 2667], ['b', 1333], ['c', 1000]], 'weights still apply to the others (4:2 of 4,000)');
+  assert.deepStrictEqual(L.splitShares(5000, ids, 'x', null, { a: 1000, b: 1000, c: 3000 }), [['a', 1000], ['b', 1000], ['c', 3000]], 'everybody fixed, adding up to the amount');
+  assert.deepStrictEqual(L.splitShares(5000, ids, 'x', null, { a: 0 }), [['a', 0], ['b', 2500], ['c', 2500]], '0 yen is allowed');
+  assert.deepStrictEqual(L.splitShares(5000, ids, 'x', null, { a: 6000 }), L.splitShares(5000, ids, 'x'), 'more than the amount: ignored');
+  assert.deepStrictEqual(L.splitShares(5000, ids, 'x', null, { a: 1000, b: 1000, c: 1000 }), L.splitShares(5000, ids, 'x'), 'everybody fixed but not adding up: ignored');
+  assert.deepStrictEqual(L.splitShares(5000, ids, 'x', null, { z: 100 }), L.splitShares(5000, ids, 'x'), 'a stranger is ignored');
+  assert.strictEqual(L.cleanFixed({ a: 1.5 }, ids, 5000), null); assert.strictEqual(L.cleanFixed({ a: -1 }, ids, 5000), null); assert.strictEqual(L.cleanFixed({ a: '1000' }, ids, 5000), null); assert.strictEqual(L.cleanFixed(null, ids, 5000), null);
+  assert.deepStrictEqual(L.cleanFixed({ a: 1000, z: 5 }, ids, 5000), { a: 1000 }, 'only the people who share it');
+  for (let k = 0; k < 2000; k++){ const n = 2 + Math.floor(Math.random() * 5), ids2 = Array.from({ length: n }, (_, i) => 'm' + i), amt = 1 + Math.floor(Math.random() * 100000), fx = {}, w = {};
+    ids2.forEach(id => { w[id] = 1 + Math.floor(Math.random() * 6); }); const nf = Math.floor(Math.random() * n); let left = amt; ids2.slice(0, nf).forEach(id => { const v = Math.floor(Math.random() * (left + 1) / 2); fx[id] = v; left -= v; });
+    const r = L.splitShares(amt, ids2, 'e' + k, w, nf ? fx : null); assert.strictEqual(r.reduce((a, x) => a + x[1], 0), amt, 'always adds up to the amount'); r.forEach(x => { assert.ok(Number.isInteger(x[1]) && x[1] >= 0); if (fx[x[0]] !== undefined) assert.strictEqual(x[1], fx[x[0]]); });
+    assert.deepStrictEqual(L.splitShares(amt, ids2, 'e' + k, w, undefined), L.splitShares(amt, ids2, 'e' + k, w), 'no fixed amounts: the same as before'); }
+  // balances, settlement and adjustments use them
+  const t = { members: [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'けんた' }], budget: 1, expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', date: '2026-11-09', split: ['a', 'b'], fixed: { b: 500 } }], paid: {}, savings: {}, settlements: [], adjustments: [] };
+  assert.deepStrictEqual(L.calcBalances(t).owed, { a: 2500, b: 500 }); assert.deepStrictEqual(L.roundBalances(t).net, { a: 500, b: -500 });
+  const t2 = JSON.parse(JSON.stringify(t)); t2.expenses[0].settleId = 's1'; t2.settlements = [{ id: 's1', n: 1, at: '2026-11-10', total: 3000, transfers: [{ from: 'b', to: 'a', amount: 500 }] }];
+  const ed = JSON.parse(JSON.stringify(t2.expenses[0])); ed.fixed = { b: 1000 }; const adj = L.expenseAdjustment(t2, t2.expenses[0], ed, 'adj1', 'x', '2026-11-11'); assert.deepStrictEqual(adj.nets, { a: 500, b: -500 }, 'changing a fixed amount of a closed round makes an adjustment');
+  assert.strictEqual(L.expenseAdjustment(t2, t2.expenses[0], Object.assign({}, ed, { fixed: { b: 500 } }), 'adj2', 'x', '2026-11-11'), null);
+  // CSV: written as あおい(1000円), read back; a bad one is skipped; sanitizeTrip keeps valid ones only
+  const csvT = { name: 'x', start: '2026-11-09', end: '2026-11-10', budget: 1, members: [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'けんた' }, { id: 'c', name: 'みく' }], paid: {}, savings: {}, settlements: [], adjustments: [],
+    expenses: [{ id: 'e1', title: '夕食', amount: 5000, payer: 'a', cat: 'food', date: '2026-11-09', split: ['a', 'b', 'c'], fixed: { c: 1000 } }] };
+  const out = L.tripCsv(csvT, () => '食事'); assert.ok(out.includes('みく(1000円)'), out);
+  let nn = 0; const idf = () => 'n' + (++nn), emptyT = Object.assign({}, csvT, { expenses: [] }), cb = { 食事: 'food' }, back = L.importCsv(emptyT, out, idf, cb); assert.strictEqual(back.add.length, 1, JSON.stringify(back.skipped)); assert.deepStrictEqual(back.add[0].fixed, { c: 1000 }); assert.deepStrictEqual(back.add[0].split.length, 3);
+  const bad = L.importCsv(emptyT, out.replace('みく(1000円)', 'みく(9000円)'), idf, cb); assert.strictEqual(bad.add.length, 0); assert.ok(bad.skipped[0].why.includes('金額の指定'));
+  const raw = JSON.parse(JSON.stringify(csvT)); raw.expenses.push({ id: 'e2', title: 'x', amount: 100, payer: 'a', cat: 'food', date: '2026-11-09', split: ['a', 'b'], fixed: { a: 500 } });
+  const sn = L.sanitizeTrip(raw, 'n'); assert.deepStrictEqual(sn.expenses[0].fixed, { c: 1000 }); assert.strictEqual(sn.expenses[1].fixed, undefined, 'an impossible one is dropped');
+  console.log('fixed amount tests passed'); }

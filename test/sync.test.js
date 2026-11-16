@@ -86,3 +86,16 @@ console.log('sync tests passed');
   assert.strictEqual(S.diff(S.flatten([back]), S.flatten(S.assemble(srv))).length, 0, 'no phantom diff after a refresh');
   console.log('sync weights tests passed');
 }
+
+// 金額の指定: rows carry `fixed` only when set; taking it away is an explicit null
+{ const t0 = { id: 't', name: 'n', start: '2026-11-09', end: '2026-11-10', budget: 1, paid: {}, savings: {}, members: [{ id: 'a', name: 'あ' }, { id: 'b', name: 'い' }],
+    expenses: [{ id: 'e1', title: 'x', amount: 3000, payer: 'a', cat: 'food', date: '2026-11-09', split: ['a', 'b'] }] };
+  const f0 = S.flatten([t0]); assert.ok(!('fixed' in f0.expenses.e1), 'no fixed amounts: no key');
+  const t1 = JSON.parse(JSON.stringify(t0)); t1.expenses[0].fixed = { b: 500 };
+  const up = S.diff(f0, S.flatten([t1])); assert.deepStrictEqual(up.map(o => [o.kind, o.table]), [['update', 'expenses']]); assert.deepStrictEqual(up[0].row.fixed, { b: 500 });
+  const down = S.diff(S.flatten([t1]), f0); assert.strictEqual(down.length, 1); assert.strictEqual(down[0].row.fixed, null, 'taken away: an explicit null');
+  const both = JSON.parse(JSON.stringify(t1)); both.expenses[0].parts = { a: 2, b: 1 }; const d2 = S.diff(S.flatten([both]), f0); assert.deepStrictEqual([d2[0].row.fixed, d2[0].row.parts], [null, null]);
+  const rows = [{ id: 't', name: 'n', start_date: '2026-11-09', end_date: '2026-11-10', budget: 1, owner: null, trip_members: [{ id: 'a', name: 'あ', position: 0, user_id: null, status: 'joined' }, { id: 'b', name: 'い', position: 1, user_id: null, status: 'joined' }],
+    expenses: [{ id: 'e1', title: 'x', amount: 3000, payer: 'a', cat: 'food', spent_on: '2026-11-09', split: ['a', 'b'], settle_id: null, parts: null, fixed: { b: 500 }, created_at: 1 }], settlements: [], adjustments: [], paid: [], savings: [] }];
+  assert.deepStrictEqual(S.assemble(rows)[0].expenses[0].fixed, { b: 500 });
+  console.log('sync fixed amount tests passed'); }
