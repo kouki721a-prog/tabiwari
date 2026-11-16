@@ -224,6 +224,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .legend2{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--sub)}
 .legend2 span{display:inline-flex;align-items:center;gap:5px}
 .usage{display:block;width:100%;text-align:left;font:inherit;color:inherit}.usage.thin{padding:8px 14px;font-size:13px;color:var(--sub);text-align:center}.legend2 .over{color:var(--bad);font-weight:700}
+.subrow{display:flex;align-items:center;justify-content:space-between;gap:8px}.subrow .mem-row{margin:0;flex:none}.subrow .mem-row .btn.sm{padding:5px 12px;font-size:13px}
+.usage.in{background:none;border:0;border-radius:0;padding:0 18px 12px;color:#fff}.usage.in .seg{background:rgba(255,255,255,.18);height:8px;margin:0 0 7px}.usage.in .legend2{color:rgba(255,255,255,.78)}.usage.in .legend2 .over{color:#ff9a92}.usage.in.thin{padding:8px 18px 12px;color:rgba(255,255,255,.7);text-align:left;border-top:2px dashed rgba(255,255,255,.28);margin:0 18px;width:auto}
 .legend2 .dot{width:8px;height:8px;border-radius:50%;background:hsl(var(--h) 70% 55%)}
 .legend2 b{color:var(--ink)}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
@@ -1191,22 +1193,21 @@ function viewTrip(){
     a = ['使った合計', sp]; b = ['1人あたり', Math.round(sp / t.members.length)];
   }
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1>' + pill(st) + '</div>' +
-    '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' : '') + '</div>';
+    '<div class="sub' + (ui.tab === 'exp' ? ' subrow' : '') + '"><span>' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' : '') + '</span>' + (ui.tab === 'exp' ? memRow(t) : '') + '</div>';
   const lab = over ? '予算オーバー' : '予算の残り', amt = '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>', bar = '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>';
   if (ui.tab === 'exp' && st[0] === '準備中')   // before the trip: the budget, and how much of it the group has saved
     h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">予算</span><span class="t-label">積立 ' + yen(savedOf(t)) + '（' + savedPct(t) + '%）</span></div><div class="t-amount">' + yen(t.budget) + '</div><div class="t-bar"><i style="width:' + savedPct(t) + '%"></i></div></div>' +
       '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b>' + yen(b[1]) + '</b></div></div></div>';
   else if (ui.tab === 'exp')   // record tab: the budget in a short card, so the list gets the room
     h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">' + lab + '</span><span class="t-label">' + yen(sp) + ' 使用 / ' + yen(t.budget) + '</span></div>' + amt + bar + '</div>' +
-      '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div></div>';
+      '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div>' + usageBar(t, true) + '</div>';
   else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
     const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = Math.min(100, Math.round(ssum / t.budget * 100));
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">予算 ' + yen(t.budget) + ' の ' + spct + '%' + (st[0] === '準備中' ? '・出発まで あと' + dayDiff(today, t.start) + '日' : '') + '</div>' + savePace(t, today) + '</div>';
   } else   // settlement tab: one thin line
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
-  h += '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
-    '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
-  if (ui.tab === 'exp') h += '<i class="sp"></i>' + usageBar(t);
+  if (ui.tab !== 'exp') h += memRow(t);   // on the record tab the members sit on the date line
+  if (ui.tab === 'exp' && st[0] === '準備中') h += '<i class="sp"></i>' + usageBar(t);   // otherwise the categories sit inside the budget card
   h += '<i class="sp"></i><div class="scroll">' + (ui.tab === 'exp' ? tabExp(t) : ui.tab === 'settle' ? tabSettle(t) : tabSave(t)) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
   return h + '<nav class="nav"><div class="nav-in">' + tb('exp', 'list', '記録') + tb('settle', 'swap', '精算') +
@@ -1219,14 +1220,18 @@ function capNotice(t, before){   // "食事が、上限を 2,000円 超えまし
   const caps = t.caps || {}, now = catSums(t), hit = CATS.filter(c => caps[c[0]] && now[c[0]] > caps[c[0]] && (before[c[0]] || 0) <= caps[c[0]])[0];
   return hit ? hit[2] + 'が、上限を ' + yen(now[hit[0]] - caps[hit[0]]) + ' 超えました。' : '';
 }
-function usageBar(t){   // the share of each category (a tap opens the limits); a category with a limit shows "used／limit", in red when over
+function memRow(t){   // the members and the invite button (on the record tab they share the date line)
+  return '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
+    '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
+}
+function usageBar(t, inCard){   // the share of each category (a tap opens the limits); a category with a limit shows "used／limit", in red when over
   const caps = t.caps || {}, hasCaps = Object.keys(caps).length > 0, sp = total(t), by = catSums(t);
-  if (!t.expenses.length && !hasCaps) return '<button class="usage thin" data-a="caps-edit">カテゴリごとの上限を決める ›</button>';
+  if (!t.expenses.length && !hasCaps) return '<button class="usage thin' + (inCard ? ' in' : '') + '" data-a="caps-edit">カテゴリごとの上限を決める ›</button>';
   const cs = CATS.filter(c => by[c[0]]).sort((x, y) => by[y[0]] - by[x[0]]), shown = CATS.filter(c => by[c[0]] || caps[c[0]]).sort((x, y) => (by[y[0]] || 0) - (by[x[0]] || 0));
-  return '<button class="usage" data-a="caps-edit" aria-label="カテゴリごとの上限を決める"><div class="seg">' + cs.map(c => '<i style="--h:' + c[3] + ';width:' + (by[c[0]] / sp * 100) + '%"></i>').join('') + '</div><div class="legend2">' +
+  return '<button class="usage' + (inCard ? ' in' : '') + '" data-a="caps-edit" aria-label="カテゴリごとの上限を決める"><div class="seg">' + cs.map(c => '<i style="--h:' + c[3] + ';width:' + (by[c[0]] / sp * 100) + '%"></i>').join('') + '</div><div class="legend2">' +
     shown.map(c => { const v = by[c[0]] || 0, cap = caps[c[0]], over = cap && v > cap;
       return '<span' + (over ? ' class="over"' : '') + '><span class="dot" style="--h:' + c[3] + '"></span>' + c[2] + ' <b>' + v.toLocaleString('ja-JP') + (cap ? '／' + cap.toLocaleString('ja-JP') : '') + '</b>' + (over ? '（' + (v - cap).toLocaleString('ja-JP') + '円超え）' : '') + '</span>'; }).join('') + '</div>' +
-    (hasCaps ? '' : '<div class="sub sm" style="margin-top:6px">タップして、カテゴリごとの上限を決める ›</div>') + '</button>';
+    (hasCaps || inCard ? '' : '<div class="sub sm" style="margin-top:6px">タップして、カテゴリごとの上限を決める ›</div>') + '</button>';
 }
 function expLabel(t, e){ return { cat: (CAT[e.cat] || CAT.other)[2], payer: nameOf(t, e.payer), split: e.split.map(id => nameOf(t, id)) }; }
 function expList(t, q){
