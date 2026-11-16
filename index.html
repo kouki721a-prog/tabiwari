@@ -559,15 +559,16 @@ var QUICK_CATS = [
   ['sight', ['入場', '観光', '拝観', '美術館', '博物館', '水族館', '動物園', '遊園地', 'ロープウェイ', 'ガイド', 'ツアー', '体験', 'アクティビティ', '入館', '入園', 'チケット', '温泉']],
   ['food', ['朝食', '昼食', '夕食', 'ごはん', 'ご飯', 'ランチ', 'ディナー', 'モーニング', 'カフェ', 'コーヒー', '居酒屋', '飲み', 'ラーメン', '寿司', 'すし', 'そば', 'うどん', '食', '弁当', 'ビール', 'お酒', 'スイーツ', 'アイス', 'おやつ', 'ドリンク', '飲み物', 'レストラン', '定食', '焼肉', 'パン', 'コンビニ']]
 ];
-/* With `names` (the members' names), a weight can be written after a name: こどもは半分, あおい1.5倍, けんた×2, みく(0.5), けんたは多め / 少なめ. -> weights: { name: units } (units of half: 2 = 1x). A weight outside 0.5..3 in steps of 0.5 gives weightError. */
+/* With `names` (the members' names), a person can be left out (けんたなし / けんた抜き / けんた無し -> excluded: [names]) and a weight can be written after a name: こどもは半分, あおい1.5倍, けんた×2, みく(0.5), けんたは多め / 少なめ. -> weights: { name: units } (units of half: 2 = 1x). A weight outside 0.5..3 in steps of 0.5 gives weightError. */
 function parseQuick(text, names){
   var s = String(text == null ? '' : text).replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/，/g, ',').replace(/．/g, '.').replace(/[\u3000]/g, ' ').trim();
   if (!s) return null;
-  var weights = {}, weightError = false;
+  var weights = {}, weightError = false, excluded = [];
   (names || []).filter(function(n){ return n; }).sort(function(a, b){ return b.length - a.length; }).forEach(function(name){
     var esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    var re = new RegExp(esc + '\\s*(?:は|が|の|を)?\\s*(?:(半分|半額|多め|少なめ)|(\\d+(?:\\.\\d+)?)\\s*倍|[x×✕＊*]\\s*(\\d+(?:\\.\\d+)?)|[(（]\\s*(\\d+(?:\\.\\d+)?)\\s*[)）])');
+    var re = new RegExp(esc + '\\s*(?:は|が|の|を)?\\s*(?:(半分|半額|多め|少なめ)|(\\d+(?:\\.\\d+)?)\\s*倍|[x×✕＊*]\\s*(\\d+(?:\\.\\d+)?)|[(（]\\s*(\\d+(?:\\.\\d+)?)\\s*[)）]|(なし|無し|抜き|ぬき)(?:で)?)');
     var mm = re.exec(s); if (!mm) return;
+    if (mm[5]){ excluded.push(name); s = s.slice(0, mm.index) + ' ' + s.slice(mm.index + mm[0].length); return; }
     var f = mm[1] ? ({ '半分': 0.5, '半額': 0.5, '多め': 1.5, '少なめ': 0.5 })[mm[1]] : parseFloat(mm[2] || mm[3] || mm[4]);
     if (!(f >= 0.5 && f <= 3 && Math.round(f * 2) === f * 2)){ weightError = true; } else weights[name] = Math.round(f * 2);
     s = s.slice(0, mm.index) + ' ' + s.slice(mm.index + mm[0].length);
@@ -585,7 +586,7 @@ function parseQuick(text, names){
   var rest = s.slice(0, pick.start) + ' ' + s.slice(pick.end), offset = /一昨日|おととい/.test(rest) ? -2 : /昨日|きのう/.test(rest) ? -1 : 0;
   var title = rest.replace(/一昨日|おととい|昨日|きのう|今日|きょう/g, ' ').replace(/(だった|でした|です|だよ|だね|かかった|払った|使った|買った)+[。.!！]*\s*$/, ' ').replace(/\s+/g, ' ').replace(/^[\s、,。・]+|[\s、,。・をはがでに]+$/g, '');
   var cat = 'other'; for (var i = 0; i < QUICK_CATS.length && cat === 'other'; i++) for (var j = 0; j < QUICK_CATS[i][1].length; j++) if (rest.indexOf(QUICK_CATS[i][1][j]) >= 0){ cat = QUICK_CATS[i][0]; break; }
-  return { title: Array.from(title).slice(0, 100).join(''), amount: pick.val, cat: cat, offset: offset, weights: weights, weightError: weightError };
+  return { title: Array.from(title).slice(0, 100).join(''), amount: pick.val, cat: cat, offset: offset, weights: weights, weightError: weightError, excluded: excluded };
 }
 /* ===== LOGIC_END ===== */
 
@@ -1405,11 +1406,14 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   if (!r){ ui.quickErr = '金額が見つかりませんでした。「夕食 2000円」のように書いてください。'; render(); return; }
   const today = todayStr(), base = (today < t.start || today > t.end) ? t.start : today; let date = addDays(base, r.offset); if (date < t.start) date = t.start; if (date > t.end) date = t.end;
   if (r.weightError){ ui.quickErr = '割合は、0.5倍から3倍まで、0.5きざみで書いてください（例：こどもは半分、あおい1.5倍）。'; render(); return; }
-  const rec = { id: uid(), title: r.title, amount: r.amount, payer: meId(t), cat: r.cat, date: date, split: t.members.map(m => m.id) }, tid = t.id, wp = {}, said = [];
-  t.members.forEach(m => { if (r.weights[m.name] && wp[m.id] === undefined){ wp[m.id] = r.weights[m.name]; said.push(m.name + ' ' + partLabel(r.weights[m.name])); } });
+  const left = t.members.filter(m => r.excluded.indexOf(m.name) < 0).map(m => m.id);
+  if (!left.length){ ui.quickErr = '全員を外すことは、できません。誰かひとりは、残してください。'; render(); return; }
+  const rec = { id: uid(), title: r.title, amount: r.amount, payer: meId(t), cat: r.cat, date: date, split: left }, tid = t.id, wp = {}, said = [];
+  t.members.forEach(m => { if (left.indexOf(m.id) >= 0 && r.weights[m.name] && wp[m.id] === undefined){ wp[m.id] = r.weights[m.name]; said.push(m.name + ' ' + partLabel(r.weights[m.name])); } });
+  r.excluded.forEach(n => said.push(n + 'なし'));
   const pp = cleanParts(wp, rec.split.slice()), full = {}; if (pp){ rec.split.forEach(id => { full[id] = wp[id] || 2; }); const fp = cleanParts(full, rec.split); if (fp) rec.parts = fp; }
   t.expenses.push(rec); ui.quick = ''; ui.quickErr = ''; save(); render();
-  flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (rec.parts ? '（' + said.join('、') + '）' : '') + 'を記録しました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
+  flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'q-quick'){ ui.quick = e.target.value; return; }

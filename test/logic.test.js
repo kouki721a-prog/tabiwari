@@ -246,6 +246,13 @@ console.log('settlement round tests passed');
   assert.deepStrictEqual(w('夕食 3000円 こうき半分'), ['夕食', 3000, { こうき: 1 }, false], 'the longest name wins (こう / こうき)');
   assert.deepStrictEqual(w('夕食 3000円 こどもは4倍'), ['夕食', 3000, {}, true], 'out of range: an error'); assert.strictEqual(w('夕食 3000円 けんた0.3倍')[3], true); assert.strictEqual(w('夕食 3000円 けんた1.7倍')[3], true);
   assert.deepStrictEqual(w('夕食 3000円'), ['夕食', 3000, {}, false], 'no weights'); assert.deepStrictEqual(w('あおいと夕食 3000円'), ['あおいと夕食', 3000, {}, false], 'a name alone is just text');
-  assert.deepStrictEqual(q('夕食 3000円 こどもは半分'), { title: '夕食 こどもは半分', amount: 3000, cat: 'food', offset: 0, weights: {}, weightError: false }, 'without names it is the same as before');
+  assert.deepStrictEqual(q('夕食 3000円 こどもは半分'), { title: '夕食 こどもは半分', amount: 3000, cat: 'food', offset: 0, weights: {}, weightError: false, excluded: [] }, 'without names it is the same as before');
+  // leaving a person out: けんたなし / 抜き / 無し / ぬき
+  const ex = s => { const r = q(s, names); return r && [r.title, r.amount, r.excluded, r.weights]; };
+  assert.deepStrictEqual(ex('夕食 3000円 けんたなし'), ['夕食', 3000, ['けんた'], {}]); assert.deepStrictEqual(ex('夕食 3000円 けんた抜き'), ['夕食', 3000, ['けんた'], {}]);
+  assert.deepStrictEqual(ex('夕食 3000円 けんたは無し'), ['夕食', 3000, ['けんた'], {}], 'with は'); assert.deepStrictEqual(ex('けんたぬきで 夕食 3000円'), ['夕食', 3000, ['けんた'], {}], 'the name can come first, and a で after it goes too');
+  assert.deepStrictEqual(ex('夕食 3000円 けんたなし こどもは半分'), ['夕食', 3000, ['けんた'], { こども: 1 }], 'leaving out and a weight together');
+  assert.deepStrictEqual(ex('夕食 3000円 あおいなし けんた抜き').slice(0, 2).concat([ex('夕食 3000円 あおいなし けんた抜き')[2].slice().sort()]), ['夕食', 3000, ['あおい', 'けんた']], 'two people');
+  assert.deepStrictEqual(ex('夕食 3000円')[2], [], 'nobody left out by default'); assert.deepStrictEqual(ex('なしの夕食 3000円')[2], [], 'なし without a name is just text');
   console.log('quick input weights tests passed');
 }
