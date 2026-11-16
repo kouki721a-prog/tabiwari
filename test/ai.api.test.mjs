@@ -47,26 +47,29 @@ try {
 } finally { srv.stop(); off.stop(); ai.stop(); }
 
 // ---- no Anthropic key: Cloudflare's own AI (the Workers AI binding), free allowance for everybody together
-const wai = startFakeWorkersAi(9918), srv2 = await startServer(8795, { ...vars, AI_FAKE_URL: wai.url, AI_DAILY_LIMIT: '4', AI_DAILY_TOTAL: '7' }), W = srv2.base;
+const wai = startFakeWorkersAi(9918), srv2 = await startServer(8795, { ...vars, AI_FAKE_URL: wai.url, AI_DAILY_LIMIT: '4', AI_DAILY_TOTAL: '8' }), W = srv2.base;
 try {
   const w1 = await login(W, 'U-w-1', 'ダブリュー'); assert.deepStrictEqual((await j(W, '/api/ai/status', { cookie: w1 })).data, { enabled: true, login: true, remaining: 4, limit: 4 }, 'on with the binding alone');
   const answer = { response: { readable: true, title: '夕食', amount: 6000, category: 'food', date: null, payer: 'けんた', split_all: true, split_names: [], fixed: [{ name: 'みく', amount: 1000 }], comment: '夕食 6,000円ですね！' } };
   wai.queue.push({ ok: answer }); let r = await ask(w1, { names: ['こうき', 'あおい', 'けんた', 'みく'] }, W); assert.strictEqual(r.status, 200, JSON.stringify(r.data)); assert.deepStrictEqual([r.data.result.payer, r.data.result.fixed, r.data.result.comment, r.data.remaining], ['けんた', { みく: 1000 }, '夕食 6,000円ですね。', 3]);
-  const c0 = wai.calls[0]; assert.strictEqual(c0.model, '@cf/google/gemma-3-12b-it'); assert.strictEqual(c0.input.messages[0].role, 'system'); assert.ok(c0.input.messages[0].content.includes('たびまる')); assert.ok(c0.input.messages[1].content.includes('<user_text>昨日の夕食') && c0.input.messages[1].content.includes('JSON')); assert.strictEqual(c0.input.response_format.type, 'json_schema');
+  const c0 = wai.calls[0]; assert.strictEqual(c0.model, '@cf/meta/llama-3.3-70b-instruct-fp8-fast'); assert.strictEqual(c0.input.messages[0].role, 'system'); assert.ok(c0.input.messages[0].content.includes('たびまる')); assert.ok(c0.input.messages[1].content.includes('<user_text>昨日の夕食') && c0.input.messages[1].content.includes('JSON')); assert.strictEqual(c0.input.response_format.type, 'json_schema');
   // the answer may come as text (with a code fence), or in the OpenAI shape
   wai.queue.push({ ok: { response: '```json\n' + JSON.stringify(answer.response) + '\n```' } }); assert.strictEqual((await ask(w1, {}, W)).status, 200);
   wai.queue.push({ ok: { choices: [{ message: { content: JSON.stringify(answer.response) } }] } }); assert.strictEqual((await ask(w1, {}, W)).status, 200);
   // a model that does not take response_format is asked again without it; one that wants its licence accepted is told "agree" once
   wai.calls.length = 0; wai.queue.push({ error: 'response_format is not supported' }, { ok: answer }); r = await ask(w1, {}, W); assert.strictEqual(r.status, 200); assert.deepStrictEqual(wai.calls.map(c => !!c.input.response_format), [true, false]);
+  // an account that may not use a model (5018) falls through to the next one
+  wai.calls.length = 0; wai.queue.push({ error: '5018: This account is not allowed to access @cf/meta/llama-3.3-70b-instruct-fp8-fast.' }, { error: '5018: This account is not allowed to access @cf/meta/llama-3.3-70b-instruct-fp8-fast.' }, { ok: answer }); const w0 = await login(W, 'U-w-0', 'ダブリュー0'); r = await ask(w0, {}, W);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data)); assert.deepStrictEqual(wai.calls.map(c => c.model), ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct'], 'the next model answers');
   const w2 = await login(W, 'U-w-2', 'ダブリュー2'); wai.calls.length = 0; wai.queue.push({ error: "5016: you must submit the prompt 'agree' and accept the licence" }, { ok: {} }, { ok: answer }); r = await ask(w2, {}, W); assert.strictEqual(r.status, 200, JSON.stringify(r.data)); assert.strictEqual(wai.calls[1].input.prompt, 'agree'); assert.strictEqual(wai.calls.length, 3);
   // text the model cannot make into JSON: unreadable (counted); the free allowance used up: "busy", not charged
   wai.queue.push({ ok: { response: 'すみません、わかりません' } }); r = await ask(w2, {}, W); assert.strictEqual(r.status, 422); assert.strictEqual(r.data.error, 'unreadable'); const before = (await j(W, '/api/ai/status', { cookie: w2 })).data.remaining;
   wai.queue.push({ error: '4006: you have used up your daily free allocation of 10,000 neurons' }); r = await ask(w2, {}, W); assert.strictEqual(r.status, 429); assert.strictEqual(r.data.error, 'busy'); assert.strictEqual((await j(W, '/api/ai/status', { cookie: w2 })).data.remaining, before, 'not charged');
-  wai.queue.push({ error: 'boom' }, { error: 'boom' }); r = await ask(w2, {}, W); assert.strictEqual(r.status, 502); assert.ok(/gemma-3-12b-it.*boom.*boom/.test(r.data.detail), 'the reason is returned, to be shown: ' + r.data.detail); assert.strictEqual((await j(W, '/api/ai/status', { cookie: w2 })).data.remaining, before, 'a failed call is not charged');
-  // a photo goes as an image_url; the day's total (7) is kept for the whole account
+  wai.queue.push({ error: 'boom1' }, { error: 'boom2' }, { error: 'boom3' }, { error: 'boom4' }); r = await ask(w2, {}, W); assert.strictEqual(r.status, 502); assert.ok(/llama-3.3.*boom1.*boom2.*llama-3.1.*boom3.*boom4/.test(r.data.detail), 'every try is told, to be shown: ' + r.data.detail); assert.strictEqual((await j(W, '/api/ai/status', { cookie: w2 })).data.remaining, before, 'a failed call is not charged');
+  // a photo goes as an image_url; the day's total (8) is kept for the whole account
   const png = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2w==', w3 = await login(W, 'U-w-3', 'ダブリュー3'); wai.calls.length = 0; wai.queue.push({ ok: answer }); r = await ask(w3, { text: '', image: png }, W); assert.strictEqual(r.status, 200, JSON.stringify(r.data));
   const um = wai.calls[0].input.messages[1].content; assert.ok(Array.isArray(um) && um.some(x => x.type === 'image_url' && x.image_url.url === png), 'the picture is sent as an image_url');
-  // total used so far: ok(1) fence(2) openai(3) retry(4) agree(5) unreadable(6) image(7) -> the total of 7 is reached; the rest are refused without calling the AI
+  // total used so far: ok(1) fence(2) openai(3) retry(4) agree(5) fallback(5) agree(6) unreadable(7) image(8) -> the total of 8 is reached; the rest are refused without calling the AI
   const n = wai.calls.length; r = await ask(w3, {}, W); assert.strictEqual(r.status, 429); assert.strictEqual(r.data.error, 'busy'); assert.strictEqual(wai.calls.length, n, 'the whole account is at its limit for today: the AI is not called');
   console.log('ai api tests (cloudflare ai) passed');
 } finally { srv2.stop(); wai.stop(); line.stop(); }
