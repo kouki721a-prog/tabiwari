@@ -1126,8 +1126,8 @@ function tripCard(t){
   return h;
 }
 const tripOrder = (a, b) => { const o = { '旅行中': 0, '準備中': 1, '終了': 2 }; return o[status(a)[0]] - o[status(b)[0]] || (a.start < b.start ? -1 : 1); };
-/* the home screen: two tabs at the top. 「これから・旅行中」 (and ended trips that still have money to settle) / 「終了した旅行」 (ended and settled, newest first).
-   The tabs show only while there is an ended trip; with nothing to show in the first tab, the second opens by itself. */
+/* the home screen: two tabs at the top, always. 「これから・旅行中」 (and ended trips that still have money to settle) / 「終了した旅行」 (ended and settled, newest first).
+   An empty tab says so; with nothing in the first tab and ended trips in the second, the second opens by itself. */
 function homeTabs(nNow, nPast, tab){
   const t = (k, lab, n) => '<button class="' + (tab === k ? 'on' : '') + '" role="tab" aria-selected="' + (tab === k) + '" data-a="home-tab" data-v="' + k + '">' + lab + ' <span class="n">' + n + '</span></button>';
   return '<div class="ut" role="tablist" aria-label="旅行の一覧">' + t('now', 'これから・旅行中', nNow) + t('past', '終了した旅行', nPast) + '</div>';
@@ -1135,12 +1135,13 @@ function homeTabs(nNow, nPast, tab){
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
   const now = state.trips.filter(t => !isPast(t)).sort(tripOrder), past = state.trips.filter(isPast).sort((a, b) => a.start < b.start ? 1 : -1);
-  const tab = !past.length ? 'now' : ui.homeTab === 'past' || (ui.homeTab !== 'now' && !now.length) ? 'past' : 'now';
-  let h = brandRow() + (past.length ? homeTabs(now.length, past.length, tab) : '') + remoteCard() + installBanner() + lineCard();
+  const tab = ui.homeTab === 'past' || (ui.homeTab !== 'now' && !now.length && past.length) ? 'past' : 'now';
+  let h = brandRow() + homeTabs(now.length, past.length, tab) + remoteCard() + installBanner() + lineCard();
   if (tab === 'now'){
     now.forEach(t => { h += tripCard(t); });
+    if (!now.length) h += '<div class="empty" style="padding:28px 8px"><b>これから・旅行中の旅行は、ありません</b>下の［旅行をつくる］から、つくれます。</div>';
     h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
-  } else h += past.map(tripCard).join('');
+  } else h += past.length ? past.map(tripCard).join('') : '<div class="empty" style="padding:28px 8px"><b>終了した旅行は、まだありません</b>旅行が終わって、精算が済むと、ここに並びます。</div>';
   return '<div class="home1"><div>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
