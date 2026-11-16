@@ -445,6 +445,20 @@ try {
     await q.press('#q-quick', 'Enter'); await see(q, '使い切りました'); assert.strictEqual(sent.length, n, 'no more asks today: nothing is sent'); assert.ok((await q.textContent('.err')).includes('記録の画面（＋）で入力してください'), 'and the way out is told'); assert.ok(!(await q.innerText('body')).includes('！'), 'no "！" in the words');
     assert.deepStrictEqual(qerrs, []); await c15.close(); }
 
+  // 旅行の設定: the data actions are tiles (書き出し・取り込み、支出があればまとめ画像), and the delete is a separate red row that asks again
+  { const c16 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c16.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
+      const base = { start: t, end: t, budget: 50000, members: [{ id: 'a', name: 'あおい', pos: 0 }], paid: {}, savings: {}, settlements: [], adjustments: [] };
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ ...base, id: 't0', name: '支出なし', expenses: [] }, { ...base, id: 't1', name: '支出あり', expenses: [{ id: 'e', title: '食事', amount: 900, payer: 'a', cat: 'food', date: t, split: ['a'] }] }] })); });
+    await q.goto('http://localhost:8797/'); await q.locator('.trip', { hasText: '支出なし' }).click(); await q.waitForSelector('[data-a=settings]'); await q.click('[data-a=settings]'); await q.waitForSelector('.tiles');
+    assert.deepStrictEqual((await q.locator('.tile').allTextContents()).map(t => t.trim()), ['CSV書き出し', 'CSV取り込み'], 'no expenses: no recap tile'); assert.strictEqual(await q.locator('.tile svg').count(), 2, 'with icons');
+    assert.strictEqual(await q.locator('.delrow').count(), 1); assert.strictEqual(await q.evaluate(() => getComputedStyle(document.querySelector('.delrow')).color), 'rgb(194, 51, 45)', 'the delete is red');
+    assert.ok(await q.evaluate(() => document.querySelector('.delrow').getBoundingClientRect().top - document.querySelector('.tiles').getBoundingClientRect().bottom > 1), 'and apart from the tiles (its own row)');
+    await q.click('[data-a=close-sheet]'); await q.click('[data-a=home]'); await q.locator('.trip', { hasText: '支出あり' }).click(); await q.waitForSelector('[data-a=settings]'); await q.click('[data-a=settings]'); await q.waitForSelector('.tiles');
+    assert.deepStrictEqual((await q.locator('.tile').allTextContents()).map(t => t.trim()), ['CSV書き出し', 'CSV取り込み', 'まとめ画像']);
+    await q.click('[data-a=ask-del-trip]'); await q.waitForSelector('[data-a=del-trip]'); assert.strictEqual(await q.locator('.delrow').count(), 0, 'asking again: the red row gives way to the confirm button'); assert.strictEqual(await q.evaluate(() => state.trips.length), 2, 'nothing deleted yet');
+    assert.deepStrictEqual(qerrs, []); await c16.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }

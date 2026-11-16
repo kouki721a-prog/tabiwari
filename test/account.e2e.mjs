@@ -84,7 +84,7 @@ try {
 
   // ---------- a trip deleted on the device is not offered again at the next login, and neither is a trip the device already has under another id
   line.setIdentity('U-new', '新人');
-  const loginFlow = async d => { await d.p.click('[data-a=line-login]'); await d.p.waitForURL(/\/api\/auth\/line\/callback/); await see(d.p, 'ログインできました'); await d.p.click('a[href="/"]'); await see(d.p, 'LINEでログインしました'); };
+  const loginFlow = async d => { await d.p.click('[data-a=line-login]'); await d.p.waitForURL(/\/api\/auth\/line\/callback/); await see(d.p, 'ログインできました'); await d.p.click('a[href="/"]'); await d.p.waitForFunction(() => typeof lineAcct !== 'undefined' && lineAcct.user, null, { timeout: 12000 }); };   // (the "LINEでログインしました" toast is shown for 1.7 seconds only: waiting for the login itself does not miss it)
   const noRestoreSheet = async p => { await p.waitForTimeout(2500); assert.strictEqual(await p.locator('[data-a=bk-restore-go]').count(), 0, 'no restore offer'); };
   const backupHas = async (p, pred) => { for (let i = 0; i < 30; i++){ const items = await p.evaluate(async () => (await Line.backupGet()).items.map(x => ({ deleted: !!x.item.deleted, name: x.item.trip ? x.item.trip.name : x.item.name }))); if (pred(items)) return items; await p.waitForTimeout(500); } assert.fail('backup did not reach the expected state'); };
   const e = await device(); await e.p.goto(base + '/'); await see(e.p, 'LINEでログインすると');
