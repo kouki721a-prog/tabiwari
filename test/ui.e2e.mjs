@@ -255,7 +255,11 @@ try {
     assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 1); assert.strictEqual(await q.inputValue('#q-quick'), '', 'the field is emptied');
     assert.ok((await q.textContent('.item[data-a=edit-exp]')).includes('あおいが払った・全員で割り勘') && (await q.textContent('.item[data-a=edit-exp]')).includes('2,000円'));
     await q.fill('#q-quick', 'タクシー 1,200'); await q.click('.quick .btn'); await see(q, 'タクシー 1,200円を記録しました'); assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 2, 'the button works too');
-    await q.click('[data-a=undo]'); await q.waitForFunction(() => document.querySelectorAll('.item[data-a=edit-exp]').length === 1); assert.deepStrictEqual(qerrs, []); await c7.close(); }
+    await q.click('[data-a=undo]'); await q.waitForFunction(() => document.querySelectorAll('.item[data-a=edit-exp]').length === 1);
+    await q.fill('#q-quick', '夕食 3000円 けんたは半分'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 3,000円（けんた 0.5倍）を記録しました');
+    assert.deepStrictEqual(await q.evaluate(() => state.trips[0].expenses.find(e => e.amount === 3000).parts), { a: 2, b: 1 }, 'the weight written after the name is kept'); assert.ok((await q.textContent('#exp-list')).includes('割合を指定して割り勘'));
+    await q.fill('#q-quick', '夕食 3000円 けんたは4倍'); await q.press('#q-quick', 'Enter'); await see(q, '割合は、0.5倍から3倍まで'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses.length), 2, 'nothing recorded for a bad weight');
+    assert.deepStrictEqual(qerrs, []); await c7.close(); }
 
   // 割合を変える: a weight per person in the record sheet (0.5x to 3x), shown in the hint and the list, used by the settlement; taking it away goes back to equal
   { const c8 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c8.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
