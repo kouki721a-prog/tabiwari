@@ -279,6 +279,25 @@ try {
     await q.click('[data-a=tab][data-t=exp]'); await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('.prow'); assert.deepStrictEqual(await q.locator('.pval').allTextContents(), ['1倍', '0.5倍'], 'the weights come back when editing');
     await q.locator('[data-a=part-inc]').nth(1).click(); await q.click('[data-a=save-exp]'); await see(q, '全員で割り勘'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses[0].parts), undefined, 'equal again: no weights kept'); assert.deepStrictEqual(qerrs, []); await c8.close(); }
 
+  // 同じメンバーで次の旅行: only an ended trip with friends gets the button; it fills the form from that trip, and opens the invite after making it
+  { const c9 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c9.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1');
+      const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }, { id: 'c', name: 'けんた', pos: 2 }], base = { paid: {}, savings: {}, expenses: [] };
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ ...base, id: 'old', name: '箱根', start: '2020-10-10', end: '2020-10-12', budget: 60000, members: m },
+        { ...base, id: 'solo', name: 'ひとり旅', start: '2020-05-01', end: '2020-05-02', budget: 20000, members: [m[0]] }] })); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip'); assert.strictEqual(await q.locator('[data-a=next-trip]').count(), 1, 'only the ended trip with friends has the button');
+    await q.evaluate(() => { window.__inv = 0; document.addEventListener('click', e => { if (e.target.closest('[data-a=invite]')) window.__inv++; }, true); });
+    await q.click('[data-a=next-trip]'); await q.waitForSelector('#d-name');
+    assert.strictEqual(await q.inputValue('#d-name'), '箱根（次の旅行）'); assert.strictEqual(await q.inputValue('#d-budget'), '60000'); assert.strictEqual(await q.inputValue('#d-me'), 'こうき');
+    const [s0, e0] = [await q.inputValue('#d-start'), await q.inputValue('#d-end')]; assert.strictEqual((Date.parse(e0) - Date.parse(s0)) / 864e5, 2, 'same length as the old trip (3 days)');
+    assert.ok((await q.textContent('.scroll')).includes('あおい、けんた'), 'the old friends are named'); assert.ok(!(await q.textContent('.scroll')).includes('あおい、けんた、こうき'), 'my own name is not listed');
+    await q.click('[data-a=save-trip]'); await q.waitForSelector('.ticket');
+    assert.deepStrictEqual(await q.evaluate(() => [state.trips.length, state.trips[2].name, state.trips[2].members.map(m => m.name), state.trips[2].expenses.length, state.trips[0].members.length]), [3, '箱根（次の旅行）', ['こうき'], 0, 3], 'a new trip with only me; the old one is untouched');
+    await q.waitForFunction(() => window.__inv === 1); assert.strictEqual(await q.evaluate(() => window.__inv), 1, 'the invite opens right after making it');
+    // a plain new trip does not open the invite
+    await q.click('[data-a=home]'); await q.click('[data-a=new]'); await q.waitForSelector('#d-name'); assert.strictEqual(await q.locator('.panel').count(), 0, 'no hint on a plain new trip');
+    assert.deepStrictEqual(qerrs, []); await c9.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
