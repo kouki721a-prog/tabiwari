@@ -275,6 +275,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .amount-wrap span{font-size:22px;font-weight:700}
 .sheet #f-hint{margin-top:8px}
 .parts{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px 12px;margin-top:6px}.prow{display:flex;align-items:center;gap:8px;padding:6px 0}.prow+.prow{border-top:1px solid var(--line)}.prow .grow{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.pamt{background:none;border:0;border-bottom:1px dotted var(--sub);padding:0 0 1px;font:inherit;color:inherit;flex:none}.fxin{width:92px;margin:0;padding:6px 10px;text-align:right;border-color:var(--sun)}.fxnote{padding:6px 0 8px;border-top:1px solid var(--line)}
 .step{display:grid;place-items:center;padding:0;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:20px;line-height:1;flex:none}.step:disabled{opacity:.35}.pval{min-width:3.2em;text-align:center;font-weight:700}.pamt{min-width:5.5em;text-align:right;font-weight:500;color:var(--sub);font-size:14px}
 .quick{display:flex;gap:8px;align-items:stretch;margin-top:4px}.quick .field{flex:1;min-width:0;padding:11px 14px}.quick .btn{width:auto;padding:0 16px;flex:none}
 .recap-img{display:block;width:100%;max-height:58vh;object-fit:contain;border-radius:16px;margin-top:10px;background:var(--navy)}
@@ -315,7 +316,14 @@ function hashStr(str){   // FNV-1a: the same text gives the same number on every
    Everybody gets floor(amount x weight / total weight); the leftover yen go one each to the people with the biggest fractional remainder, ties broken by rotating
    from a start point that depends on `seed` (the expense id), so the same person is not always the one who pays the extra yen and every device computes the same result.
    With equal weights this is exactly "amount / people, leftover yen rotating" as before. */
-function splitShares(amount, ids, seed, parts){
+function splitShares(amount, ids, seed, parts, fixed){
+  var fx = cleanFixed(fixed, ids, amount);   // 金額の指定: these people pay exactly that; the rest is split among the others as usual
+  if (fx){
+    var rest = ids.filter(function(id){ return fx[id] === undefined; }), F = 0, rs = {};
+    ids.forEach(function(id){ if (fx[id] !== undefined) F += fx[id]; });
+    if (rest.length) splitShares(amount - F, rest, seed, parts).forEach(function(x){ rs[x[0]] = x[1]; });
+    return ids.map(function(id){ return [id, fx[id] !== undefined ? fx[id] : rs[id]]; });
+  }
   var n = ids.length, w = ids.map(function(id){ var v = parts && parts[id]; return (typeof v === 'number' && v >= 1 && v <= 6 && v === Math.floor(v)) ? v : 2; });
   var W = w.reduce(function(a, b){ return a + b; }, 0), base = [], fr = [], used = 0;
   ids.forEach(function(id, i){ var t = amount * w[i]; base[i] = Math.floor(t / W); fr[i] = t - base[i] * W; used += base[i]; });
@@ -324,6 +332,15 @@ function splitShares(amount, ids, seed, parts){
   rank.sort(function(x, y){ return y.f - x.f || x.r - y.r; });
   var extra = {}; for (var k = 0; k < rem; k++) extra[rank[k].i] = 1;
   return ids.map(function(id, i){ return [id, base[i] + (extra[i] ? 1 : 0)]; });
+}
+/* the fixed amounts worth keeping for an expense: whole yen (0 or more) for people who share it; null when none, when they add up to more than the amount,
+   or when everybody is fixed but the total is not the amount (nobody would pay the rest) */
+function cleanFixed(fixed, split, amount){
+  if (!fixed || typeof fixed !== 'object' || !(amount >= 0)) return null;
+  var out = {}, n = 0, sum = 0;
+  split.forEach(function(id){ var v = fixed[id]; if (typeof v === 'number' && v >= 0 && v <= 1e9 && v === Math.floor(v)){ out[id] = v; n++; sum += v; } });
+  if (!n || sum > amount || (n === split.length && sum !== amount)) return null;
+  return out;
 }
 /* the weights worth keeping for an expense: only for the people who share it, each 1..6 (else 2); null when everybody has the same weight */
 function cleanParts(parts, split){
@@ -338,7 +355,7 @@ function calcBalances(trip){
   trip.expenses.forEach(function(e){
     if (paid[e.payer] === undefined) return;
     paid[e.payer] += e.amount;
-    splitShares(e.amount, e.split, e.id, e.parts).forEach(function(s){ if (owed[s[0]] !== undefined) owed[s[0]] += s[1]; });
+    splitShares(e.amount, e.split, e.id, e.parts, e.fixed).forEach(function(s){ if (owed[s[0]] !== undefined) owed[s[0]] += s[1]; });
   });
   var net = {};
   trip.members.forEach(function(m){ net[m.id] = paid[m.id] - owed[m.id]; });
@@ -347,11 +364,11 @@ function calcBalances(trip){
 /* ---- rounds of settlement ----
    An expense belongs to a round once settleId points at a settlement of the trip; without it, it is "not settled yet" (the current round).
    Changing or deleting an expense of a closed round never rewrites that round: it adds an adjustment (the difference per member) to the current round. */
-function netOf(trip, amount, payer, split, seed, parts){
+function netOf(trip, amount, payer, split, seed, parts, fixed){
   var n = {}; trip.members.forEach(function(m){ n[m.id] = 0; });
   if (n[payer] === undefined) return n;
   n[payer] += amount;
-  splitShares(amount, split, seed, parts).forEach(function(s){ if (n[s[0]] !== undefined) n[s[0]] -= s[1]; });
+  splitShares(amount, split, seed, parts, fixed).forEach(function(s){ if (n[s[0]] !== undefined) n[s[0]] -= s[1]; });
   return n;
 }
 function settlementIds(trip){ var m = {}; (trip.settlements || []).forEach(function(s){ m[s.id] = true; }); return m; }
@@ -365,7 +382,7 @@ function roundBalances(trip){
     if (e.settleId && sid[e.settleId]) return;
     if (paid[e.payer] === undefined) return;
     paid[e.payer] += e.amount;
-    splitShares(e.amount, e.split, e.id, e.parts).forEach(function(s){ if (owed[s[0]] !== undefined) owed[s[0]] += s[1]; });
+    splitShares(e.amount, e.split, e.id, e.parts, e.fixed).forEach(function(s){ if (owed[s[0]] !== undefined) owed[s[0]] += s[1]; });
   });
   (trip.adjustments || []).forEach(function(a){
     if (a.settleId && sid[a.settleId]) return;
@@ -392,7 +409,7 @@ function confirmRound(trip, id, at){
    newE = null means the expense was deleted. */
 function expenseAdjustment(trip, oldE, newE, adjId, note, at){
   if (!isSettled(trip, oldE)) return null;
-  var o = netOf(trip, oldE.amount, oldE.payer, oldE.split, oldE.id, oldE.parts), n = newE ? netOf(trip, newE.amount, newE.payer, newE.split, newE.id, newE.parts) : netOf(trip, 0, '', [], ''), nets = {}, any = false;
+  var o = netOf(trip, oldE.amount, oldE.payer, oldE.split, oldE.id, oldE.parts, oldE.fixed), n = newE ? netOf(trip, newE.amount, newE.payer, newE.split, newE.id, newE.parts, newE.fixed) : netOf(trip, 0, '', [], ''), nets = {}, any = false;
   trip.members.forEach(function(m){ var d = n[m.id] - o[m.id]; if (d !== 0){ nets[m.id] = d; any = true; } });
   return any ? { id: adjId, settleId: null, nets: nets, note: note, at: at } : null;
 }
@@ -441,7 +458,7 @@ function tripCsv(trip, catName){
   var nm = function(id){ var m = trip.members.filter(function(x){ return x.id === id; })[0]; return m ? m.name : '(削除済み)'; };
   var rows = [['日付', '内容', 'カテゴリ', '金額', '払った人', '割り勘の対象', '精算']];
   trip.expenses.slice().sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }).forEach(function(e){
-    rows.push([e.date, e.title, catName(e.cat), e.amount, nm(e.payer), e.split.map(function(id){ var w = e.parts && e.parts[id]; return nm(id) + (w && w !== 2 ? '(' + (w / 2) + ')' : ''); }).join('・'), roundNo(trip, e.settleId) ? '第' + roundNo(trip, e.settleId) + '回' : '未精算']);
+    rows.push([e.date, e.title, catName(e.cat), e.amount, nm(e.payer), e.split.map(function(id){ var w = e.parts && e.parts[id], f = e.fixed && e.fixed[id]; return nm(id) + (f !== undefined && f !== null ? '(' + f + '円)' : w && w !== 2 ? '(' + (w / 2) + ')' : ''); }).join('・'), roundNo(trip, e.settleId) ? '第' + roundNo(trip, e.settleId) + '回' : '未精算']);
   });
   rows.push([], ['精算（いまの回）', '払う人', '受け取る人', '金額']);
   settle(roundBalances(trip).net).forEach(function(p){ rows.push(['', nm(p.from), nm(p.to), p.amount]); });
@@ -482,19 +499,22 @@ function importCsv(trip, text, newId, catByLabel){
     if (!(amount >= 1 && amount <= 1e9)){ skipped.push({ line: line, why: '金額が読めません' }); continue; }
     var payer = byName[c[4]];
     if (!payer){ skipped.push({ line: line, why: '「' + (c[4] || '') + '」は、この旅行のメンバーにいません' }); continue; }
-    var names = (c[5] || '').split(/[・,、\/]/).map(function(x){ return x.trim(); }).filter(Boolean), split = [], bad = null, badW = false, parts = {};
-    names.forEach(function(nm){   // "あおい" or "あおい(1.5)": a weight of 0.5 to 3 in steps of 0.5
+    var names = (c[5] || '').split(/[・,、\/]/).map(function(x){ return x.trim(); }).filter(Boolean), split = [], bad = null, badW = false, badF = false, parts = {}, fixed = {};
+    names.forEach(function(nm){   // "あおい", "あおい(1.5)" (a weight of 0.5 to 3 in steps of 0.5) or "あおい(1000円)" (a fixed amount)
+      var mf = byName[nm] ? null : /^(.*?)\s*[(（]\s*([0-9０-９,，]+)\s*円\s*[)）]$/.exec(nm);
+      if (mf && byName[mf[1]]){ var fv = parseYen(mf[2]); if (isNaN(fv)) badF = true; else if (split.indexOf(byName[mf[1]]) < 0){ split.push(byName[mf[1]]); parts[byName[mf[1]]] = 2; fixed[byName[mf[1]]] = fv; } return; }
       var mw = byName[nm] ? null : /^(.*?)\s*[(（]\s*([0-9０-９.．]+)\s*[)）]$/.exec(nm), nm2 = mw ? mw[1] : nm, units = 2;
       if (mw){ var f = parseFloat(mw[2].replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); }).replace('．', '.')); units = Math.round(f * 2); if (!(f >= 0.5 && f <= 3) || units !== f * 2) badW = true; }
       if (byName[nm2]){ if (split.indexOf(byName[nm2]) < 0){ split.push(byName[nm2]); parts[byName[nm2]] = units; } } else bad = nm; });
     if (bad){ skipped.push({ line: line, why: '「' + bad + '」は、この旅行のメンバーにいません' }); continue; }
     if (badW){ skipped.push({ line: line, why: '割合は、0.5から3まで、0.5きざみで書いてください' }); continue; }
     if (!split.length){ skipped.push({ line: line, why: '割り勘の対象がありません' }); continue; }
+    if (badF || (Object.keys(fixed).length && !cleanFixed(fixed, split, amount))){ skipped.push({ line: line, why: '金額の指定が合いません（合計が金額を超えているか、全員を指定して合計が合っていません）' }); continue; }
     var k = key(date, title, amount, payer);
     if (seen[k]){ dup++; continue; }
     if (add.length >= room){ skipped.push({ line: line, why: '1つの旅行に記録できるのは、2,000件までです' }); continue; }
     seen[k] = 1;
-    var ex = { id: newId(), title: title, amount: amount, payer: payer, cat: (catByLabel && catByLabel[c[2]]) || 'other', date: date, split: split }, pp = cleanParts(parts, split); if (pp) ex.parts = pp;
+    var ex = { id: newId(), title: title, amount: amount, payer: payer, cat: (catByLabel && catByLabel[c[2]]) || 'other', date: date, split: split }, pp = cleanParts(parts, split), ff = cleanFixed(fixed, split, amount); if (pp) ex.parts = pp; if (ff) ex.fixed = ff;
     add.push(ex);
   }
   return { add: add, skipped: skipped, dup: dup };
@@ -529,7 +549,7 @@ function sanitizeTrip(raw, newId){
     if (!e || !ID(e.id) || !INT(e.amount, 1, 1e9) || !ids[e.payer] || CATK.indexOf(e.cat) < 0 || !D(e.date)) return null;
     var split = (Array.isArray(e.split) ? e.split : []).filter(function(x){ return ids[x]; }).slice(0, 12);
     var x = { id: e.id, title: S(e.title, 100), amount: e.amount, payer: e.payer, cat: e.cat, date: e.date, split: split };
-    var pp = cleanParts(e.parts, split); if (pp) x.parts = pp;
+    var pp = cleanParts(e.parts, split), ff = cleanFixed(e.fixed, split, e.amount); if (pp) x.parts = pp; if (ff) x.fixed = ff;
     if (typeof e.settleId === 'string' && sids[e.settleId]) x.settleId = e.settleId;
     return split.length ? x : null; }).filter(Boolean);
   var adjustments = (Array.isArray(raw.adjustments) ? raw.adjustments : []).slice(0, 2000).map(function(a){
@@ -1159,7 +1179,7 @@ function expList(t, q){
       const c = CAT[e.cat] || CAT.other;
       h += '<button class="item" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
         '<div class="grow"><div class="t">' + esc(e.title || c[2]) + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
-        (e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
+        (e.fixed ? '金額を指定して割り勘' : e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
         '<div class="amt">' + yen(e.amount) + '</div></button>';
     });
     h += '</div></div>';
@@ -1390,27 +1410,52 @@ function viewSheet(){
   return '<div class="sheet-bg" data-a="bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1"><div class="row between"><h2 id="sheet-title">' + ttl + '</h2><button class="iconbtn" data-a="close-sheet" aria-label="閉じる">' + icon('close') + '</button></div>' +
     '<div class="sheet-body">' + body + '</div><div class="sheet-foot">' + foot + '</div></div></div>';
 }
-/* "割合を変える": a weight per person (0.5x to 3x, in steps of 0.5); the amounts below follow the weights */
+/* "割合・金額を変える": a weight per person (0.5x to 3x, in steps of 0.5), or an exact amount for a person (金額の指定); the amounts below follow */
 const partLabel = n => (n / 2) + '倍';
+function fixedNums(d){   // what is typed in the fixed-amount boxes, as numbers (an empty or unreadable box counts as not set)
+  const out = {}; Object.keys(d.fixed || {}).forEach(id => { const v = parseYen(d.fixed[id]); if (d.split.indexOf(id) >= 0 && !isNaN(v) && v >= 0) out[id] = v; }); return out;
+}
+function fixedErr(d){   // why the fixed amounts cannot be used (or '')
+  const a = parseYen(d.amount), ns = fixedNums(d), ids = Object.keys(ns); if (!ids.length || !(a > 0)) return '';
+  const sum = ids.reduce((x, id) => x + ns[id], 0);
+  if (sum > a) return '指定の合計が、金額を超えています。';
+  if (ids.length === d.split.length && sum !== a) return '全員を指定するときは、合計を金額と同じにしてください。';
+  return '';
+}
+function fixedNote(t, d){   // the line under the rows: how much is left for the others
+  const a = parseYen(d.amount), ns = fixedNums(d), ids = Object.keys(ns); if (!ids.length || !(a > 0)) return '';
+  const e = fixedErr(d); if (e) return e;
+  const sum = ids.reduce((x, id) => x + ns[id], 0), rest = d.split.length - ids.length;
+  return rest > 0 ? (ids.length === 1 ? nameOf(t, ids[0]) + 'の' + yen(sum) : '指定の合計 ' + yen(sum)) + 'を引いた ' + yen(a - sum) + ' を、ほかの' + rest + '人で分けます。' : '';
+}
 function partsBlock(t, d, s){
   if (d.split.length < 2) return '';
-  const on = !!cleanParts(d.parts, d.split), a = parseYen(d.amount);
-  let h = '<button class="link" data-a="parts-toggle" aria-expanded="' + !!s.partsOpen + '" style="width:auto;padding:8px 0;margin-top:2px">' + (s.partsOpen ? '割合をとじる' : on ? '割合を変えています（変える）' : '割合を変える（子どもは0.5倍など）') + '</button>';
+  const on = !!cleanParts(d.parts, d.split) || Object.keys(d.fixed || {}).length > 0, a = parseYen(d.amount);
+  let h = '<button class="link" data-a="parts-toggle" aria-expanded="' + !!s.partsOpen + '" style="width:auto;padding:8px 0;margin-top:2px">' + (s.partsOpen ? '割合・金額をとじる' : on ? '割合・金額を変えています（変える）' : '割合・金額を変える（子どもは0.5倍など）') + '</button>';
   if (!s.partsOpen) return h;
-  const ids = t.members.map(m => m.id).filter(id => d.split.indexOf(id) >= 0), shares = a > 0 ? splitShares(a, ids, '', cleanParts(d.parts, ids) || (d.parts || {})) : [];
-  return h + '<div class="parts">' + ids.map(id => { const n = (d.parts && d.parts[id]) || 2, sh = shares.filter(x => x[0] === id)[0];
-    return '<div class="prow">' + av(t, id) + '<div class="grow">' + esc(nameOf(t, id)) + '</div><button class="step" data-a="part-dec" data-v="' + esc(id) + '" aria-label="' + esc(nameOf(t, id)) + 'の割合を下げる"' + (n <= 1 ? ' disabled' : '') + '>−</button><span class="pval" aria-live="polite">' + partLabel(n) + '</span><button class="step" data-a="part-inc" data-v="' + esc(id) + '" aria-label="' + esc(nameOf(t, id)) + 'の割合を上げる"' + (n >= 6 ? ' disabled' : '') + '>＋</button><span class="pamt" data-pamt="' + esc(id) + '">' + (sh ? yen(sh[1]) : '') + '</span></div>'; }).join('') + '</div>';
+  const ids = t.members.map(m => m.id).filter(id => d.split.indexOf(id) >= 0), shares = splitFor(d, a, ids);
+  return h + '<div class="parts">' + ids.map(id => { const n = (d.parts && d.parts[id]) || 2, sh = shares.filter(x => x[0] === id)[0], nm = esc(nameOf(t, id));
+    if (d.fixed && d.fixed[id] !== undefined)   // a fixed amount: a box instead of the weight
+      return '<div class="prow">' + av(t, id) + '<div class="grow">' + nm + '</div><span class="sub sm">指定</span><input class="field fxin" type="text" inputmode="numeric" data-fx="' + esc(id) + '" value="' + esc(d.fixed[id]) + '" aria-label="' + nm + 'が払う金額（円）"><span class="sub sm">円</span><button class="step" data-a="fx-off" data-v="' + esc(id) + '" aria-label="' + nm + 'の金額の指定をやめる">×</button></div>';
+    return '<div class="prow">' + av(t, id) + '<div class="grow">' + nm + '</div><button class="step" data-a="part-dec" data-v="' + esc(id) + '" aria-label="' + nm + 'の割合を下げる"' + (n <= 1 ? ' disabled' : '') + '>−</button><span class="pval" aria-live="polite">' + partLabel(n) + '</span><button class="step" data-a="part-inc" data-v="' + esc(id) + '" aria-label="' + nm + 'の割合を上げる"' + (n >= 6 ? ' disabled' : '') + '>＋</button><button class="pamt" data-a="fx-on" data-v="' + esc(id) + '" data-pamt="' + esc(id) + '" aria-label="' + nm + 'の金額を指定する">' + (sh ? yen(sh[1]) : '') + '</button></div>'; }).join('') +
+    '<div class="sub sm fxnote" id="fx-note">' + (fixedNote(t, d) || '金額を押すと、その人が払う金額を決められます。') + '</div></div>';
+}
+function splitFor(d, a, ids){   // the shares shown while writing: weights and fixed amounts, as far as they are valid
+  if (!(a > 0)) return [];
+  const ns = fixedNums(d), fx = fixedErr(d) ? null : cleanFixed(ns, ids, a);
+  return splitShares(a, ids, '', cleanParts(d.parts, ids) || (d.parts || {}), fx);
 }
 function updatePartAmounts(d){
-  const a = parseYen(d.amount), ids = d.split.slice(), shares = a > 0 ? splitShares(a, ids, '', d.parts || {}) : [];
+  const a = parseYen(d.amount), ids = d.split.slice(), shares = splitFor(d, a, ids);
   document.querySelectorAll('[data-pamt]').forEach(el => { const sh = shares.filter(x => x[0] === el.getAttribute('data-pamt'))[0]; el.textContent = sh ? yen(sh[1]) : ''; });
+  const n = document.getElementById('fx-note'), t = trip(); if (n && t) n.textContent = fixedNote(t, d) || '金額を押すと、その人が払う金額を決められます。';
 }
 function splitHint(d){
   const a = parseYen(d.amount);
   if (!(a > 0)) return '金額を入れると、1人あたりの金額が出ます。';
   if (!d.split.length) return '割り勘の対象を選んでください。';
-  const pp = cleanParts(d.parts, d.split), sh = splitShares(a, d.split, '', pp).map(x => x[1]), lo = Math.min.apply(null, sh), hi = Math.max.apply(null, sh);
-  return d.split.length === 1 ? '1人の分として記録します。' : (pp ? '1人 ' : '1人あたり ') + yen(lo) + (lo !== hi ? '〜' + yen(hi) : '') + '（' + d.split.length + '人で割り勘' + (pp ? '・割合あり' : '') + '）';
+  const pp = cleanParts(d.parts, d.split), fx = fixedErr(d) ? null : cleanFixed(fixedNums(d), d.split, a), sh = splitShares(a, d.split, '', pp, fx).map(x => x[1]), lo = Math.min.apply(null, sh), hi = Math.max.apply(null, sh);
+  return d.split.length === 1 ? '1人の分として記録します。' : (pp || fx ? '1人 ' : '1人あたり ') + yen(lo) + (lo !== hi ? '〜' + yen(hi) : '') + '（' + d.split.length + '人で割り勘' + (fx ? '・金額指定あり' : pp ? '・割合あり' : '') + '）';
 }
 
 /* ---- actions ---- */
@@ -1423,6 +1468,7 @@ function readSheet(){
     if (g('f-amount')) s.data.amount = g('f-amount').value;
     if (g('f-title')) s.data.title = g('f-title').value;
     if (g('f-date')) s.data.date = g('f-date').value;
+    document.querySelectorAll('[data-fx]').forEach(el => { s.data.fixed = Object.assign({}, s.data.fixed, { [el.getAttribute('data-fx')]: el.value }); });
   } else if (s.type === 'join-share'){
     if (g('j-name')) s.name = g('j-name').value;
   } else if (s.type === 'settings'){
@@ -1453,6 +1499,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
+  if (e.target.getAttribute && e.target.getAttribute('data-fx') && ui.sheet && ui.sheet.type === 'exp'){ const d = ui.sheet.data; d.fixed = Object.assign({}, d.fixed, { [e.target.getAttribute('data-fx')]: e.target.value }); document.getElementById('f-hint').textContent = splitHint(d); updatePartAmounts(d); return; }
   if (e.target.id === 'f-amount' && ui.sheet){ const fa = fmtAmountInput(e.target.value); if (fa !== e.target.value) e.target.value = fa; ui.sheet.data.amount = fa; e.target.style.width = amtWidth(fa); const sb = document.querySelector('[data-a=save-exp]'); if (sb) sb.disabled = !(parseYen(e.target.value) > 0); document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); updatePartAmounts(ui.sheet.data); }
 });
 
@@ -1651,17 +1698,22 @@ document.addEventListener('click', e => {
 
   else if (a === 'add-exp'){
     const today = todayStr();
-    ui.sheet = { type: 'exp', err: '', editId: null, data: { amount: '', title: '', cat: 'food', payer: meId(t), all: true, parts: {},
+    ui.sheet = { type: 'exp', err: '', editId: null, data: { amount: '', title: '', cat: 'food', payer: meId(t), all: true, parts: {}, fixed: {},
       split: t.members.map(m => m.id), date: (today < t.start || today > t.end) ? t.start : today } };
   }
   else if (a === 'edit-exp'){
     const x = t.expenses.filter(q => q.id === id)[0];
-    ui.sheet = { type: 'exp', err: '', editId: id, partsOpen: !!x.parts, data: { amount: String(x.amount), title: x.title, cat: x.cat, payer: x.payer, split: x.split.slice(), all: x.split.length === t.members.length, date: x.date, parts: x.parts ? Object.assign({}, x.parts) : {} } };
+    ui.sheet = { type: 'exp', err: '', editId: id, partsOpen: !!(x.parts || x.fixed), data: { amount: String(x.amount), title: x.title, cat: x.cat, payer: x.payer, split: x.split.slice(), all: x.split.length === t.members.length, date: x.date, parts: x.parts ? Object.assign({}, x.parts) : {}, fixed: x.fixed ? Object.fromEntries(Object.keys(x.fixed).map(k => [k, String(x.fixed[k])])) : {} } };
   }
   else if (a === 'pick-cat'){ readSheet(); s.data.cat = el.getAttribute('data-v'); }
   else if (a === 'pick-payer'){ readSheet(); s.data.payer = el.getAttribute('data-v'); }
   else if (a === 'split-all'){ readSheet(); s.data.all = true; s.data.split = t.members.map(m => m.id); }   // "全員" and single people are exclusive
   else if (a === 'parts-toggle'){ readSheet(); s.partsOpen = !s.partsOpen; }
+  else if (a === 'fx-on'){   // the amount of this person becomes a box (it starts at what they would pay now); the keyboard stays closed until they tap it
+    readSheet(); const pid = el.getAttribute('data-v'), sh = splitFor(s.data, parseYen(s.data.amount), s.data.split).filter(x => x[0] === pid)[0];
+    s.data.fixed = Object.assign({}, s.data.fixed, { [pid]: sh ? String(sh[1]) : '' });
+  }
+  else if (a === 'fx-off'){ readSheet(); const f = Object.assign({}, s.data.fixed); delete f[el.getAttribute('data-v')]; s.data.fixed = f; }
   else if (a === 'part-inc' || a === 'part-dec'){
     readSheet(); const pid = el.getAttribute('data-v'), cur = (s.data.parts && s.data.parts[pid]) || 2, nx = Math.max(1, Math.min(6, cur + (a === 'part-inc' ? 1 : -1)));
     s.data.parts = Object.assign({}, s.data.parts, { [pid]: nx });
@@ -1675,15 +1727,16 @@ document.addEventListener('click', e => {
     readSheet(); const dd = s.data, amt = parseYen(dd.amount);
     if (!(amt > 0)) s.err = '金額を、1以上の数字で入力してください。';
     else if (!dd.split.length) s.err = '誰の分かを、1人以上選んでください。';
+    else if (fixedErr(dd)) s.err = fixedErr(dd);
     else {
       const order = t.members.map(m => m.id), rec = { title: dd.title.trim(), amount: amt, payer: dd.payer, cat: dd.cat, date: dd.date || todayStr(),
         split: dd.split.slice().sort((x, y) => order.indexOf(x) - order.indexOf(y)) };
-      const pp = cleanParts(dd.parts, rec.split); if (pp) rec.parts = pp;
+      const pp = cleanParts(dd.parts, rec.split), ff = cleanFixed(fixedNums(dd), rec.split, amt); if (pp) rec.parts = pp; if (ff) rec.fixed = ff;
       if (s.editId){
         const x = t.expenses.filter(q => q.id === s.editId)[0], old = JSON.parse(JSON.stringify(x));
-        const moneyChanged = old.amount !== rec.amount || old.payer !== rec.payer || old.split.join() !== rec.split.join() || JSON.stringify(old.parts || null) !== JSON.stringify(rec.parts || null);
+        const moneyChanged = old.amount !== rec.amount || old.payer !== rec.payer || old.split.join() !== rec.split.join() || JSON.stringify(old.parts || null) !== JSON.stringify(rec.parts || null) || JSON.stringify(old.fixed || null) !== JSON.stringify(rec.fixed || null);
         if (isSettled(t, old) && moneyChanged && !s.confirmSettled){ s.confirmSettled = true; render(); return; }   // closed round: ask first
-        Object.assign(x, rec); if (!rec.parts) delete x.parts;
+        Object.assign(x, rec); if (!rec.parts) delete x.parts; if (!rec.fixed) delete x.fixed;
         const adj = expenseAdjustment(t, old, x, uid(), '「' + (rec.title || (CAT[rec.cat] || CAT.other)[2]) + '」の変更', todayStr());
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }

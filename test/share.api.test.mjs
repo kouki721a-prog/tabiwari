@@ -153,6 +153,16 @@ try {
     assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'members', rows: [{ ...mem('m3', 'みく', 2), note: '現金' }] }])).status, 200); assert.strictEqual((await notes()).m3, '現金', 'a member can join with a memo');
     for (const bad of ['あ'.repeat(61), 5, ['x']]) assert.strictEqual((await ops(T, [{ kind: 'update', table: 'members', row: { ...mem('m1', 'あおい', 0), note: bad } }])).status, 400, JSON.stringify(bad)); }
 
+  // --- 金額の指定 (fixed): stored, returned, validated; an older app that sends none must not wipe it; null takes it away
+  { const T = await make(); const get = async () => (await call(T, 'GET', '/api/trip')).body.trip.expenses.find(e => e.id === 'e1');
+    assert.strictEqual((await get()).fixed, null, 'none by default');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'expenses', row: exp('e1', { fixed: { m2: 500 } }) }])).status, 200); assert.deepStrictEqual((await get()).fixed, { m2: 500 });
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'expenses', row: exp('e1', { amount: 3300 }) }])).status, 200); const kept = await get(); assert.strictEqual(kept.amount, 3300); assert.deepStrictEqual(kept.fixed, { m2: 500 }, 'an update without fixed leaves it alone (older apps)');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'expenses', row: exp('e1', { fixed: null }) }])).status, 200); assert.strictEqual((await get()).fixed, null, 'null takes it away');
+    assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'expenses', rows: [exp('e3', { fixed: { m1: 1000, m2: 2000 } })] }])).status, 200, 'everybody fixed, adding up to the amount');
+    for (const bad of [{ m1: -1 }, { m1: 1.5 }, { m1: '5' }, { zz: 5 }, [5], {}, { m1: 4000 }, { m1: 1000, m2: 1000 }])
+      assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'expenses', rows: [exp('e4', { fixed: bad })] }])).status, 400, JSON.stringify(bad)); }
+
   // --- creating trips is rate limited (per day, per IP)
   let limited = false;
   for (let i = 0; i < 30 && !limited; i++) limited = (await make2(tok('r'))).status === 429;

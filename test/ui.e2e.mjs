@@ -336,6 +336,25 @@ try {
     assert.deepStrictEqual(await q.evaluate(() => [state.trips[1].members[0].note, state.payNote]), [undefined, undefined], 'clearing takes the memo away');
     assert.deepStrictEqual(qerrs, []); await c11.close(); }
 
+  // 金額の指定: tap a person's amount, type the amount they pay; the rest goes to the others; errors are explained; the keyboard stays closed
+  { const c12 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c12.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'こども', pos: 1 }, { id: 'c', name: 'けんた', pos: 2 }], paid: {}, savings: {}, expenses: [] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('nav [data-a=add-exp]'); await q.waitForSelector('#f-amount');
+    await q.fill('#f-amount', '5000'); await q.click('[data-a=parts-toggle]'); await q.waitForSelector('.prow');
+    assert.ok((await q.textContent('.fxnote')).includes('金額を押すと'), 'the panel explains how'); assert.deepStrictEqual(await q.locator('[data-pamt]').allTextContents(), ['1,666円', '1,667円', '1,667円']);
+    await q.click('[data-a=fx-on][data-pamt="c"]'); await q.waitForSelector('.fxin'); assert.strictEqual(await q.inputValue('.fxin'), '1667', 'it starts at what the person pays now');
+    assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.classList.contains('fxin')), false, 'the keyboard does not open by itself');
+    await q.fill('.fxin', '1000'); assert.deepStrictEqual(await q.locator('[data-pamt]').allTextContents(), ['2,000円', '2,000円'], 'the others share the rest'); assert.ok((await q.textContent('.fxnote')).includes('けんたの1,000円を引いた 4,000円 を、ほかの2人で分けます。'), await q.textContent('.fxnote'));
+    assert.ok((await q.textContent('#f-hint')).includes('金額指定あり'), await q.textContent('#f-hint'));
+    await q.fill('.fxin', '9000'); assert.ok((await q.textContent('.fxnote')).includes('超えています')); await q.click('[data-a=save-exp]'); await see(q, '指定の合計が、金額を超えています。'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses.length), 0, 'nothing recorded');
+    await q.fill('.fxin', '1000'); await q.locator('[data-a=part-dec]').first().click(); assert.deepStrictEqual(await q.locator('[data-pamt]').allTextContents(), ['1,333円', '2,667円'], 'weights still apply to the others (あおい 0.5x of 4,000)'); await q.locator('[data-a=part-inc]').first().click();
+    await q.click('[data-a=save-exp]'); await see(q, '金額を指定して割り勘'); assert.deepStrictEqual(await q.evaluate(() => state.trips[0].expenses[0].fixed), { c: 1000 });
+    await q.click('[data-a=tab][data-t=settle]'); await see(q, 'けんた'); assert.deepStrictEqual(await q.evaluate(() => calcBalances(state.trips[0]).owed), { a: 2000, b: 2000, c: 1000 });
+    await q.click('[data-a=tab][data-t=exp]'); await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('.fxin'); assert.strictEqual(await q.inputValue('.fxin'), '1000', 'it comes back when editing');
+    await q.click('[data-a=fx-off]'); await q.waitForFunction(() => !document.querySelector('.fxin')); await q.click('[data-a=save-exp]'); await see(q, '全員で割り勘'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses[0].fixed), undefined, 'equal again: no fixed amounts kept');
+    assert.deepStrictEqual(qerrs, []); await c12.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
