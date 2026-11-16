@@ -1052,6 +1052,7 @@ function viewHome(){
       '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
       (pre ? '<div class="right"><div class="sub sm">積立（目標 ' + yen(t.budget) + '）</div><div class="num">' + yen(savedOf(t)) + '</div></div></div>' : '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>') +
       '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></button>';
+    if (status(t)[0] === '終了' && t.members.length > 1) h += '<button class="btn line inv" data-a="next-trip" data-id="' + t.id + '">同じメンバーで次の旅行をつくる</button>';   // starts the next trip from this one
     if (t.members.length === 1) h += '<button class="btn line inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button>';   // only while I am the only member
   });
   h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
@@ -1076,7 +1077,7 @@ function viewNew(){
     '<label class="lab" for="d-budget">全体の予算（円）</label><input class="field" id="d-budget" type="text" inputmode="numeric" data-draft="budget" value="' + esc(d.budget) + '" placeholder="例：50000">' +
     '<div class="chips" style="margin-top:10px">' + [30000, 50000, 100000].map(n => '<button class="chip plain" data-a="preset" data-v="' + n + '">' + n.toLocaleString('ja-JP') + '</button>').join('') + '</div>' +
     '<label class="lab" for="d-me">あなたの名前</label><input class="field" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">' +
-    '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあとに、旅行の設定の「友だちと共有」から誘えます。</div>' +
+    (d.from ? '<div class="panel" style="margin-top:10px;padding:10px 12px;font-size:13px">「' + esc(d.from.name) + '」のメンバー（' + esc(d.from.names) + '）を、つくったあとの画面で、招待できます。</div>' : '') + '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあとに、旅行の設定の「友だちと共有」から誘えます。</div>' +
     '<button class="link" data-a="make-demo" style="width:auto;padding:12px 0 0;font-size:12px">動作確認用に、3人のテスト旅行をつくる</button>';
   if (d.err) h += '<div class="err" role="alert">' + esc(d.err) + '</div>';
   return h + '</div><div class="cta"><button class="btn" data-a="save-trip">この内容でつくる</button></div>';
@@ -1465,6 +1466,13 @@ document.addEventListener('click', e => {
   else if (a === 'install'){ if (deferredInstall){ deferredInstall.prompt(); deferredInstall = null; } }
   else if (a === 'dismiss-install'){ try { localStorage.setItem('tabiwari.noinstall', '1'); } catch(err){} }
   else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
+  else if (a === 'next-trip'){   // a new trip with the same name base, length, budget and my name. Members join again by invite (they join themselves).
+    const t0 = state.trips.find(x => x.id === id); if (!t0) return;
+    const d = todayStr(), mine = t0.members.find(m => m.name === state.me) || t0.members[0], others = t0.members.filter(m => m !== mine).map(m => m.name);
+    ui.draft = Object.assign(newDraft(), { name: t0.name + '（次の旅行）', end: addDays(d, Math.max(0, dayDiff(t0.start, t0.end))), budget: String(t0.budget), me: mine.name,
+      from: { name: t0.name, names: others.join('、') } });
+    ui.view = 'new';
+  }
   else if (a === 'line-login'){ lineLogin(); return; }
   else if (a === 'line-cancel'){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; }
   else if (a === 'recap'){
@@ -1593,7 +1601,9 @@ document.addEventListener('click', e => {
       const me = d.me.trim(); state.me = me;
       const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, savings: {}, settlements: [], adjustments: [],
         members: [{ id: uid(), name: me, pos: 0 }], expenses: [] };
+      const next = !!d.from;
       state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
+      if (next) setTimeout(() => { const b = document.querySelector('[data-a="invite"][data-id="' + nt.id + '"]'); if (b) b.click(); }, 0);   // opens the invite right away, for the same friends
     }
   }
   else if (a === 'make-demo'){   // a 3-person trip with a few receipts, to try settlement and payment requests alone
