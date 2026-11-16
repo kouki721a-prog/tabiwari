@@ -6,7 +6,7 @@ import { reply } from './util.js';
    (a free daily allowance for the whole account: TOTAL calls a day are allowed here so the allowance is not used up; past it, たびまる rests until tomorrow, nothing is charged
    on the Free plan). Without either it is off; AI_OFF=1 (a variable in Cloudflare) turns it off at once.
    What is sent to the AI service: the sentence or the picture, the names of the trip's members, today's date and the trip's dates. The picture is not stored. */
-const DAILY = 5, MONTHLY = 2000, TOTAL = 100, MODEL = 'claude-haiku-5-5', WORKERS_MODEL = '@cf/google/gemma-3-12b-it', MAX_TEXT = 300, MAX_IMAGE = 1500000, MAX_NAMES = 12;
+const DAILY = 5, MONTHLY = 2000, TOTAL = 100, MODEL = 'claude-haiku-5-5',  MAX_TEXT = 300, MAX_IMAGE = 1500000, MAX_NAMES = 12;
 const CATS = ['transport', 'stay', 'food', 'sight', 'gift', 'other'];
 const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v));
 const jstDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
@@ -125,21 +125,34 @@ function pickJson(out) {
   const a = v.indexOf('{'), z = v.lastIndexOf('}'); if (a < 0 || z <= a) return null;
   try { return JSON.parse(v.slice(a, z + 1)); } catch (e) { return null; }
 }
+/* The models are tried one after another (an account may not be allowed to use some: "5018"); the first that answers wins. Text: Llama 3.3 70B, then Llama 3.1 8B. A photo: Llama 3.2 11B Vision.
+   AI_WORKERS_MODEL / AI_WORKERS_VISION_MODEL put another model first. */
+const TEXT_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct'], VISION_MODELS = ['@cf/meta/llama-3.2-11b-vision-instruct'];
 async function askWorkers(env, m, note) {
-  const model = env.AI_WORKERS_MODEL || WORKERS_MODEL;
   const run = testAi(env) ? (mdl, inp) => fetch(env.AI_FAKE_URL, { method: 'POST', body: JSON.stringify({ model: mdl, input: inp }) }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'fake ' + r.status); return d; }) : (mdl, inp) => env.AI.run(mdl, inp);
-  const user = m ? [{ type: 'text', text: note + JSON_HELP }, { type: 'image_url', image_url: { url: 'data:' + m[1] + ';base64,' + m[2] } }] : note + JSON_HELP;
+  const models = [...new Set([m ? env.AI_WORKERS_VISION_MODEL : env.AI_WORKERS_MODEL].concat(m ? VISION_MODELS : TEXT_MODELS).filter(Boolean))];
+  const text = note + JSON_HELP, fmt = { response_format: { type: 'json_schema', json_schema: TOOL.input_schema } };
+  const user = m ? [{ type: 'text', text }, { type: 'image_url', image_url: { url: 'data:' + m[1] + ';base64,' + m[2] } }] : text;
   const base = { messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], max_tokens: 700, temperature: 0.1 };
-  const attempt = async (withFormat) => {
-    try { return await run(model, withFormat ? { ...base, response_format: { type: 'json_schema', json_schema: TOOL.input_schema } } : base); }
-    catch (e) {
-      const msg = String(e && e.message || e);
-      if (/allocation|neurons|4006/i.test(msg)) { const b = new Error('busy'); b.busy = true; throw b; }
-      if (/agree/i.test(msg)) { await run(model, { prompt: 'agree' }); return run(model, withFormat ? { ...base, response_format: { type: 'json_schema', json_schema: TOOL.input_schema } } : base); }
-      throw e;
+  const legacy = m ? { prompt: SYSTEM + '\n\n' + text, image: [...Uint8Array.from(atob(m[2]), c => c.charCodeAt(0))], max_tokens: 700 } : null;   // the older way a vision model takes a picture
+  const errors = [];
+  for (const model of models) {
+    const attempt = async (inp) => {
+      try { return await run(model, inp); }
+      catch (e) {
+        const msg = String(e && e.message || e);
+        if (/allocation|neurons|4006/i.test(msg)) { const b = new Error('busy'); b.busy = true; throw b; }
+        if (/agree/i.test(msg) && !/5018/.test(msg)) { await run(model, { prompt: 'agree' }); return run(model, inp); }   // a model that wants its licence accepted
+        throw e;
+      }
+    };
+    let out = null;
+    for (const inp of [{ ...base, ...fmt }, base].concat(legacy ? [legacy] : [])) {   // some models do not take response_format; a vision model may want the older way
+      try { out = await attempt(inp); break; } catch (e) { if (e && e.busy) throw e; errors.push('[' + model.split('/').pop() + '] ' + String(e && e.message || e).slice(0, 110)); }
     }
-  };
-  let out; try { out = await attempt(true); } catch (e) { if (e && e.busy) throw e; try { out = await attempt(false); } catch (e2) { if (e2 && e2.busy) throw e2; const d = new Error(String(e2 && e2.message || e2)); d.detail = '[' + model + '] ' + String(e && e.message || e).slice(0, 120) + ' / ' + String(e2 && e2.message || e2).slice(0, 120); throw d; } }   // some models do not take response_format
-  const j = pickJson(out); if (j === null) return { readable: false, _detail: '[' + model + '] 答えが、JSONではありませんでした: ' + JSON.stringify(out).slice(0, 160) };   // the sentence was not an expense, or the model answered in words
-  return j;
+    if (out === null) continue;
+    const j = pickJson(out); if (j === null) return { readable: false, _detail: '[' + model.split('/').pop() + '] 答えが、JSONではありませんでした: ' + JSON.stringify(out).slice(0, 160) };   // the sentence was not an expense, or the model answered in words
+    return j;
+  }
+  const d = new Error(errors[errors.length - 1] || 'no model'); d.detail = errors.join(' | ').slice(0, 300); throw d;
 }

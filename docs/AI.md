@@ -5,7 +5,7 @@
 ## いまの使い方（無料）
 **Cloudflare の無料のAI（Workers AI）** を使います（`wrangler.jsonc` の `ai` の設定）。APIキーも、新しい契約も、要りません。**公開すると、ログインした人には、ボタンが出ます。**
 - 無料枠は、Cloudflare のアカウント全体で、1日分です。使い切らないように、**全体で1日100回**までにしています（`AI_DAILY_TOTAL`）。届いた日は、「たびまるは、今日は…おやすみです」と出て、明日また使えます。Free プランでは、枠を超えても、請求されません（Workers Paid プランの場合は、超えた分が請求されます。プランを確認してください）。
-- 使うモデルは、`@cf/google/gemma-3-12b-it`（変数 `AI_WORKERS_MODEL` で変えられます。精度が足りなければ、別のモデルを試せます）。
+- 使うモデル: 文章は `@cf/meta/llama-3.3-70b-instruct-fp8-fast`（だめなら `@cf/meta/llama-3.1-8b-instruct`）、写真は `@cf/meta/llama-3.2-11b-vision-instruct`。アカウントで使えないモデルは、次のモデルに、自動で切り替わります。変数 `AI_WORKERS_MODEL`（文章）・`AI_WORKERS_VISION_MODEL`（写真）で、先に試すモデルを変えられます。
 - **止めたいとき**: Cloudflare の変数に `AI_OFF` = `1` を足すと、すぐ止まります（ボタンが消えます）。
 - 精度は、公開して、試すまで、わかりません（日本語の口語、レシートの写真）。
 
