@@ -259,6 +259,10 @@ try {
     await q.fill('#q-quick', '夕食 3000円 けんたは半分'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 3,000円（けんた 0.5倍）を記録しました');
     assert.deepStrictEqual(await q.evaluate(() => state.trips[0].expenses.find(e => e.amount === 3000).parts), { a: 2, b: 1 }, 'the weight written after the name is kept'); assert.ok((await q.textContent('#exp-list')).includes('割合を指定して割り勘'));
     await q.fill('#q-quick', '夕食 3000円 けんたは4倍'); await q.press('#q-quick', 'Enter'); await see(q, '割合は、0.5倍から3倍まで'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses.length), 2, 'nothing recorded for a bad weight');
+    // leaving a person out
+    await q.fill('#q-quick', '夕食 2000円 けんたなし'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 2,000円（けんたなし）を記録しました');
+    assert.deepStrictEqual(await q.evaluate(() => state.trips[0].expenses.filter(e => e.amount === 2000).pop().split), ['a'], 'only あおい shares it (the newest 2,000 yen one)'); assert.ok((await q.textContent('#exp-list')).includes('あおいの分'));
+    await q.fill('#q-quick', '夕食 2000円 あおいなし けんた抜き'); await q.press('#q-quick', 'Enter'); await see(q, '全員を外すことは、できません'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses.length), 3, 'nothing recorded when everybody is left out');
     assert.deepStrictEqual(qerrs, []); await c7.close(); }
 
   // 割合を変える: a weight per person in the record sheet (0.5x to 3x), shown in the hint and the list, used by the settlement; taking it away goes back to equal
