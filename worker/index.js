@@ -2,6 +2,7 @@ import { reply, sha256hex, limited } from './util.js';
 import { ACCOUNT_SCHEMA, handleAccount, purgeAccountData } from './account.js';
 import { runReminders } from './reminders.js';
 import { notifyOps, reachable } from './settlenotify.js';
+import { lineWebhook } from './linewebhook.js';
 
 /* たびわり sharing API: Cloudflare Worker + D1.
    A shared trip is reachable only with its secret token (sent as `Authorization: Bearer <token>`).
@@ -189,6 +190,8 @@ export default {
     try {
       await ensure(env);
       if (env.TEST_HOOKS === '1' && url.pathname === '/api/_test/reminders' && req.method === 'POST') { const b = await req.json(); return reply(await runReminders(env, b.now)); }   // tests only: the variable is never set in production
+      if (url.pathname === '/api/line/webhook') return await lineWebhook(req, env);   // called by LINE (signed), not by the app
+      if (env.TEST_HOOKS === '1' && url.pathname === '/api/_test/friend' && req.method === 'GET') { const u = await env.DB.prepare('SELECT friend_flag, friend_changed FROM users WHERE line_sub = ?').bind(url.searchParams.get('sub')).first(); return reply(u || {}); }   // tests only
       const acct = await handleAccount(req, env, url);
       if (acct) return acct;
       const m = /^Bearer (\S+)$/.exec(req.headers.get('Authorization') || '');

@@ -43,7 +43,7 @@ const device = async (opts = {}) => {
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   return { ctx, p };
 };
-const login = async p => { await p.goto(base + '/'); await p.click('[data-a=line-login]'); await p.waitForURL(/\/api\/auth\/line\/callback/); await p.click('a[href="/"]'); await p.waitForFunction(() => lineAcct.user); };
+const login = async p => { await p.goto(base + '/'); await p.click('[data-a=line-login]'); await p.waitForURL(/\/api\/auth\/line\/callback/); await p.click('a[href="/"]'); await p.waitForFunction(() => typeof lineAcct !== 'undefined' && lineAcct.user); };
 const newTrip = async (p, name, start, end) => { await p.click('[data-a=new]'); await p.fill('#d-name', name); await p.fill('#d-start', start); await p.fill('#d-end', end); await p.fill('#d-budget', '30000'); await p.fill('#d-me', 'あおい'); await p.click('[data-a=save-trip]'); await p.click('[data-a=home]'); };
 
 try {

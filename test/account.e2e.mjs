@@ -29,7 +29,7 @@ try {
 
   await d1.p.click('[data-a=line-login]'); await d1.p.waitForURL(/\/api\/auth\/line\/callback/); await see(d1.p, 'ログインできました');
   await d1.p.click('a[href="/"]');                                                 // "back to たびわり": the app finds the finished login by itself
-  await see(d1.p, 'LINEでログインしました'); await d1.p.waitForFunction(() => lineAcct.user); assert.strictEqual(await d1.p.locator('text=でログイン中').count(), 0, 'the home page does not show the account line');
+  await see(d1.p, 'LINEでログインしました'); await d1.p.waitForFunction(() => typeof lineAcct !== 'undefined' && lineAcct.user); assert.strictEqual(await d1.p.locator('text=でログイン中').count(), 0, 'the home page does not show the account line');
   await d1.p.click('[data-a=app-settings]'); await see(d1.p, '友だち追加する'); assert.strictEqual(await d1.p.getAttribute('a:has-text("友だち追加する")', 'href'), 'https://line.me/R/ti/p/%40896znnha', 'the official account friend-add link'); await d1.p.click('[data-a=close-sheet]');
   await d1.p.waitForFunction(() => lineAcct.count === 2, null, { timeout: 12000 });
   assert.strictEqual(await d1.p.locator('text=LINEでログインすると').count(), 0, 'the login card goes away');
@@ -60,7 +60,7 @@ try {
   // ---------- a different LINE person sees nothing
   const d3 = await device(); line.setIdentity('U-other', '別の人');
   await d3.p.goto(base + '/'); await d3.p.click('[data-a=line-login]'); await d3.p.waitForURL(/\/api\/auth\/line\/callback/); await d3.p.click('a[href="/"]');
-  await d3.p.waitForFunction(() => lineAcct.user); await d3.p.waitForTimeout(800);
+  await d3.p.waitForFunction(() => typeof lineAcct !== 'undefined' && lineAcct.user); await d3.p.waitForTimeout(800);
   assert.strictEqual(await d3.p.locator('text=バックアップから戻す').count(), 0, 'no restore offered: this account has no backup');
   await d3.p.click('[data-a=app-settings]'); await d3.p.click('[data-a=line-account]'); await see(d3.p, 'LINEアカウント'); await d3.p.click('[data-a=bk-restore]'); await see(d3.p, '戻すものはありません');
   await d3.p.click('[data-a=close-sheet]');
