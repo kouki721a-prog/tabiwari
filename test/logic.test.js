@@ -234,3 +234,18 @@ console.log('settlement round tests passed');
   const bad = L.importCsv({ members: t.members, expenses: [] }, '日付,内容,カテゴリ,金額,払った人,割り勘の対象\r\n2026-11-10,x,食事,300,あおい,あおい(5)・こども', () => 'm', { 食事: 'food' }); assert.ok(bad.skipped.length === 1 && /割合/.test(bad.skipped[0].why), JSON.stringify(bad));
   console.log('weighted split tests passed');
 }
+{
+  // weights written after a name in the one-line input
+  const q = L.parseQuick, names = ['あおい', 'けんた', 'こども', 'こう', 'こうき'], w = s => { const r = q(s, names); return r && [r.title, r.amount, r.weights, r.weightError]; };
+  assert.deepStrictEqual(w('夕食 3000円 こどもは半分'), ['夕食', 3000, { こども: 1 }, false]);
+  assert.deepStrictEqual(w('ランチ 1500 あおい1.5倍 けんた0.5倍'), ['ランチ', 1500, { あおい: 3, けんた: 1 }, false], 'two people, and the amount is still found');
+  assert.deepStrictEqual(w('夕食 4000円 けんた×2'), ['夕食', 4000, { けんた: 4 }, false]); assert.deepStrictEqual(w('夕食 4000円 けんたx2'), ['夕食', 4000, { けんた: 4 }, false]);
+  assert.deepStrictEqual(w('夕食 4000円 みくけんた(0.5)'), ['夕食 みく', 4000, { けんた: 1 }, false], 'brackets');
+  assert.deepStrictEqual(w('こどもは半額 夕食 3000円'), ['夕食', 3000, { こども: 1 }, false], 'the name can come first');
+  assert.deepStrictEqual(w('夕食 3000円 けんたは多め'), ['夕食', 3000, { けんた: 3 }, false]); assert.deepStrictEqual(w('夕食 3000円 けんたは少なめ'), ['夕食', 3000, { けんた: 1 }, false]);
+  assert.deepStrictEqual(w('夕食 3000円 こうき半分'), ['夕食', 3000, { こうき: 1 }, false], 'the longest name wins (こう / こうき)');
+  assert.deepStrictEqual(w('夕食 3000円 こどもは4倍'), ['夕食', 3000, {}, true], 'out of range: an error'); assert.strictEqual(w('夕食 3000円 けんた0.3倍')[3], true); assert.strictEqual(w('夕食 3000円 けんた1.7倍')[3], true);
+  assert.deepStrictEqual(w('夕食 3000円'), ['夕食', 3000, {}, false], 'no weights'); assert.deepStrictEqual(w('あおいと夕食 3000円'), ['あおいと夕食', 3000, {}, false], 'a name alone is just text');
+  assert.deepStrictEqual(q('夕食 3000円 こどもは半分'), { title: '夕食 こどもは半分', amount: 3000, cat: 'food', offset: 0, weights: {}, weightError: false }, 'without names it is the same as before');
+  console.log('quick input weights tests passed');
+}
