@@ -385,7 +385,8 @@ try {
     await q.click('.usage'); await q.waitForSelector('[data-cap]'); await q.fill('[data-cap=food]', ''); await q.fill('[data-cap=gift]', ''); await q.click('[data-a=caps-save]'); await see(q, '上限を外しました'); assert.strictEqual(await q.evaluate(() => state.trips[0].caps), undefined);
     assert.deepStrictEqual(qerrs, []); await c14.close(); }
 
-  // たびまる: the buttons show only when the server has it on; login is needed; a proposal is confirmed before anything is recorded; limits and errors are explained
+  // たびまる: one entrance (the box). Simple sentences are recorded at once (no AI); what the quick record cannot read (who paid, who shares, several expenses) goes to たびまる by itself;
+  // a photo goes through the camera button; a proposal is confirmed (and can be picked item by item) before anything is recorded; limits and errors are explained
   { const c15 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c15.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message));
     let status = { enabled: false, login: false, remaining: null }, parse = null; const sent = [];
     await q.route('**/api/**', r => { const u = r.request().url();
@@ -395,30 +396,46 @@ try {
     await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
       localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }], paid: {}, savings: {}, expenses: [] }] })); });
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('#q-quick'); await q.waitForTimeout(300);
-    assert.strictEqual(await q.locator('.aibtn').count(), 0, 'off on the server: no buttons');
-    status = { enabled: true, login: false, remaining: null }; await q.evaluate(() => refreshAi()); await q.waitForSelector('.aibtn'); assert.strictEqual(await q.locator('.aibtn').count(), 2);
-    await q.fill('#q-quick', '昨日の夕食、けんたが立て替えて3人で割った 6000円'); await q.click('[data-a=ai-text]'); await see(q, 'LINEでログインすると、たびまるに頼めます。'); assert.strictEqual(sent.length, 0, 'not logged in: nothing is sent');
+    const SENTENCE = '昨日の夕食、けんたが立て替えて3人で割った 6000円', len = () => q.evaluate(() => state.trips[0].expenses.length);
+    assert.strictEqual(await q.locator('.aibtn').count(), 0, 'off on the server: no camera'); assert.strictEqual(await q.locator('[data-a=ai-text]').count(), 0, 'there is no separate たびまる button');
+    // off: a simple sentence is recorded; one the quick record cannot read is NOT recorded wrongly
+    await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 2,000円を記録しました'); assert.strictEqual(await len(), 1);
+    await q.fill('#q-quick', SENTENCE); await q.press('#q-quick', 'Enter'); await see(q, '払った人が書いてあるようです'); assert.strictEqual(await len(), 1, 'nothing wrong is recorded'); assert.strictEqual(sent.length, 0);
+    status = { enabled: true, login: false, remaining: null }; await q.evaluate(() => refreshAi()); await q.waitForSelector('.aibtn'); assert.strictEqual(await q.locator('.aibtn').count(), 1, 'only the camera');
+    await q.fill('#q-quick', SENTENCE); await q.press('#q-quick', 'Enter'); await see(q, 'LINEにログインすると、たびまるが読み取ります'); assert.strictEqual(await len(), 1); assert.strictEqual(sent.length, 0, 'not logged in: nothing is sent');
+    await q.click('[data-a=ai-photo]'); await see(q, 'LINEでログインすると、たびまるに頼めます。');
     status = { enabled: true, login: true, remaining: 5 }; await q.evaluate(() => refreshAi()); await q.waitForFunction(() => ui.ai.login);
-    await q.fill('#q-quick', ''); await q.click('[data-a=ai-text]'); await see(q, '文章を、入力欄に書いてください'); assert.strictEqual(sent.length, 0, 'an empty box: nothing is sent');
-    const today = await q.evaluate(() => todayStr()); parse = { status: 200, json: { ok: true, remaining: 4, result: { ok: true, title: '夕食', amount: 6000, category: 'food', date: today, payer: 'けんた', split: 'all', fixed: { みく: 1000 }, comment: '夕食 6,000円ですね。けんたさんが払って、3人で割ります。' } } };
-    await q.fill('#q-quick', '昨日の夕食、けんたが立て替えて3人で割った 6000円'); await q.click('[data-a=ai-text]'); await see(q, '少し待ってください'); await see(q, '夕食 6,000円ですね。けんたさんが払って、3人で割ります。');
-    assert.deepStrictEqual([sent[0].text, sent[0].names, sent[0].me, sent[0].today], ['昨日の夕食、けんたが立て替えて3人で割った 6000円', ['あおい', 'けんた', 'みく'], 'あおい', today]); assert.strictEqual(sent[0].image, undefined);
+    // logged in: the simple sentence still goes straight in (no AI call); the hard one goes to たびまる by itself
+    await q.fill('#q-quick', 'タクシー 1,200円'); await q.press('#q-quick', 'Enter'); await see(q, 'タクシー 1,200円を記録しました'); assert.strictEqual(sent.length, 0, 'a simple sentence does not use たびまる'); assert.strictEqual(await len(), 2);
+    const today = await q.evaluate(() => todayStr()), item = { ok: true, title: '夕食', amount: 6000, category: 'food', date: today, payer: 'けんた', split: 'all', fixed: { みく: 1000 } };
+    parse = { status: 200, json: { ok: true, remaining: 4, result: { comment: '夕食 6,000円ですね。けんたさんが払って、3人で割ります。', items: [item] } } };
+    await q.fill('#q-quick', SENTENCE); await q.press('#q-quick', 'Enter'); await see(q, '少し待ってください'); await see(q, '夕食 6,000円ですね。けんたさんが払って、3人で割ります。');
+    assert.deepStrictEqual([sent[0].text, sent[0].names, sent[0].me, sent[0].today], [SENTENCE, ['あおい', 'けんた', 'みく'], 'あおい', today]); assert.strictEqual(sent[0].image, undefined);
     const sheet = await q.textContent('.sheet'); assert.ok(sheet.includes('けんた') && sheet.includes('6,000円') && sheet.includes('みく 1,000円') && sheet.includes('まだ記録していません') && sheet.includes('あと4回'), sheet);
-    assert.strictEqual(await q.evaluate(() => state.trips[0].expenses.length), 0, 'a proposal is not a record');
-    await q.click('[data-a=ai-edit]'); await q.waitForSelector('#f-amount'); assert.strictEqual(await q.inputValue('#f-amount'), '6,000'); assert.strictEqual(await q.evaluate(() => ui.sheet.data.payer), 'b'); assert.strictEqual(await q.evaluate(() => ui.sheet.data.fixed.c), '1000'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses.length), 0); await q.click('[data-a=close-sheet]');
-    await q.fill('#q-quick', '夕食 6000円 けんたが払って みくは1000円'); await q.click('[data-a=ai-text]'); await see(q, 'まだ記録していません'); await q.click('[data-a=ai-record]'); await see(q, '夕食 6,000円を記録しました');
-    assert.deepStrictEqual(await q.evaluate(() => { const e = state.trips[0].expenses[0]; return [e.amount, e.payer, e.split, e.fixed, e.cat]; }), [6000, 'b', ['a', 'b', 'c'], { c: 1000 }, 'food']);
+    assert.strictEqual(await len(), 2, 'a proposal is not a record');
+    await q.click('[data-a=ai-edit]'); await q.waitForSelector('#f-amount'); assert.strictEqual(await q.inputValue('#f-amount'), '6,000'); assert.strictEqual(await q.evaluate(() => ui.sheet.data.payer), 'b'); assert.strictEqual(await q.evaluate(() => ui.sheet.data.fixed.c), '1000'); assert.strictEqual(await len(), 2); await q.click('[data-a=close-sheet]');
+    await q.fill('#q-quick', '夕食 6000円 けんたが払って みくは1000円だけ'); await q.press('#q-quick', 'Enter'); await see(q, 'まだ記録していません'); await q.click('[data-a=ai-record]'); await see(q, '夕食 6,000円を記録しました');
+    assert.deepStrictEqual(await q.evaluate(() => { const e = state.trips[0].expenses[2]; return [e.amount, e.payer, e.split, e.fixed, e.cat]; }), [6000, 'b', ['a', 'b', 'c'], { c: 1000 }, 'food']);
+    // several expenses in one sentence: a checklist, item by item; the undo takes all of them away
+    const it = (t, a, extra = {}) => ({ ok: true, title: t, amount: a, category: 'food', date: today, payer: null, split: 'all', fixed: {}, ...extra });
+    parse = { status: 200, json: { ok: true, remaining: 3, result: { comment: '3件、読み取りました。', items: [it('昼', 1200), it('夜', 3000), it('タクシー', 1500, { category: 'transport', payer: 'あおい', split: ['あおい', 'けんた'] })] } } };
+    await q.fill('#q-quick', '昼 1200、夜 3000、タクシー 1500はあおいが払った'); await q.press('#q-quick', 'Enter'); await see(q, '3件、読み取りました。'); assert.strictEqual(await q.locator('.aichk').count(), 3);
+    assert.ok((await q.textContent('[data-a=ai-record]')).includes('3件を記録する')); assert.strictEqual(await q.locator('[data-a=ai-edit]').count(), 0, 'no "fix in the record screen" for several');
+    await q.click('.aichk >> nth=1'); assert.ok((await q.textContent('[data-a=ai-record]')).includes('2件を記録する')); assert.ok((await q.textContent('.sheet')).includes('チェックを入れた2件が、記録されます')); assert.strictEqual(await q.getAttribute('.aichk >> nth=1', 'aria-checked'), 'false');
+    const n0 = await len(); await q.click('[data-a=ai-record]'); await see(q, '2件（合わせて 2,700円）を記録しました'); assert.strictEqual(await len(), n0 + 2, 'only the checked ones');
+    assert.deepStrictEqual(await q.evaluate(() => state.trips[0].expenses.slice(-2).map(e => [e.title, e.amount])), [['昼', 1200], ['タクシー', 1500]]); await q.click('[data-a=undo]'); await q.waitForFunction(n => state.trips[0].expenses.length === n, n0);
+    await q.fill('#q-quick', '昼 1200、夜 3000、タクシー 1500'); await q.press('#q-quick', 'Enter'); await see(q, '3件、読み取りました。'); await q.click('.aichk >> nth=0'); await q.click('.aichk >> nth=1'); await q.click('.aichk >> nth=2'); assert.strictEqual(await q.isDisabled('[data-a=ai-record]'), true, 'nothing checked: nothing to record'); await q.click('[data-a=close-sheet]');
     // a photo of a receipt: made small on the device and sent as a jpeg, with the same confirmation
-    parse = { status: 200, json: { ok: true, remaining: 3, result: { ok: true, title: 'ローソン', amount: 540, category: 'other', date: null, payer: null, split: 'all', fixed: {}, comment: 'ローソン 540円ですね。みんなで割ります。' } } };
+    parse = { status: 200, json: { ok: true, remaining: 2, result: { comment: 'ローソン 540円ですね。みんなで割ります。', items: [it('ローソン', 540, { category: 'other' })] } } };
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
     await q.setInputFiles('#ai-file', { name: 'r.png', mimeType: 'image/png', buffer: png }); await see(q, 'ローソン 540円ですね。'); assert.ok(sent[sent.length - 1].image.startsWith('data:image/jpeg;base64,'), 'sent as a jpeg'); await q.click('[data-a=ai-record]'); await see(q, 'ローソン 540円を記録しました');
     assert.strictEqual(await q.evaluate(() => state.trips[0].expenses.find(e => e.title === 'ローソン').payer), 'a', 'no payer written: me');
     // errors are said gently; a used-up day stops the next ask before it is sent
-    parse = { status: 422, json: { error: 'unreadable', remaining: 2 } }; await q.fill('#q-quick', 'こんにちは'); await q.click('[data-a=ai-text]'); await see(q, 'うまく読み取れませんでした'); await q.click('[data-a=close-sheet]');
-    parse = { status: 502, json: { error: 'upstream', detail: '[model] boom / boom' } }; await q.click('[data-a=ai-text]'); await see(q, '回数は、減っていません'); await see(q, 'くわしい内容（開発者向け）：[model] boom / boom'); await q.click('[data-a=close-sheet]');
-    parse = { status: 429, json: { error: 'busy' } }; await q.click('[data-a=ai-text]'); await see(q, 'たくさん読み取って、おやすみです'); await q.click('[data-a=close-sheet]');
-    parse = { status: 429, json: { error: 'limit', remaining: 0 } }; await q.click('[data-a=ai-text]'); await see(q, '今日は、たびまるに頼める回数を使い切りました'); await q.click('[data-a=close-sheet]'); const n = sent.length;
-    await q.click('[data-a=ai-text]'); await see(q, '使い切りました'); assert.strictEqual(sent.length, n, 'no more asks today: nothing is sent'); assert.ok(!(await q.innerText('body')).includes('！'), 'no "！" in the words');
+    parse = { status: 422, json: { error: 'unreadable', remaining: 2 } }; await q.fill('#q-quick', 'こんにちは、けんたが払った 1円'); await q.press('#q-quick', 'Enter'); await see(q, 'うまく読み取れませんでした'); await q.click('[data-a=close-sheet]');
+    parse = { status: 502, json: { error: 'upstream', detail: '[model] boom / boom' } }; await q.press('#q-quick', 'Enter'); await see(q, '回数は、減っていません'); await see(q, 'くわしい内容（開発者向け）：[model] boom / boom'); await q.click('[data-a=close-sheet]');
+    parse = { status: 429, json: { error: 'busy' } }; await q.press('#q-quick', 'Enter'); await see(q, 'たくさん読み取って、おやすみです'); await q.click('[data-a=close-sheet]');
+    parse = { status: 429, json: { error: 'limit', remaining: 0 } }; await q.press('#q-quick', 'Enter'); await see(q, '今日は、たびまるに頼める回数を使い切りました'); await q.click('[data-a=close-sheet]'); const n = sent.length;
+    await q.press('#q-quick', 'Enter'); await see(q, '使い切りました'); assert.strictEqual(sent.length, n, 'no more asks today: nothing is sent'); assert.ok((await q.textContent('.err')).includes('記録の画面（＋）で入力してください'), 'and the way out is told'); assert.ok(!(await q.innerText('body')).includes('！'), 'no "！" in the words');
     assert.deepStrictEqual(qerrs, []); await c15.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);

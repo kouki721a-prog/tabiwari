@@ -16,7 +16,7 @@ async function login(base, sub, name) {
   const r = await fetch(base + '/api/auth/poll', { method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.id, secret: b.secret }) }); return r.headers.get('set-cookie').split(';')[0];
 }
 const ask = (cookie, extra = {}, base = B) => j(base, '/api/ai/parse', { cookie, method: 'POST', body: { text: '昨日の夕食、けんたが立て替えて3人で割った 6000円', names: ['こうき', 'あおい', 'けんた'], me: 'こうき', today: '2026-11-16', start: '2026-11-15', end: '2026-11-17', ...extra } });
-const GOOD = { readable: true, title: '夕食', amount: 6000, category: 'food', date: '2026-11-15', payer: 'けんた', split_all: true, split_names: [], comment: '夕食 6,000円ですね！けんたさんが払って、3人で割ります。' };
+const ITEM = { title: '夕食', amount: 6000, category: 'food', date: '2026-11-15', payer: 'けんた', split_all: true, split_names: [] }, GOOD = { readable: true, comment: '夕食 6,000円ですね！けんたさんが払って、3人で割ります。', expenses: [ITEM] };
 try {
   // status: public; not logged in -> login false; off when no key
   assert.deepStrictEqual((await j(B, '/api/ai/status')).data, { enabled: true, login: false, remaining: null });
@@ -26,9 +26,9 @@ try {
   const u0 = await login(off.base, 'U-ai-0', 'ゼロ'); assert.strictEqual((await ask(u0, {}, off.base)).status, 503, 'no key: off');
   // a good answer: checked, and what is sent is what we promised
   ai.answer(GOOD); let r = await ask(u1); assert.strictEqual(r.status, 200, JSON.stringify(r.data));
-  assert.deepStrictEqual(r.data.result, { ok: true, title: '夕食', amount: 6000, category: 'food', date: '2026-11-15', payer: 'けんた', split: 'all', fixed: {}, comment: '夕食 6,000円ですね。けんたさんが払って、3人で割ります。' }, 'no "！" in the comment'); assert.strictEqual(r.data.remaining, 2);
+  assert.deepStrictEqual(r.data.result, { items: [{ ok: true, title: '夕食', amount: 6000, category: 'food', date: '2026-11-15', payer: 'けんた', split: 'all', fixed: {} }], comment: '夕食 6,000円ですね。けんたさんが払って、3人で割ります。' }, 'no "！" in the comment'); assert.strictEqual(r.data.remaining, 2);
   const c = ai.calls[0]; assert.strictEqual(c.url, '/v1/messages'); assert.strictEqual(c.headers['x-api-key'], 'sk-ant-test-key'); assert.strictEqual(c.headers['anthropic-version'], '2023-06-01'); assert.strictEqual(c.body.model, 'claude-haiku-5-5');
-  assert.deepStrictEqual(c.body.tool_choice, { type: 'tool', name: 'record_expense' }); assert.ok(JSON.stringify(c.body.messages).includes('<user_text>昨日の夕食'), 'the text is wrapped as data'); assert.ok(JSON.stringify(c.body.messages).includes('こうき、あおい、けんた') && JSON.stringify(c.body.messages).includes('2026-11-16'));
+  assert.deepStrictEqual(c.body.tool_choice, { type: 'tool', name: 'record_expenses' }); assert.ok(JSON.stringify(c.body.messages).includes('<user_text>昨日の夕食'), 'the text is wrapped as data'); assert.ok(JSON.stringify(c.body.messages).includes('こうき、あおい、けんた') && JSON.stringify(c.body.messages).includes('2026-11-16'));
   assert.ok(!JSON.stringify(r.data).includes('sk-ant'), 'the key never goes back to the app');
   // limits: 3 a day (a refused one is not counted); the 4th is refused without calling the AI
   assert.strictEqual((await ask(u1)).status, 200); assert.strictEqual((await ask(u1)).status, 200); const n = ai.calls.length;
@@ -50,8 +50,8 @@ try {
 const wai = startFakeWorkersAi(9918), srv2 = await startServer(8795, { ...vars, AI_FAKE_URL: wai.url, AI_DAILY_LIMIT: '4', AI_DAILY_TOTAL: '8' }), W = srv2.base;
 try {
   const w1 = await login(W, 'U-w-1', 'ダブリュー'); assert.deepStrictEqual((await j(W, '/api/ai/status', { cookie: w1 })).data, { enabled: true, login: true, remaining: 4, limit: 4 }, 'on with the binding alone');
-  const answer = { response: { readable: true, title: '夕食', amount: 6000, category: 'food', date: null, payer: 'けんた', split_all: true, split_names: [], fixed: [{ name: 'みく', amount: 1000 }], comment: '夕食 6,000円ですね！' } };
-  wai.queue.push({ ok: answer }); let r = await ask(w1, { names: ['こうき', 'あおい', 'けんた', 'みく'] }, W); assert.strictEqual(r.status, 200, JSON.stringify(r.data)); assert.deepStrictEqual([r.data.result.payer, r.data.result.fixed, r.data.result.comment, r.data.remaining], ['けんた', { みく: 1000 }, '夕食 6,000円ですね。', 3]);
+  const answer = { response: { readable: true, comment: '夕食 6,000円ですね！', expenses: [{ title: '夕食', amount: 6000, category: 'food', date: null, payer: 'けんた', split_all: true, split_names: [], fixed: [{ name: 'みく', amount: 1000 }] }] } };
+  wai.queue.push({ ok: answer }); let r = await ask(w1, { names: ['こうき', 'あおい', 'けんた', 'みく'] }, W); assert.strictEqual(r.status, 200, JSON.stringify(r.data)); assert.deepStrictEqual([r.data.result.items[0].payer, r.data.result.items[0].fixed, r.data.result.comment, r.data.remaining], ['けんた', { みく: 1000 }, '夕食 6,000円ですね。', 3]);
   const c0 = wai.calls[0]; assert.strictEqual(c0.model, '@cf/meta/llama-3.3-70b-instruct-fp8-fast'); assert.strictEqual(c0.input.messages[0].role, 'system'); assert.ok(c0.input.messages[0].content.includes('たびまる')); assert.ok(c0.input.messages[1].content.includes('<user_text>昨日の夕食') && c0.input.messages[1].content.includes('JSON')); assert.strictEqual(c0.input.response_format.type, 'json_schema');
   // the answer may come as text (with a code fence), or in the OpenAI shape
   wai.queue.push({ ok: { response: '```json\n' + JSON.stringify(answer.response) + '\n```' } }); assert.strictEqual((await ask(w1, {}, W)).status, 200);
@@ -76,11 +76,18 @@ try {
 
 
 // the answer is checked on its own, too
-const names = ['こうき', 'あおい', 'けんた'], ok = (o) => cleanAnswer({ readable: true, amount: 6000, ...o }, names);
+const names = ['こうき', 'あおい', 'けんた'], ok = (o) => { const r = cleanAnswer({ readable: true, amount: 6000, ...o }, names); return r.ok ? { ...r.items[0], comment: r.comment } : r; };   // (a flat answer is accepted as one expense)
 assert.strictEqual(ok({ payer: 'ゆうた' }).error, 'unknown_name'); assert.strictEqual(ok({ payer: 'けんたさん' }).payer, 'けんた', 'an honorific is allowed');
 assert.deepStrictEqual(ok({ split_all: false, split_names: ['あおい', 'けんた'] }).split, ['あおい', 'けんた']); assert.strictEqual(ok({ split_all: false, split_names: ['こうき', 'あおい', 'けんた'] }).split, 'all', 'everybody = all');
 assert.strictEqual(ok({ split_all: false, split_names: ['ゆうた'] }).error, 'unknown_name');
 assert.deepStrictEqual(ok({ fixed: [{ name: 'けんた', amount: 1000 }] }).fixed, { けんた: 1000 }); assert.deepStrictEqual(ok({ fixed: [{ name: 'けんた', amount: 9000 }] }).fixed, {}, 'more than the amount: dropped');
 assert.deepStrictEqual(ok({ fixed: [{ name: 'こうき', amount: 1 }, { name: 'あおい', amount: 1 }, { name: 'けんた', amount: 1 }] }).fixed, {}, 'everybody fixed but not adding up: dropped');
 assert.strictEqual(ok({ amount: 0 }).error, 'unreadable'); assert.strictEqual(ok({ amount: 1.5 }).error, 'unreadable'); assert.strictEqual(ok({ category: 'zzz' }).category, 'other'); assert.strictEqual(ok({ date: '昨日' }).date, null); assert.strictEqual(cleanAnswer(null, names).error, 'unreadable');
+// several expenses in one answer; the bad ones are dropped, an unknown name refuses it, at most 8
+{ const many = (list, extra = {}) => cleanAnswer({ readable: true, comment: '3件', expenses: list, ...extra }, names);
+  let r = many([{ title: '昼', amount: 1200 }, { title: '夜', amount: 3000, payer: 'あおい' }, { title: 'タクシー', amount: 1500, split_all: false, split_names: ['あおい', 'けんた'] }]);
+  assert.deepStrictEqual(r.items.map(i => [i.title, i.amount, i.payer, i.split]), [['昼', 1200, null, 'all'], ['夜', 3000, 'あおい', 'all'], ['タクシー', 1500, null, ['あおい', 'けんた']]]);
+  assert.strictEqual(many([{ title: 'x', amount: 0 }, { title: '昼', amount: 1200 }, null]).items.length, 1, 'a bad one is dropped, the rest stay'); assert.strictEqual(many([{ title: 'x', amount: 0 }]).error, 'unreadable');
+  assert.strictEqual(many([{ title: '昼', amount: 1200 }, { title: '夜', amount: 300, payer: 'ゆうた' }]).error, 'unknown_name', 'an unknown name refuses the whole answer');
+  assert.strictEqual(many(Array.from({ length: 20 }, (_, i) => ({ title: 'x' + i, amount: 100 }))).items.length, 8, 'at most 8'); assert.strictEqual(cleanAnswer({ readable: true, expenses: [] }, names).error, 'unreadable'); assert.strictEqual(cleanAnswer({ readable: false, expenses: [{ amount: 5 }] }, names).error, 'unreadable'); }
 console.log('ai answer tests passed'); process.exit(0);

@@ -303,6 +303,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .parts{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px 12px;margin-top:6px}.prow{display:flex;align-items:center;gap:8px;padding:6px 0}.prow+.prow{border-top:1px solid var(--line)}.prow .grow{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .pamt{background:none;border:0;border-bottom:1px dotted var(--sub);padding:0 0 1px;font:inherit;color:inherit;flex:none}.fxin{width:92px;margin:0;padding:6px 10px;text-align:right;border-color:var(--sun)}.fxnote{padding:6px 0 8px;border-top:1px solid var(--line)}
 .step{display:grid;place-items:center;padding:0;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:20px;line-height:1;flex:none}.step:disabled{opacity:.35}.pval{min-width:3.2em;text-align:center;font-weight:700}.pamt{min-width:5.5em;text-align:right;font-weight:500;color:var(--sub);font-size:14px}
+.chkbox{width:22px;height:22px;border-radius:7px;border:2px solid var(--ink);display:grid;place-items:center;flex:none;color:var(--card)}.chkbox.on{background:var(--ink)}.aichk{text-align:left;width:100%;gap:10px}
 .aibtn{padding:0 10px!important;display:grid;place-items:center}.aibtn svg{display:block}
 .quick{display:flex;gap:8px;align-items:stretch;margin-top:4px}.quick .field{flex:1;min-width:0;padding:11px 14px}.quick .btn{width:auto;padding:0 16px;flex:none}
 .recap-img{display:block;width:100%;max-height:58vh;object-fit:contain;border-radius:16px;margin-top:10px;background:var(--navy)}
@@ -635,14 +636,23 @@ function parseQuick(text, names){
     if (isNaN(val) || (!unit && val !== Math.floor(val)) || val !== Math.round(val)) continue;
     cands.push({ val: val, yen: !!(m[1] || m[4]), start: m.index, end: m.index + m[0].length });
   }
-  var pool = cands.filter(function(c){ return c.yen; }); if (!pool.length) pool = cands;
+  var pool = cands.filter(function(c){ return c.yen; }), multi = pool.length >= 2 || (!pool.length && cands.filter(function(c){ return c.val >= 100; }).length >= 2);   // several amounts: it is not one expense
+  if (!pool.length) pool = cands;
   if (!pool.length) return null;
   var pick = pool.reduce(function(a, c){ return c.val > a.val ? c : a; });
   if (!(pick.val >= 1 && pick.val <= 1e9)) return null;
   var rest = s.slice(0, pick.start) + ' ' + s.slice(pick.end), offset = /一昨日|おととい/.test(rest) ? -2 : /昨日|きのう/.test(rest) ? -1 : 0;
   var title = rest.replace(/一昨日|おととい|昨日|きのう|今日|きょう/g, ' ').replace(/(だった|でした|です|だよ|だね|かかった|払った|使った|買った)+[。.!！]*\s*$/, ' ').replace(/\s+/g, ' ').replace(/^[\s、,。・]+|[\s、,。・をはがでに]+$/g, '');
   var cat = 'other'; for (var i = 0; i < QUICK_CATS.length && cat === 'other'; i++) for (var j = 0; j < QUICK_CATS[i][1].length; j++) if (rest.indexOf(QUICK_CATS[i][1][j]) >= 0){ cat = QUICK_CATS[i][0]; break; }
-  return { title: Array.from(title).slice(0, 100).join(''), amount: pick.val, cat: cat, offset: offset, weights: weights, weightError: weightError, excluded: excluded, fixed: fixed };
+  return { title: Array.from(title).slice(0, 100).join(''), amount: pick.val, cat: cat, offset: offset, weights: weights, weightError: weightError, excluded: excluded, fixed: fixed, multi: multi };
+}
+/* A sentence the quick record cannot read right: who paid (立て替えて／◯◯が払った), who shares it (◯◯の分／◯◯と△△で割った), or several expenses in one.
+   '' when the quick record can take it as it is; else the reason. たびまる reads such a sentence (or, when it cannot, the person is told to use the record screen). */
+function needsTabimaru(text, names){
+  var s = String(text == null ? '' : text);
+  if (/(立て替|立替|たてか|が払|が出し|が支払|おごり|奢|払ってくれ|出してくれ)/.test(s)) return 'payer';
+  if ((names || []).some(function(n){ return n && s.indexOf(n) >= 0; }) && /(の分|以外|で割った|で割る)/.test(s)) return 'select';
+  var r = parseQuick(s, names); return r && r.multi ? 'multi' : '';
 }
 /* ===== LOGIC_END ===== */
 
@@ -1233,9 +1243,9 @@ const tabimaru = n => '<svg width="' + Math.round(n * 1.5) + '" height="' + n + 
 async function refreshAi(){
   try { const s = await Line.aiStatus(); ui.ai = { enabled: !!s.enabled, login: !!s.login, remaining: s.remaining == null ? null : s.remaining }; render(); } catch(e){ /* offline: the buttons stay as they were */ }
 }
-function aiButtons(){
+function aiButtons(){   // one entrance (the box): たびまる steps in by itself for what the quick record cannot read; the camera is for a receipt
   if (!ui.ai.enabled) return '';
-  return '<button class="btn line aibtn" type="button" data-a="ai-text" aria-label="たびまるに頼む">' + tabimaru(22) + '</button><button class="btn line aibtn" type="button" data-a="ai-photo" aria-label="レシートを読み取る">' + icon('camera', 22) + '</button><input type="file" id="ai-file" accept="image/*" hidden>';
+  return '<button class="btn line aibtn" type="button" data-a="ai-photo" aria-label="レシートを読み取る">' + icon('camera', 22) + '</button><input type="file" id="ai-file" accept="image/*" hidden>';
 }
 const AI_ERR = { busy: 'たびまるは、今日は、たくさん読み取って、おやすみです。明日、また頼めます。', limit: '今日は、たびまるに頼める回数を使い切りました。明日、また頼めます。', paused: '今月は、たびまるがお休みです。来月、また頼めます。',
   unreadable: 'うまく読み取れませんでした。文章を少し変えるか、記録の画面で入力してください。', upstream: 'たびまるにつながりませんでした。少し待って、もう一度お試しください。回数は、減っていません。' };
@@ -1255,7 +1265,7 @@ async function runAi(t, payload){
   const me = t.members.find(m => m.id === meId(t));
   try {
     const r = await Line.aiParse(Object.assign({ names: t.members.map(m => m.name), me: me && me.name, today: todayStr(), start: t.start, end: t.end }, payload));
-    if (ui.sheet !== cur) return; cur.busy = false; cur.result = r.result; cur.tid = tid; ui.ai.remaining = r.remaining;
+    if (ui.sheet !== cur) return; cur.busy = false; cur.result = r.result; cur.picked = r.result.items.map(() => true); cur.tid = tid; ui.ai.remaining = r.remaining;
   } catch(e){
     if (ui.sheet !== cur) return; cur.busy = false; const k = e && e.message;
     cur.err = e && e.status === 401 ? 'LINEでログインすると、たびまるに頼めます。' : k === 'unknown_name' ? '書かれた名前が、この旅行のメンバーにいないようです。名前を確かめてください。' : AI_ERR[k] || AI_ERR.upstream;
@@ -1403,15 +1413,17 @@ function viewSheet(){
       '<div class="sub" style="margin-top:10px">この旅行のメンバーに見えます。口座番号など、大事な情報は、書かないでください。</div>';
     foot = err + '<button class="btn" data-a="note-save">保存する</button>' + (mine && mine.note ? '<button class="link" data-a="note-clear">メモを消す</button>' : '');
   } else if (s.type === 'ai'){
-    const rec = s.result && aiExpense(t, s.result);
-    ttl = s.busy ? 'たびまるが読み取っています' : s.err || !rec ? 'たびまるからのお知らせ' : 'たびまるが読み取りました';
-    if (s.busy){ body = '<div style="display:flex;gap:10px;align-items:center;margin:10px 0">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>少し待ってくださいね。</b></div></div>'; foot = '<button class="link" data-a="close-sheet">やめる</button>'; }
-    else if (s.err || !rec){ body = '<div style="display:flex;gap:10px;align-items:center;margin:10px 0">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>' + esc(s.err || AI_ERR.unreadable) + '</b></div></div>' + (s.detail ? '<div class="sub sm" style="word-break:break-all">くわしい内容（開発者向け）：' + esc(s.detail) + '</div>' : ''); foot = '<button class="btn" data-a="close-sheet">とじる</button>'; }
+    const recs = s.result ? s.result.items.map(x => aiExpense(t, x)) : [], many = recs.length > 1, n = recs.filter((r, i) => r && s.picked[i]).length, face = '<div style="display:flex;gap:10px;align-items:center;margin:' + (s.result ? '6px 0 12px' : '10px 0') + '">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>';
+    ttl = s.busy ? 'たびまるが読み取っています' : s.err || !recs.some(Boolean) ? 'たびまるからのお知らせ' : 'たびまるが読み取りました';
+    if (s.busy){ body = face + '少し待ってくださいね。</b></div></div>'; foot = '<button class="link" data-a="close-sheet">やめる</button>'; }
+    else if (s.err || !recs.some(Boolean)){ body = face + esc(s.err || AI_ERR.unreadable) + '</b></div></div>' + (s.detail ? '<div class="sub sm" style="word-break:break-all">くわしい内容（開発者向け）：' + esc(s.detail) + '</div>' : ''); foot = '<button class="btn" data-a="close-sheet">とじる</button>'; }
     else {
-      body = '<div style="display:flex;gap:10px;align-items:center;margin:6px 0 12px">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>' + esc(s.result.comment || '読み取りました。内容を確かめてくださいね。') + '</b></div></div>' +
-        '<div class="list">' + aiSummary(t, rec).map(r => '<div class="item slim"><div class="grow"><div class="sub sm">' + r[0] + '</div><div class="t">' + r[1] + '</div></div>' + (r[2] ? '<div class="amt">' + r[2] + '</div>' : '') + '</div>').join('') + '</div>' +
-        '<div class="sub sm" style="margin-top:8px">まだ記録していません。合っていれば、［記録する］を押してください。' + (ui.ai.remaining != null ? '今日は、あと' + ui.ai.remaining + '回、たびまるに頼めます。' : '') + '</div>';
-      foot = '<button class="btn" data-a="ai-record">記録する</button><button class="link" data-a="ai-edit">記録の画面で直す</button>';
+      const say = s.result.comment || (many ? recs.length + '件、読み取りました。' : '読み取りました。内容を確かめてくださいね。');
+      body = face + esc(many ? say + '合っているものに、チェックを入れてくださいね。' : say) + '</b></div></div>' +
+        (many ? '<div class="list">' + recs.map((rec, i) => !rec ? '' : '<button class="item slim aichk" data-a="ai-toggle" data-i="' + i + '" role="checkbox" aria-checked="' + !!s.picked[i] + '"><span class="chkbox' + (s.picked[i] ? ' on' : '') + '">' + (s.picked[i] ? icon('check', 14) : '') + '</span><div class="grow"><div class="t">' + esc(rec.title || (CAT[rec.cat] || CAT.other)[2]) + '</div><div class="sub sm">' + esc(nameOf(t, rec.payer)) + 'が払った・' + (rec.split.length === t.members.length ? '全員で割り勘' : rec.split.map(id => esc(nameOf(t, id))).join('・') + 'で割り勘') + (rec.fixed ? '（金額の指定あり）' : '') + '・' + fmtDay(rec.date) + '</div></div><div class="amt">' + yen(rec.amount) + '</div></button>').join('') + '</div>'
+          : '<div class="list">' + aiSummary(t, recs[0]).map(r => '<div class="item slim"><div class="grow"><div class="sub sm">' + r[0] + '</div><div class="t">' + r[1] + '</div></div>' + (r[2] ? '<div class="amt">' + r[2] + '</div>' : '') + '</div>').join('') + '</div>') +
+        '<div class="sub sm" style="margin-top:8px">まだ記録していません。' + (many ? 'チェックを入れた' + n + '件が、記録されます。' : '合っていれば、［記録する］を押してください。') + (ui.ai.remaining != null ? '今日は、あと' + ui.ai.remaining + '回、たびまるに頼めます。' : '') + '</div>';
+      foot = '<button class="btn" data-a="ai-record"' + (n ? '' : ' disabled') + '>' + (many ? n + '件を記録する' : '記録する') + '</button>' + (many ? '' : '<button class="link" data-a="ai-edit">記録の画面で直す</button>');
     }
   } else if (s.type === 'caps'){
     const caps = t.caps || {};
@@ -1591,6 +1603,15 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   const inp = document.getElementById('q-quick'), text = inp ? inp.value : ui.quick, r = parseQuick(text, t.members.map(m => m.name));
   ui.quick = text;
   if (!r){ ui.quickErr = '金額が見つかりませんでした。「夕食 2000円」のように書いてください。'; render(); return; }
+  const why = needsTabimaru(text, t.members.map(m => m.name));
+  if (why){   // a sentence the quick record cannot read right: たびまる reads it; if she cannot, nothing wrong is recorded
+    if (ui.ai.enabled && ui.ai.login && ui.ai.remaining !== 0){ runAi(t, { text: text.trim() }); return; }
+    const what = why === 'multi' ? '複数の支出' : why === 'payer' ? '払った人' : '割る人';
+    ui.quickErr = !ui.ai.enabled ? 'この文には、' + what + 'が書いてあるようです。ここでは、「夕食 2000円」の1件ずつの形しか読めません。1件ずつ書くか、記録の画面（＋）で入力してください。'
+      : !ui.ai.login ? 'この文には、' + what + 'が書いてあるようです。LINEにログインすると、たびまるが読み取ります。ログインしないときは、1件ずつ書くか、記録の画面（＋）で入力してください。'
+      : AI_ERR.limit + 'この文は、1件ずつ書くか、記録の画面（＋）で入力してください。';
+    render(); return;
+  }
   const today = todayStr(), base = (today < t.start || today > t.end) ? t.start : today; let date = addDays(base, r.offset); if (date < t.start) date = t.start; if (date > t.end) date = t.end;
   if (r.weightError){ ui.quickErr = '割合は、0.5倍から3倍まで、0.5きざみで書いてください（例：こどもは半分、あおい1.5倍）。'; render(); return; }
   const left = t.members.filter(m => r.excluded.indexOf(m.name) < 0).map(m => m.id);
@@ -1894,17 +1915,19 @@ document.addEventListener('click', e => {
     ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
   }
   else if (a === 'copy-note'){ const m = t.members.find(x => x.id === id), v = m && m.note; if (!v) return; try { navigator.clipboard.writeText(v).then(() => flash('コピーしました'), () => flash(v)); } catch(err){ flash(v); } return; }
-  else if (a === 'ai-text'){ const v = (document.getElementById('q-quick') || {}).value || ''; ui.quick = v; if (!v.trim()){ ui.quickErr = 'たびまるに頼む文章を、入力欄に書いてください（例：昨日の夕食、けんたが立て替えて3人で割った 6000円）。'; render(); return; } runAi(t, { text: v.trim() }); return; }
   else if (a === 'ai-photo'){ if (!ui.ai.login){ ui.quickErr = 'LINEでログインすると、たびまるに頼めます。'; render(); return; } const f = document.getElementById('ai-file'); if (f){ f.value = ''; f.click(); } return; }
+  else if (a === 'ai-toggle'){ const i = +el.getAttribute('data-i'); s.picked[i] = !s.picked[i]; }
   else if (a === 'ai-record' || a === 'ai-edit'){
-    const rec = s.result && aiExpense(t, s.result); if (!rec){ ui.sheet = null; render(); return; }
+    const recs = (s.result ? s.result.items : []).map(x => aiExpense(t, x)), take = recs.filter((r, i) => r && s.picked[i]);
+    if (!take.length){ if (a === 'ai-edit'){ ui.sheet = null; render(); } return; }
     if (a === 'ai-edit'){
+      const rec = take[0];
       ui.sheet = { type: 'exp', err: '', editId: null, partsOpen: !!rec.fixed, data: { amount: String(rec.amount), title: rec.title, cat: rec.cat, payer: rec.payer, all: rec.split.length === t.members.length, split: rec.split.slice(), date: rec.date, parts: {},
         fixed: rec.fixed ? Object.fromEntries(Object.keys(rec.fixed).map(k => [k, String(rec.fixed[k])])) : {} } };
     } else {
-      const tid = t.id, before = catSums(t), full = Object.assign({ id: uid() }, rec); t.expenses.push(full); ui.sheet = null; ui.quick = ''; save(); render();
-      const cn = capNotice(t, before);
-      flash((rec.title || (CAT[rec.cat] || CAT.other)[2]) + ' ' + yen(rec.amount) + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== full.id); save(); render(); });
+      const tid = t.id, before = catSums(t), fulls = take.map(rec => Object.assign({ id: uid() }, rec)); fulls.forEach(f => t.expenses.push(f)); ui.sheet = null; ui.quick = ''; save(); render();
+      const cn = capNotice(t, before), one = take[0], total = take.reduce((x, r) => x + r.amount, 0);
+      flash((take.length > 1 ? take.length + '件（合わせて ' + yen(total) + '）' : (one.title || (CAT[one.cat] || CAT.other)[2]) + ' ' + yen(one.amount)) + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; const ids = fulls.map(f => f.id); tt.expenses = tt.expenses.filter(q => ids.indexOf(q.id) < 0); save(); render(); });
       return;
     }
   }
