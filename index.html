@@ -210,6 +210,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .xhead span:first-child{color:var(--ink);font-weight:700}
 .xgroup .xfer .avs .av{width:28px;height:28px;font-size:13px}
 .xfer+.xfer{border-top:1px solid var(--line)}
+.xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:13px;color:var(--sub)}.xnote .link{width:auto;flex:none;padding:6px 8px;font-size:13px;font-weight:700;color:var(--ink)}.noteRow{margin-bottom:10px}
 .paidbtn{flex:none;display:inline-flex;align-items:center;gap:3px;min-height:34px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:13px;font-weight:500;white-space:nowrap}
 .paidbtn.on{background:var(--good);border-color:var(--good);color:#fff}
 .xfer .names{flex:1;min-width:0;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -515,7 +516,7 @@ function sanitizeTrip(raw, newId){
   var name = S(raw.name, 100).trim(), start = D(raw.start), end = D(raw.end);
   if (!name || !start || !end || end < start || !INT(raw.budget, 1, 1e9)) return null;
   var members = (Array.isArray(raw.members) ? raw.members : []).slice(0, 12).map(function(m, i){
-    var id = m && ID(m.id), nm = m && S(m.name, 50).trim(); return id && nm ? { id: id, name: nm, pos: INT(m.pos, 0, 1e6) ? m.pos : i } : null; }).filter(Boolean);
+    var id = m && ID(m.id), nm = m && S(m.name, 50).trim(); var nt = m && S(m.note, 60).trim(), o = id && nm ? { id: id, name: nm, pos: INT(m.pos, 0, 1e6) ? m.pos : i } : null; if (o && nt) o.note = nt; return o; }).filter(Boolean);
   if (!members.length) return null;
   var ids = {}; members.forEach(function(m){ ids[m.id] = 1; });
   var CATK = ['transport', 'stay', 'food', 'sight', 'gift', 'other'];
@@ -1178,6 +1179,10 @@ function tabExp(t){
 
 const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
 const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => esc(nameOf(t, id)) + ' ' + (nets[id] > 0 ? '+' : '−') + Math.abs(nets[id]).toLocaleString('ja-JP')).join('・');
+function noteLine(t, id){   // how the receiver wants to be paid (the memo they wrote), with a button to copy it
+  const m = t.members.find(x => x.id === id); if (!m || !m.note) return '';
+  return '<div class="xnote"><span>' + esc(m.name) + 'さんの受け取り方：' + esc(m.note) + '</span><button class="link" data-a="copy-note" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'さんの受け取り方をコピー">コピー</button></div>';
+}
 function xferList(t, pays, n){
   const order = [], by = {};   // grouped by who receives; a receiver with two or more payers gets a header with the total
   pays.forEach(p => { if (!by[p.to]){ by[p.to] = []; order.push(p.to); } by[p.to].push(p); });
@@ -1186,17 +1191,22 @@ function xferList(t, pays, n){
       '<div class="names"><span class="nm">' + (grouped ? esc(nameOf(t, p.from)) : esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to))) + '</span></div><div class="amt">' + yen(p.amount) + '</div>' +
       '<button class="paidbtn ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? icon('check', 14) + '済み' : '支払い済み') + '</button></div>'; };
   return order.map(to => { const g = by[to];
-    return g.length > 1 ? '<div class="xgroup"><div class="xhead"><span>' + esc(nameOf(t, to)) + 'さんへ</span><span>合計 ' + yen(g.reduce((a, p) => a + p.amount, 0)) + '</span></div><div class="list">' + g.map(p => row(p, true)).join('') + '</div></div>'
-      : '<div class="list">' + row(g[0], false) + '</div>'; }).join('');
+    return (g.length > 1 ? '<div class="xgroup"><div class="xhead"><span>' + esc(nameOf(t, to)) + 'さんへ</span><span>合計 ' + yen(g.reduce((a, p) => a + p.amount, 0)) + '</span></div><div class="list">' + g.map(p => row(p, true)).join('') + '</div></div>'
+      : '<div class="list">' + row(g[0], false) + '</div>') + noteLine(t, to); }).join('');
+}
+function noteRow(t){   // my own 受け取り方のメモ: where to send the money
+  const mine = t.members.find(m => m.id === meId(t));
+  return '<button class="item slim acc noteRow" data-a="note-edit"><div class="grow"><div class="t">自分の受け取り方</div><div class="sub sm">' + (mine && mine.note ? esc(mine.note) : '書いておくと、払う人に伝わります') + '</div></div>' + icon('chev', 18) + '</button>';
 }
 function tabSettle(t){
   const ss = t.settlements || [];
-  if (!t.expenses.length && !ss.length) return '<div class="empty"><b>精算はまだありません</b>支出を記録すると、誰が誰にいくら払えばいいかが出ます。</div>';
+  if (!t.expenses.length && !ss.length) return noteRow(t) + '<div class="empty"><b>精算はまだありません</b>支出を記録すると、誰が誰にいくら払えばいいかが出ます。</div>';
   const n = ss.length + 1, open = openItems(t), bal = roundBalances(t), pays = settle(bal.net), has = open.expenses.length > 0 || open.adjustments.length > 0;
   const left = pays.filter(p => !t.paid[payKey(n, p)]).length;
   if (t.share && (!ui.reach || ui.reach.id !== t.id || Date.now() - ui.reach.at > 60000)) refreshReach(t);
   const me = meId(t), off = t.share && ui.reach && ui.reach.id === t.id && ui.reach.ids ? t.members.filter(m => m.id !== me && ui.reach.ids.indexOf(m.id) < 0) : [];
   let h = (off.length ? '<div class="panel" style="margin:0 0 10px"><b>まだ' + off.map(m => esc(m.name)).join('さん、') + 'さんが、お知らせを受け取れません。</b><div class="sub sm">LINEにログインして、通知をオンにすると、精算のお知らせが届きます。</div></div>' : '') + '<div class="sec"><h2>第' + n + '回の精算<span>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件・残り ' + yen(pays.reduce((a, p) => a + (t.paid[payKey(n, p)] ? 0 : p.amount), 0)) : 'すべて完了') + '</span></h2>';
+  h += noteRow(t);
   if (!has) h += '<div class="panel"><b>未精算の支出はありません。</b><div class="sub">これから記録する支出は、第' + n + '回の精算になります。</div></div>';
   else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
   else h += xferList(t, pays, n);
@@ -1273,6 +1283,13 @@ function viewSheet(){
         '<div class="sub sm" style="margin-top:10px">送金の金額は、完了したときのものです。このあとに支出を変更すると、差額は、いまの回に入ります。</div>';
       foot = '<button class="link" data-a="close-sheet">閉じる</button>';
     }
+  } else if (s.type === 'note'){
+    const mine = t.members.find(m => m.id === meId(t));
+    ttl = '自分の受け取り方';
+    body = '<label class="lab" for="f-note">払う人に見えるメモ（60字まで）</label><input class="field" id="f-note" type="text" maxlength="60" value="' + esc(mine && mine.note || '') + '" placeholder="例：PayPay：aoi／現金でOK">' +
+      '<div class="chips" style="margin-top:10px">' + [['PayPay', 'PayPay：'], ['現金', '現金でOK'], ['銀行振込', '銀行振込：']].map(c => '<button class="chip plain" data-a="note-chip" data-v="' + esc(c[1]) + '">' + c[0] + '</button>').join('') + '</div>' +
+      '<div class="sub" style="margin-top:10px">この旅行のメンバーに見えます。口座番号など、大事な情報は、書かないでください。</div>';
+    foot = err + '<button class="btn" data-a="note-save">保存する</button>' + (mine && mine.note ? '<button class="link" data-a="note-clear">メモを消す</button>' : '');
   } else if (s.type === 'save'){
     ttl = esc(nameOf(t, s.id)) + ' の積立';
     body = '<label class="lab" for="f-save">今回の積立額（円）</label><input class="field" id="f-save" type="text" inputmode="numeric" placeholder="例：5000">' +
@@ -1575,7 +1592,7 @@ document.addEventListener('click', e => {
     else {
       let me = s.pick;
       jt.share = { token: s.token, me: null, rev: s.rev, snap: Sync.flatten([jt]), dirty: false };   // what the server has right now
-      if (!me){ me = uid(); jt.members.push({ id: me, name: nm, pos: nextPos(jt) }); }
+      if (!me){ me = uid(); jt.members.push(Object.assign({ id: me, name: nm, pos: nextPos(jt) }, state.payNote ? { note: state.payNote } : {})); }
       jt.share.me = me; state.trips.push(jt); ui.sheet = null; ui.view = 'trip'; ui.tripId = jt.id; ui.tab = 'exp'; ui.resetScroll = true;
       save(); render(); flash('参加しました'); return;
     }
@@ -1616,7 +1633,7 @@ document.addEventListener('click', e => {
     else {
       const me = d.me.trim(); state.me = me;
       const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, savings: {}, settlements: [], adjustments: [],
-        members: [{ id: uid(), name: me, pos: 0 }], expenses: [] };
+        members: [Object.assign({ id: uid(), name: me, pos: 0 }, state.payNote ? { note: state.payNote } : {})], expenses: [] };
       const next = !!d.from;
       state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
       if (next) setTimeout(() => { const b = document.querySelector('[data-a="invite"][data-id="' + nt.id + '"]'); if (b) b.click(); }, 0);   // opens the invite right away, for the same friends
@@ -1696,6 +1713,14 @@ document.addEventListener('click', e => {
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }
+  else if (a === 'note-edit'){ ui.sheet = { type: 'note', err: '' }; }
+  else if (a === 'note-chip'){ const f = document.getElementById('f-note'); if (f){ f.value = el.getAttribute('data-v'); } return; }
+  else if (a === 'note-save' || a === 'note-clear'){
+    const mine = t.members.find(m => m.id === meId(t)), v = a === 'note-clear' ? '' : (document.getElementById('f-note').value || '').trim().slice(0, 60);
+    if (mine){ if (v) mine.note = v; else delete mine.note; state.payNote = v || undefined; save(); }   // kept on this device too: it starts the memo of the next trip
+    ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
+  }
+  else if (a === 'copy-note'){ const m = t.members.find(x => x.id === id), v = m && m.note; if (!v) return; try { navigator.clipboard.writeText(v).then(() => flash('コピーしました'), () => flash(v)); } catch(err){ flash(v); } return; }
   else if (a === 'quick-save'){ document.getElementById('f-save').value = el.getAttribute('data-v'); return; }
   else if (a === 'save-saving'){
     const n = parseYen(document.getElementById('f-save').value);

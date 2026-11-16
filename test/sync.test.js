@@ -27,8 +27,15 @@ assert.deepStrictEqual(ops.map(o => o.table), ['paid', 'expenses', 'members']);
 ops = S.diff(snap, S.flatten([]));
 assert.deepStrictEqual(ops.map(o => o.table + ':' + o.kind), ['trips:delete']);
 
-// member rows are never "updated" (joined members are protected server-side)
+// member rows never change except their 受け取り方のメモ (joined members' names are protected server-side)
 t = trip(); t.members[0].name = 'x'; assert.strictEqual(S.diff(snap, S.flatten([t])).length, 0);
+t = trip(); t.members[0].userId = 'U9'; assert.strictEqual(S.diff(snap, S.flatten([t])).length, 0, 'logging in changes no member row');
+t = trip(); t.members[0].note = 'PayPay：aoi'; ops = S.diff(snap, S.flatten([t]));
+assert.deepStrictEqual(ops.map(o => o.table + ':' + o.kind), ['members:update']); assert.strictEqual(ops[0].row.note, 'PayPay：aoi'); assert.strictEqual(ops[0].row.id, 'a');
+const withNote = S.flatten([t]); t = trip(); ops = S.diff(withNote, S.flatten([t]));
+assert.deepStrictEqual(ops.map(o => o.table + ':' + o.kind), ['members:update']); assert.strictEqual(ops[0].row.note, '', 'taking the memo away sends an empty one');
+assert.strictEqual(S.diff(S.flatten([trip()]), S.flatten([trip()])).length, 0, 'no memo, no change');
+assert.strictEqual(S.assemble([{ id: 't', name: 'n', start_date: '2026-11-09', end_date: '2026-11-10', budget: 1, trip_members: [{ id: 'a', name: 'あおい', position: 0, note: '現金', user_id: null, status: 'joined' }] }])[0].members[0].note, '現金');
 
 // server rows -> app state -> same rows again (no phantom diff after a refresh)
 const rows = [{ id: 't1', name: '箱根', start_date: '2026-11-09', end_date: '2026-11-11', budget: 80000, owner: 'U1',

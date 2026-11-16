@@ -5,7 +5,7 @@
   var ORDER = ['trips', 'members', 'expenses', 'settlements', 'adjustments', 'paid', 'savings'];
   var KEYS = { trips: ['id'], members: ['id'], expenses: ['id'], settlements: ['trip_id', 'id'], adjustments: ['trip_id', 'id'], paid: ['trip_id', 'key'], savings: ['trip_id', 'member_id'] };
   /* settlements are written once; an adjustment only ever gets its settle_id filled in (when a round is confirmed) */
-  var UPDATABLE = { trips: true, expenses: true, savings: true, adjustments: true, members: false, paid: false, settlements: false };
+  var UPDATABLE = { trips: true, expenses: true, savings: true, adjustments: true, members: true, paid: false, settlements: false };
 
   function empty() { return { trips: {}, members: {}, expenses: {}, settlements: {}, adjustments: {}, paid: {}, savings: {} }; }
 
@@ -19,6 +19,7 @@
         ids[m.id] = 1;
         out.members[m.id] = { id: m.id, trip_id: t.id, name: m.name, position: m.pos != null ? m.pos : i,
           user_id: m.userId || null, status: m.userId ? 'joined' : 'invited' };
+        if (m.note) out.members[m.id].note = m.note;   // 受け取り方のメモ: only when set, so rows saved before it existed still compare equal
       });
       t.expenses.forEach(function (e) {
         out.expenses[e.id] = { id: e.id, trip_id: t.id, title: e.title || '', amount: e.amount, payer: e.payer, cat: e.cat, spent_on: e.date, split: e.split.slice(), settle_id: e.settleId || null };
@@ -49,6 +50,7 @@
       Object.keys(next[tb]).forEach(function (k) {
         var r = next[tb][k], p = prev[tb][k];
         if (!p) rows.push(r);
+        else if (tb === 'members') { if ((p.note || '') !== (r.note || '')) upd.push({ kind: 'update', table: tb, row: Object.assign({}, r, { note: r.note || '' }) }); }   // only the memo of a member can change ('' = taken away)
         else if (UPDATABLE[tb] && JSON.stringify(p) !== JSON.stringify(r)) upd.push({ kind: 'update', table: tb, row: (tb === 'expenses' && p.parts && !r.parts) ? Object.assign({}, r, { parts: null }) : r });   // weights taken away: say so (a missing key means "leave it" for older apps)
       });
       if (rows.length) ins.push({ kind: 'insert', table: tb, rows: rows });
@@ -68,7 +70,7 @@
   function assemble(rows) {
     return (rows || []).map(function (r) {
       var members = (r.trip_members || []).slice().sort(function (a, b) { return a.position - b.position || (a.id < b.id ? -1 : 1); })
-        .map(function (m) { return { id: m.id, name: m.name, pos: m.position, userId: m.user_id || undefined, pending: m.status !== 'joined' }; });
+        .map(function (m) { return { id: m.id, name: m.name, pos: m.position, userId: m.user_id || undefined, pending: m.status !== 'joined', note: m.note || undefined }; });
       var expenses = (r.expenses || []).slice().sort(function (a, b) { return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : (a.id < b.id ? -1 : 1); })
         .map(function (e) { var x = { id: e.id, title: e.title, amount: e.amount, payer: e.payer, cat: e.cat, date: e.spent_on, split: e.split }; if (e.settle_id) x.settleId = e.settle_id; if (e.parts) x.parts = e.parts; return x; });
       var settlements = (r.settlements || []).slice().sort(function (a, b) { return a.n - b.n || (a.id < b.id ? -1 : 1); })
