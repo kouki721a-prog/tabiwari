@@ -1229,15 +1229,15 @@ function expList(t, q){
   return h;
 }
 /* ---- たびまる: reads a sentence or a photo of a receipt and proposes an expense (the person confirms it; nothing is recorded by itself) ---- */
-const tabimaru = n => '<svg width="' + n + '" height="' + n + '" viewBox="0 0 34 34" aria-hidden="true" style="flex:none"><circle cx="17" cy="17" r="16" fill="#ffc83d"/><circle cx="12" cy="15" r="2.2" fill="#2a1d00"/><circle cx="22" cy="15" r="2.2" fill="#2a1d00"/><path d="M11 21c2 3 10 3 12 0" stroke="#2a1d00" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
+const tabimaru = n => '<svg width="' + Math.round(n * 1.5) + '" height="' + n + '" viewBox="2 22 92 60" aria-hidden="true" style="flex:none"><path d="M10 26h76a4 4 0 0 1 4 4v10a8 8 0 0 0 0 16v18a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V56a8 8 0 0 0 0-16V30a4 4 0 0 1 4-4z" fill="#ffc83d"/><path d="M66 32v46" stroke="#2a1d00" stroke-width="2" stroke-dasharray="1 5" stroke-linecap="round" opacity=".55"/><text x="78" y="62" font-size="20" font-weight="700" fill="#0f2742" text-anchor="middle" font-family="sans-serif">¥</text><circle cx="27" cy="52" r="2.3" fill="#2a1d00"/><circle cx="45" cy="52" r="2.3" fill="#2a1d00"/><path d="M28 59c2 4 15 4 17 0" stroke="#2a1d00" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="21" cy="58" r="2.7" fill="#ff9d5c" opacity=".45"/><circle cx="51" cy="58" r="2.7" fill="#ff9d5c" opacity=".45"/></svg>';   // たびまる: the ticket (the same as the app icon)
 async function refreshAi(){
   try { const s = await Line.aiStatus(); ui.ai = { enabled: !!s.enabled, login: !!s.login, remaining: s.remaining == null ? null : s.remaining }; render(); } catch(e){ /* offline: the buttons stay as they were */ }
 }
 function aiButtons(){
   if (!ui.ai.enabled) return '';
-  return '<button class="btn line aibtn" type="button" data-a="ai-text" aria-label="たびまるに頼む">' + tabimaru(26) + '</button><button class="btn line aibtn" type="button" data-a="ai-photo" aria-label="レシートを読み取る">' + icon('camera', 22) + '</button><input type="file" id="ai-file" accept="image/*" hidden>';
+  return '<button class="btn line aibtn" type="button" data-a="ai-text" aria-label="たびまるに頼む">' + tabimaru(22) + '</button><button class="btn line aibtn" type="button" data-a="ai-photo" aria-label="レシートを読み取る">' + icon('camera', 22) + '</button><input type="file" id="ai-file" accept="image/*" hidden>';
 }
-const AI_ERR = { limit: '今日は、たびまるに頼める回数を使い切りました。明日、また頼めます。', paused: '今月は、たびまるがお休みです。来月、また頼めます。',
+const AI_ERR = { busy: 'たびまるは、今日は、たくさん読み取って、おやすみです。明日、また頼めます。', limit: '今日は、たびまるに頼める回数を使い切りました。明日、また頼めます。', paused: '今月は、たびまるがお休みです。来月、また頼めます。',
   unreadable: 'うまく読み取れませんでした。文章を少し変えるか、記録の画面で入力してください。', upstream: 'たびまるにつながりませんでした。少し待って、もう一度お試しください。回数は、減っていません。' };
 async function resizeImage(file){   // the picture is made small on this device before it is sent (and it is not kept anywhere)
   const url = URL.createObjectURL(file);

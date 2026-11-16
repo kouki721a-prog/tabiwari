@@ -416,6 +416,7 @@ try {
     // errors are said gently; a used-up day stops the next ask before it is sent
     parse = { status: 422, json: { error: 'unreadable', remaining: 2 } }; await q.fill('#q-quick', 'こんにちは'); await q.click('[data-a=ai-text]'); await see(q, 'うまく読み取れませんでした'); await q.click('[data-a=close-sheet]');
     parse = { status: 502, json: { error: 'upstream' } }; await q.click('[data-a=ai-text]'); await see(q, '回数は、減っていません'); await q.click('[data-a=close-sheet]');
+    parse = { status: 429, json: { error: 'busy' } }; await q.click('[data-a=ai-text]'); await see(q, 'たくさん読み取って、おやすみです'); await q.click('[data-a=close-sheet]');
     parse = { status: 429, json: { error: 'limit', remaining: 0 } }; await q.click('[data-a=ai-text]'); await see(q, '今日は、たびまるに頼める回数を使い切りました'); await q.click('[data-a=close-sheet]'); const n = sent.length;
     await q.click('[data-a=ai-text]'); await see(q, '使い切りました'); assert.strictEqual(sent.length, n, 'no more asks today: nothing is sent'); assert.ok(!(await q.innerText('body')).includes('！'), 'no "！" in the words');
     assert.deepStrictEqual(qerrs, []); await c15.close(); }
