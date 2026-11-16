@@ -303,6 +303,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .parts{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px 12px;margin-top:6px}.prow{display:flex;align-items:center;gap:8px;padding:6px 0}.prow+.prow{border-top:1px solid var(--line)}.prow .grow{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .pamt{background:none;border:0;border-bottom:1px dotted var(--sub);padding:0 0 1px;font:inherit;color:inherit;flex:none}.fxin{width:92px;margin:0;padding:6px 10px;text-align:right;border-color:var(--sun)}.fxnote{padding:6px 0 8px;border-top:1px solid var(--line)}
 .step{display:grid;place-items:center;padding:0;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:20px;line-height:1;flex:none}.step:disabled{opacity:.35}.pval{min-width:3.2em;text-align:center;font-weight:700}.pamt{min-width:5.5em;text-align:right;font-weight:500;color:var(--sub);font-size:14px}
+.ut{display:flex;border-bottom:1px solid var(--line);margin:0 0 12px}.ut button{flex:1;padding:10px 4px 11px;font:inherit;font-size:14px;color:var(--sub);border-bottom:3px solid transparent;margin-bottom:-1px;display:flex;gap:6px;justify-content:center;align-items:center}.ut button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--sun)}.ut .n{font-size:11px;background:var(--soft);border-radius:99px;padding:1px 7px;color:var(--sub)}.ut button.on .n{background:var(--sun);color:var(--sun-ink)}
 .chkbox{width:22px;height:22px;border-radius:7px;border:2px solid var(--ink);display:grid;place-items:center;flex:none;color:var(--card)}.chkbox.on{background:var(--ink)}.aichk{text-align:left;width:100%;gap:10px}
 .aibtn{padding:0 10px!important;display:grid;place-items:center}.aibtn svg{display:block}
 .quick{display:flex;gap:8px;align-items:stretch;margin-top:4px}.quick .field{flex:1;min-width:0;padding:11px 14px}.quick .btn{width:auto;padding:0 16px;flex:none}
@@ -1026,7 +1027,7 @@ function render(){
   const app = document.getElementById('app');
   const old = document.querySelector('.sheet-body'), keep = old ? old.scrollTop : 0;
   const oldList = document.querySelector('.scroll'), keepList = oldList && !ui.resetScroll ? oldList.scrollTop : 0; ui.resetScroll = false;
-  let html = ui.view === 'home' ? viewHome() : ui.view === 'past' ? viewPast() : ui.view === 'new' ? viewNew() : viewTrip();
+  let html = ui.view === 'home' ? viewHome() : ui.view === 'new' ? viewNew() : viewTrip();
   if (ui.sheet) html += viewSheet();
   if (ui.toast) html += '<div class="toast" role="status">' + esc(ui.toast) + (ui.undo ? '<button data-a="undo">元に戻す</button>' : '') + '</div>';
   app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : (ui.view === 'home' && !state.trips.length) ? 'fit nonav' : '';
@@ -1125,18 +1126,21 @@ function tripCard(t){
   return h;
 }
 const tripOrder = (a, b) => { const o = { '旅行中': 0, '準備中': 1, '終了': 2 }; return o[status(a)[0]] - o[status(b)[0]] || (a.start < b.start ? -1 : 1); };
-function viewPast(){   // the ended and settled trips, newest first
-  const list = state.trips.filter(isPast).sort((a, b) => a.start < b.start ? 1 : -1);
-  if (!list.length){ ui.view = 'home'; return viewHome(); }
-  return '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>終了した旅行</h1></div><div>' + list.map(tripCard).join('') + '</div>';
+/* the home screen: two tabs at the top. 「これから・旅行中」 (and ended trips that still have money to settle) / 「終了した旅行」 (ended and settled, newest first).
+   The tabs show only while there is an ended trip; with nothing to show in the first tab, the second opens by itself. */
+function homeTabs(nNow, nPast, tab){
+  const t = (k, lab, n) => '<button class="' + (tab === k ? 'on' : '') + '" role="tab" aria-selected="' + (tab === k) + '" data-a="home-tab" data-v="' + k + '">' + lab + ' <span class="n">' + n + '</span></button>';
+  return '<div class="ut" role="tablist" aria-label="旅行の一覧">' + t('now', 'これから・旅行中', nNow) + t('past', '終了した旅行', nPast) + '</div>';
 }
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
-  let h = brandRow() + remoteCard() + installBanner() + lineCard();
-  state.trips.filter(t => !isPast(t)).sort(tripOrder).forEach(t => { h += tripCard(t); });
-  const nPast = state.trips.filter(isPast).length;
-  if (nPast) h += '<button class="btn line inv" data-a="past" style="display:flex;justify-content:space-between"><span>終了した旅行</span><span class="sub">' + nPast + '件 ›</span></button>';
-  h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
+  const now = state.trips.filter(t => !isPast(t)).sort(tripOrder), past = state.trips.filter(isPast).sort((a, b) => a.start < b.start ? 1 : -1);
+  const tab = !past.length ? 'now' : ui.homeTab === 'past' || (ui.homeTab !== 'now' && !now.length) ? 'past' : 'now';
+  let h = brandRow() + (past.length ? homeTabs(now.length, past.length, tab) : '') + remoteCard() + installBanner() + lineCard();
+  if (tab === 'now'){
+    now.forEach(t => { h += tripCard(t); });
+    h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
+  } else h += past.map(tripCard).join('');
   return '<div class="home1"><div>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
@@ -1661,20 +1665,19 @@ document.addEventListener('click', e => {
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
   if (a === 'bg'){ if (e.target !== el) return; ui.sheet = null; render(); return; }
 
-  if (a === 'home'){ ui.view = ui.view === 'trip' && ui.backTo === 'past' && state.trips.some(isPast) ? 'past' : 'home';   // back from a trip opened on the ended-trips page returns there
-    ui.tripId = null; ui.q = ''; }
-  else if (a === 'past'){ ui.view = 'past'; ui.resetScroll = true; }
-  else if (a === 'open'){ ui.backTo = ui.view; ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; }
+  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; }   // the tab you were on stays (ui.homeTab)
+  else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; }
+  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
     readSheet();   // keep what is typed in an open sheet
-    const keep = ui.view === 'trip', from = ui.view; ui.inviting = tr.id; render();
+    const keep = ui.view === 'trip'; ui.inviting = tr.id; render();
     (async () => {
       let url = null;
       try {
         if (!tr.share) await startShare(tr);   // makes the share link first (the trip keeps working offline until then)
         if (tr.share){ url = 'https://line.me/R/msg/text/?' + encodeURIComponent('「' + tr.name + '」の割り勘に参加してね。\n' + Share.linkFor(tr.share.token, location)); }
-      } finally { ui.inviting = null; if (keep){ ui.view = 'trip'; ui.tripId = tr.id; } else { ui.view = from === 'past' ? 'past' : 'home'; ui.tripId = null; } render(); }   // startShare gives the trip a new id
+      } finally { ui.inviting = null; if (keep){ ui.view = 'trip'; ui.tripId = tr.id; } else { ui.view = 'home'; ui.tripId = null; } render(); }   // startShare gives the trip a new id
       if (url) location.href = url;   // opens LINE with the message ready to send
     })();
     return;
