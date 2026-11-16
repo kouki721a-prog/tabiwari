@@ -4,7 +4,7 @@
   async function call(method, path, body) {
     var r = await fetch(path, { method: method, cache: 'no-store', credentials: 'same-origin', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
     var data = null; try { data = await r.json(); } catch (e) { /* empty body */ }
-    if (!r.ok) { var err = new Error((data && data.error) || ('http ' + r.status)); err.status = r.status; throw err; }
+    if (!r.ok) { var err = new Error((data && data.error) || ('http ' + r.status)); err.status = r.status; if (data && data.detail) err.detail = data.detail; throw err; }
     return data;
   }
   var Line = {
