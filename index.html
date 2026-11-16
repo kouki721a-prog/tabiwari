@@ -959,7 +959,7 @@ function render(){
   const app = document.getElementById('app');
   const old = document.querySelector('.sheet-body'), keep = old ? old.scrollTop : 0;
   const oldList = document.querySelector('.scroll'), keepList = oldList && !ui.resetScroll ? oldList.scrollTop : 0; ui.resetScroll = false;
-  let html = ui.view === 'home' ? viewHome() : ui.view === 'new' ? viewNew() : viewTrip();
+  let html = ui.view === 'home' ? viewHome() : ui.view === 'past' ? viewPast() : ui.view === 'new' ? viewNew() : viewTrip();
   if (ui.sheet) html += viewSheet();
   if (ui.toast) html += '<div class="toast" role="status">' + esc(ui.toast) + (ui.undo ? '<button data-a="undo">元に戻す</button>' : '') + '</div>';
   app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : (ui.view === 'home' && !state.trips.length) ? 'fit nonav' : '';
@@ -1040,21 +1040,35 @@ function homeHint(t){
   const n = ss.length + 1, un = pays.filter(p => !t.paid[payKey(n, p)]).length;
   return un ? '精算があと' + un + '件' : '精算を完了しましょう';
 }
+function settlePending(t){   // an ended trip that still has money to settle: it stays on the home screen
+  if (status(t)[0] !== '終了') return false;
+  const open = openItems(t); return (open.expenses.length > 0 || open.adjustments.length > 0) && settle(roundBalances(t).net).length > 0;
+}
+const isPast = t => status(t)[0] === '終了' && !settlePending(t);   // ended and settled: shown on its own page
+function tripCard(t){
+  const sp = total(t), left = t.budget - sp, pre = status(t)[0] === '準備中', pct = pre ? savedPct(t) : Math.min(100, Math.round(sp / t.budget * 100));
+  const hint = homeHint(t);
+  let h = '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
+    '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '　<span class="hint">' + esc(hint) + '</span>' : '') + '</div>' +
+    '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
+    (pre ? '<div class="right"><div class="sub sm">積立（目標 ' + yen(t.budget) + '）</div><div class="num">' + yen(savedOf(t)) + '</div></div></div>' : '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>') +
+    '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></button>';
+  if (status(t)[0] === '終了' && t.members.length > 1) h += '<button class="btn line inv" data-a="next-trip" data-id="' + t.id + '">同じメンバーで次の旅行をつくる</button>';   // starts the next trip from this one
+  if (t.members.length === 1) h += '<button class="btn line inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button>';   // only while I am the only member
+  return h;
+}
+const tripOrder = (a, b) => { const o = { '旅行中': 0, '準備中': 1, '終了': 2 }; return o[status(a)[0]] - o[status(b)[0]] || (a.start < b.start ? -1 : 1); };
+function viewPast(){   // the ended and settled trips, newest first
+  const list = state.trips.filter(isPast).sort((a, b) => a.start < b.start ? 1 : -1);
+  if (!list.length){ ui.view = 'home'; return viewHome(); }
+  return '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>終了した旅行</h1></div><div>' + list.map(tripCard).join('') + '</div>';
+}
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
   let h = brandRow() + remoteCard() + installBanner() + lineCard();
-  const order = { '旅行中': 0, '準備中': 1, '終了': 2 };
-  state.trips.slice().sort((a, b) => order[status(a)[0]] - order[status(b)[0]] || (a.start < b.start ? -1 : 1)).forEach(t => {
-    const sp = total(t), left = t.budget - sp, pre = status(t)[0] === '準備中', pct = pre ? savedPct(t) : Math.min(100, Math.round(sp / t.budget * 100));
-    const hint = homeHint(t);
-    h += '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
-      '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '　<span class="hint">' + esc(hint) + '</span>' : '') + '</div>' +
-      '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
-      (pre ? '<div class="right"><div class="sub sm">積立（目標 ' + yen(t.budget) + '）</div><div class="num">' + yen(savedOf(t)) + '</div></div></div>' : '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>') +
-      '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></button>';
-    if (status(t)[0] === '終了' && t.members.length > 1) h += '<button class="btn line inv" data-a="next-trip" data-id="' + t.id + '">同じメンバーで次の旅行をつくる</button>';   // starts the next trip from this one
-    if (t.members.length === 1) h += '<button class="btn line inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button>';   // only while I am the only member
-  });
+  state.trips.filter(t => !isPast(t)).sort(tripOrder).forEach(t => { h += tripCard(t); });
+  const nPast = state.trips.filter(isPast).length;
+  if (nPast) h += '<button class="btn line inv" data-a="past" style="display:flex;justify-content:space-between"><span>終了した旅行</span><span class="sub">' + nPast + '件 ›</span></button>';
   h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
   return '<div class="home1"><div>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
@@ -1443,18 +1457,20 @@ document.addEventListener('click', e => {
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
   if (a === 'bg'){ if (e.target !== el) return; ui.sheet = null; render(); return; }
 
-  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; }
-  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; }
+  if (a === 'home'){ ui.view = ui.view === 'trip' && ui.backTo === 'past' && state.trips.some(isPast) ? 'past' : 'home';   // back from a trip opened on the ended-trips page returns there
+    ui.tripId = null; ui.q = ''; }
+  else if (a === 'past'){ ui.view = 'past'; ui.resetScroll = true; }
+  else if (a === 'open'){ ui.backTo = ui.view; ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
     readSheet();   // keep what is typed in an open sheet
-    const keep = ui.view === 'trip'; ui.inviting = tr.id; render();
+    const keep = ui.view === 'trip', from = ui.view; ui.inviting = tr.id; render();
     (async () => {
       let url = null;
       try {
         if (!tr.share) await startShare(tr);   // makes the share link first (the trip keeps working offline until then)
         if (tr.share){ url = 'https://line.me/R/msg/text/?' + encodeURIComponent('「' + tr.name + '」の割り勘に参加してね。\n' + Share.linkFor(tr.share.token, location)); }
-      } finally { ui.inviting = null; if (keep){ ui.view = 'trip'; ui.tripId = tr.id; } else { ui.view = 'home'; ui.tripId = null; } render(); }   // startShare gives the trip a new id
+      } finally { ui.inviting = null; if (keep){ ui.view = 'trip'; ui.tripId = tr.id; } else { ui.view = from === 'past' ? 'past' : 'home'; ui.tripId = null; } render(); }   // startShare gives the trip a new id
       if (url) location.href = url;   // opens LINE with the message ready to send
     })();
     return;

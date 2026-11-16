@@ -220,7 +220,7 @@ try {
     await q.goto('http://localhost:8797/'); await q.waitForSelector('.home1');
     const hint = async name => q.$eval('.trip:has-text("' + name + '") .hint', e => e.textContent).catch(() => null);
     assert.ok(/^今日の目安 30,000円$|^今日の目安 1[0-9],[0-9]{3}円$/.test(await hint('旅行中の旅')), 'running: ' + await hint('旅行中の旅')); assert.strictEqual(await hint('準備中の旅'), 'あと3日で出発');
-    assert.strictEqual(await hint('精算前の旅'), '精算があと1件'); assert.strictEqual(await hint('精算済みの旅'), '精算は済んでいます');
+    assert.strictEqual(await hint('精算前の旅'), '精算があと1件'); assert.strictEqual(await hint('精算済みの旅'), null, 'a settled ended trip is not on home');
     assert.strictEqual(await q.locator('.trip.now').count(), 1, 'only the running trip stands out'); assert.strictEqual(await q.$eval('.trip .bar>i', e => getComputedStyle(e).backgroundColor), 'rgb(255, 200, 61)', 'the bar is the yellow accent');
     // before the trip the cards show the savings: home card, trip card, and the pace on the savings tab
     { const soon = q.locator('.trip', { hasText: '準備中の旅' }); assert.ok((await soon.textContent()).includes('積立（目標 30,000円）') && (await soon.textContent()).includes('10,000円'));
@@ -285,7 +285,7 @@ try {
       const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }, { id: 'c', name: 'けんた', pos: 2 }], base = { paid: {}, savings: {}, expenses: [] };
       localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ ...base, id: 'old', name: '箱根', start: '2020-10-10', end: '2020-10-12', budget: 60000, members: m },
         { ...base, id: 'solo', name: 'ひとり旅', start: '2020-05-01', end: '2020-05-02', budget: 20000, members: [m[0]] }] })); });
-    await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip'); assert.strictEqual(await q.locator('[data-a=next-trip]').count(), 1, 'only the ended trip with friends has the button');
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('[data-a=past]'); await q.click('[data-a=past]'); await q.waitForSelector('.trip'); assert.strictEqual(await q.locator('[data-a=next-trip]').count(), 1, 'only the ended trip with friends has the button');
     await q.evaluate(() => { window.__inv = 0; document.addEventListener('click', e => { if (e.target.closest('[data-a=invite]')) window.__inv++; }, true); });
     await q.click('[data-a=next-trip]'); await q.waitForSelector('#d-name');
     assert.strictEqual(await q.inputValue('#d-name'), '箱根（次の旅行）'); assert.strictEqual(await q.inputValue('#d-budget'), '60000'); assert.strictEqual(await q.inputValue('#d-me'), 'こうき');
@@ -297,6 +297,23 @@ try {
     // a plain new trip does not open the invite
     await q.click('[data-a=home]'); await q.click('[data-a=new]'); await q.waitForSelector('#d-name'); assert.strictEqual(await q.locator('.panel').count(), 0, 'no hint on a plain new trip');
     assert.deepStrictEqual(qerrs, []); await c9.close(); }
+
+  // 終了した旅行のページ: ended and settled trips leave the home screen; an ended trip with money left to settle stays
+  { const c10 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c10.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1');
+      const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], base = { paid: {}, savings: {}, settlements: [], adjustments: [], members: m },
+        far = (id, name, start, end) => ({ ...base, id, name, start, end, budget: 50000, expenses: [] });
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [far('p1', '古い旅', '2020-01-01', '2020-01-02'), far('p2', '新しい旅', '2021-01-01', '2021-01-02'), far('fut', '先の旅', '2099-01-01', '2099-01-02'),
+        { ...base, id: 'open', name: '精算待ちの旅', start: '2020-06-01', end: '2020-06-02', budget: 50000, expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'a', cat: 'food', date: '2020-06-01', split: ['a', 'b'] }] }] })); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip');
+    assert.deepStrictEqual(await q.locator('.trip .trip-name').allTextContents(), ['先の旅', '精算待ちの旅'], 'home: the upcoming trip and the ended trip that still needs settling');
+    assert.ok((await q.textContent('[data-a=past]')).includes('2件'), 'a row for the 2 settled ones'); assert.strictEqual(await q.locator('[data-a=new]').count(), 1);
+    await q.click('[data-a=past]'); await q.waitForSelector('h1'); assert.strictEqual(await q.textContent('h1'), '終了した旅行');
+    assert.deepStrictEqual(await q.locator('.trip .trip-name').allTextContents(), ['新しい旅', '古い旅'], 'newest first, and only the settled ones');
+    await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=home]'); await q.waitForSelector('h1:has-text("終了した旅行")');   // back goes to the page it came from
+    await q.click('[data-a=home]'); await q.waitForSelector('[data-a=past]'); assert.deepStrictEqual(await q.locator('.trip .trip-name').allTextContents(), ['先の旅', '精算待ちの旅']);
+    await q.click('.trip >> nth=1'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=home]'); await q.waitForSelector('[data-a=past]');   // opened from home: back goes home
+    assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
