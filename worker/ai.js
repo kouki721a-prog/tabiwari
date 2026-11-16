@@ -134,6 +134,9 @@ async function askAnthropic(env, m, note) {
 /* Cloudflare Workers AI (free allowance). The model is asked for the same JSON the tool would take. The exact shapes of the answer differ between models, so several are accepted;
    if the model refuses "response_format" it is asked again without it; a model that wants its licence accepted ("agree") is told so once. */
 const JSON_HELP = '\n\n返事は、次の形のJSONだけにしてください（前後に文章を付けない）:\n{"readable": true, "comment": "2件、読み取りました。", "expenses": [{"title": "夕食", "amount": 6000, "category": "food", "date": "2026-11-15", "payer": "けんた", "split_all": true, "split_names": [], "fixed": [{"name": "みく", "amount": 1000}]}]}\ncategory は transport / stay / food / sight / gift / other のどれか。payer と date が不明なら null。fixed が無ければ []。支出が複数なら、expenses に、複数入れる。';
+/* A photo of a receipt: a short prompt with NO sample values. (A small vision model copied the sample "夕食 6,000円 けんた" instead of reading the picture.) */
+const PHOTO_SYSTEM = 'あなたは、旅行の割り勘アプリ「たびわり」の案内役「たびまる」です。写真のレシートに印刷されている文字だけを読んで、支出を1件にまとめます。店名を title に、税込の合計金額を amount（円。数字だけ）に、日付を date（YYYY-MM-DD）にします。写真に書いてない内容や金額は、作らないでください。払った人と割る人は、写真には書いてないので、payer は null、split_all は true にします。レシートが読めない・レシートではないときは、readable を false にします。comment は、読み取った店名と金額を、やわらかいですます調で、短く確かめる文にします。';
+const PHOTO_HELP = '\n\n返事は、次の形のJSONだけにしてください（前後に文章を付けない）。<> の中は、写真から読み取った値に置きかえます:\n{"readable": true, "comment": "<店名と合計金額を確かめる一文>", "expenses": [{"title": "<店名>", "amount": <合計金額の数字>, "category": "<transport / stay / food / sight / gift / other のどれか>", "date": "<YYYY-MM-DD か null>", "payer": null, "split_all": true, "split_names": [], "fixed": []}]}\n読めないときは {"readable": false} だけにしてください。'
 function pickJson(out) {
   let v = out && (out.response !== undefined ? out.response : out.result && out.result.response !== undefined ? out.result.response : out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content);
   if (v && typeof v === 'object' && !Array.isArray(v)) return v;
@@ -147,10 +150,10 @@ const TEXT_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama
 async function askWorkers(env, m, note) {
   const run = testAi(env) ? (mdl, inp) => fetch(env.AI_FAKE_URL, { method: 'POST', body: JSON.stringify({ model: mdl, input: inp }) }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'fake ' + r.status); return d; }) : (mdl, inp) => env.AI.run(mdl, inp);
   const models = [...new Set([m ? env.AI_WORKERS_VISION_MODEL : env.AI_WORKERS_MODEL].concat(m ? VISION_MODELS : TEXT_MODELS).filter(Boolean))];
-  const text = note + JSON_HELP, fmt = { response_format: { type: 'json_schema', json_schema: TOOL.input_schema } };
+  const sys = m ? PHOTO_SYSTEM : SYSTEM, text = note + (m ? PHOTO_HELP : JSON_HELP), fmt = { response_format: { type: 'json_schema', json_schema: TOOL.input_schema } };
   const user = m ? [{ type: 'text', text }, { type: 'image_url', image_url: { url: 'data:' + m[1] + ';base64,' + m[2] } }] : text;
-  const base = { messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], max_tokens: 1500, temperature: 0.1 };
-  const legacy = m ? { prompt: SYSTEM + '\n\n' + text, image: [...Uint8Array.from(atob(m[2]), c => c.charCodeAt(0))], max_tokens: 1500 } : null;   // the older way a vision model takes a picture
+  const base = { messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], max_tokens: 1500, temperature: 0.1 };
+  const legacy = m ? { prompt: sys + '\n\n' + text, image: [...Uint8Array.from(atob(m[2]), c => c.charCodeAt(0))], max_tokens: 1500 } : null;   // the older way a vision model takes a picture
   const errors = [];
   for (const model of models) {
     const attempt = async (inp) => {
