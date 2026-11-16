@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, cleanParts};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -201,4 +201,36 @@ console.log('settlement round tests passed');
   assert.strictEqual(q(''), null); assert.strictEqual(q('0円'), null, 'zero is not an amount'); assert.strictEqual(q('夕食 1.5円'), null, 'fractions of a yen are not');
   assert.strictEqual(q('夕食 99999999999円'), null, 'too big');
   console.log('quick input tests passed');
+}
+{
+  // weights: 2 = 1x, 1 = 0.5x ... 6 = 3x. Equal weights give exactly the old result; weighted shares always add up to the amount.
+  const old = (amount, ids, seed) => { const n = ids.length, base = Math.floor(amount / n), rem = amount - base * n, order = ids.slice().sort(); let h = 2166136261; String(seed || '').split('').forEach(c => { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; });
+    const start = (h >>> 0) % n, extra = {}; for (let k = 0; k < rem; k++) extra[order[(start + k) % n]] = 1; return ids.map(id => [id, base + (extra[id] ? 1 : 0)]); };
+  for (let k = 0; k < 3000; k++){ const n = 1 + (k % 7), ids = Array.from({ length: n }, (_, i) => 'm' + i), amt = 1 + Math.floor(Math.random() * 100000);
+    assert.deepStrictEqual(L.splitShares(amt, ids, 'e' + k), old(amt, ids, 'e' + k), 'no weights: the same as before');
+    const same = {}; ids.forEach(id => { same[id] = 4; }); assert.deepStrictEqual(L.splitShares(amt, ids, 'e' + k, same), old(amt, ids, 'e' + k), 'equal weights of any size: the same as before');
+    const parts = {}; ids.forEach(id => { parts[id] = 1 + Math.floor(Math.random() * 6); }); const r = L.splitShares(amt, ids, 'e' + k, parts), tot = r.reduce((s, x) => s + x[1], 0), W = ids.reduce((s, id) => s + parts[id], 0);
+    assert.strictEqual(tot, amt, 'weighted shares add up'); r.forEach(x => { const exact = amt * parts[x[0]] / W; assert.ok(Math.abs(x[1] - exact) < 1, 'within 1 yen of the exact share: ' + x + ' ' + exact); });
+    assert.deepStrictEqual(L.splitShares(amt, ids.slice().reverse(), 'e' + k, parts).sort(), r.slice().sort(), 'the order of selection does not matter'); }
+  assert.deepStrictEqual(L.splitShares(3000, ['a', 'b'], 'x', { a: 2, b: 1 }), [['a', 2000], ['b', 1000]], 'a child pays half');
+  assert.deepStrictEqual(L.splitShares(1000, ['a', 'b', 'c'], 'x', { a: 2, b: 2, c: 1 }).map(x => x[1]), [400, 400, 200]);
+  assert.deepStrictEqual(L.cleanParts({ a: 2, b: 2 }, ['a', 'b']), null, 'all equal: nothing to keep'); assert.deepStrictEqual(L.cleanParts({ a: 3, b: 3 }, ['a', 'b']), null);
+  assert.deepStrictEqual(L.cleanParts({ a: 2, b: 1, z: 6 }, ['a', 'b']), { a: 2, b: 1 }, 'only the people who share it'); assert.deepStrictEqual(L.cleanParts({ a: 2, b: 9 }, ['a', 'b']), null, 'out of range = 1x, so equal');
+  assert.deepStrictEqual(L.cleanParts({ a: 3 }, ['a', 'b']), { a: 3, b: 2 }, 'missing = 1x'); assert.strictEqual(L.cleanParts(null, ['a']), null);
+  // balances, settlement and adjustments use the weights
+  const t = { members: [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'こども' }], budget: 1, expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', date: '2026-11-10', split: ['a', 'b'], parts: { a: 2, b: 1 } }], settlements: [], adjustments: [], paid: {}, savings: {} };
+  assert.deepStrictEqual(L.calcBalances(t).owed, { a: 2000, b: 1000 }); assert.deepStrictEqual(L.roundBalances(t).net, { a: 1000, b: -1000 });
+  assert.deepStrictEqual(L.settle(L.roundBalances(t).net), [{ from: 'b', to: 'a', amount: 1000 }]);
+  const edited = { ...t.expenses[0], parts: { a: 2, b: 2 } }; delete edited.parts; const adj = L.expenseAdjustment({ ...t, settlements: [{ id: 's', n: 1, at: '2026-11-11', total: 3000, transfers: [] }] }, { ...t.expenses[0], settleId: 's' }, { ...edited, settleId: 's' }, 'adj1', 'メモ', '2026-11-12');
+  assert.deepStrictEqual(adj && adj.nets, { a: 500, b: -500 }, 'taking the weights away: a paid 3000 and owed 2000 (net +1000), now owes 1500 (net +1500): a is owed 500 more, b owes 500 more');
+  // sanitize keeps valid weights only
+  const raw = { id: 'x', name: 't', start: '2026-11-10', end: '2026-11-11', budget: 1000, members: [{ id: 'a', name: 'あ' }, { id: 'b', name: 'い' }], expenses: [
+    { id: 'e1', title: '', amount: 300, payer: 'a', cat: 'food', date: '2026-11-10', split: ['a', 'b'], parts: { a: 2, b: 1, z: 5 } }, { id: 'e2', title: '', amount: 300, payer: 'a', cat: 'food', date: '2026-11-10', split: ['a', 'b'], parts: { a: 4, b: 4 } }] };
+  const sn = L.sanitizeTrip(raw, 'n'); assert.deepStrictEqual(sn.expenses[0].parts, { a: 2, b: 1 }); assert.strictEqual(sn.expenses[1].parts, undefined, 'equal weights are dropped');
+  // CSV: the weights are written as あおい(1.5) and read back; a bad weight skips the line
+  const ct = { ...t, expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', date: '2026-11-10', split: ['a', 'b'], parts: { a: 3, b: 1 } }] };
+  const csv = L.tripCsv(ct, c => ({ food: '食事' })[c]); assert.ok(csv.includes('あおい(1.5)・こども(0.5)'), csv);
+  let nn = 0; const back = L.importCsv({ members: t.members, expenses: [] }, csv, () => 'n' + (++nn), { 食事: 'food' }); assert.deepStrictEqual(back.add.map(e => e.parts), [{ a: 3, b: 1 }]);
+  const bad = L.importCsv({ members: t.members, expenses: [] }, '日付,内容,カテゴリ,金額,払った人,割り勘の対象\r\n2026-11-10,x,食事,300,あおい,あおい(5)・こども', () => 'm', { 食事: 'food' }); assert.ok(bad.skipped.length === 1 && /割合/.test(bad.skipped[0].why), JSON.stringify(bad));
+  console.log('weighted split tests passed');
 }

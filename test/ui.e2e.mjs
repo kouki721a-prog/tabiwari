@@ -257,6 +257,20 @@ try {
     await q.fill('#q-quick', 'タクシー 1,200'); await q.click('.quick .btn'); await see(q, 'タクシー 1,200円を記録しました'); assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 2, 'the button works too');
     await q.click('[data-a=undo]'); await q.waitForFunction(() => document.querySelectorAll('.item[data-a=edit-exp]').length === 1); assert.deepStrictEqual(qerrs, []); await c7.close(); }
 
+  // 割合を変える: a weight per person in the record sheet (0.5x to 3x), shown in the hint and the list, used by the settlement; taking it away goes back to equal
+  { const c8 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c8.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'こども', pos: 1 }], paid: {}, savings: {}, expenses: [] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('nav [data-a=add-exp]'); await q.waitForSelector('#f-amount');
+    await q.fill('#f-amount', '3000'); assert.ok((await q.textContent('#f-hint')).includes('1人あたり 1,500円'), await q.textContent('#f-hint'));
+    await q.click('[data-a=parts-toggle]'); await q.waitForSelector('.prow'); assert.strictEqual(await q.locator('.prow').count(), 2); assert.deepStrictEqual(await q.locator('.pval').allTextContents(), ['1倍', '1倍']);
+    await q.locator('[data-a=part-dec]').nth(1).click(); assert.deepStrictEqual(await q.locator('.pval').allTextContents(), ['1倍', '0.5倍']); assert.deepStrictEqual(await q.locator('.pamt').allTextContents(), ['2,000円', '1,000円']);
+    assert.ok((await q.textContent('#f-hint')).includes('割合あり'), await q.textContent('#f-hint')); await q.fill('#f-amount', '4500'); assert.deepStrictEqual(await q.locator('.pamt').allTextContents(), ['3,000円', '1,500円'], 'the amounts follow the amount while typing'); await q.fill('#f-amount', '3000');
+    await q.click('[data-a=save-exp]'); await see(q, '割合を指定して割り勘'); assert.deepStrictEqual(await q.evaluate(() => state.trips[0].expenses[0].parts), { a: 2, b: 1 });
+    await q.click('[data-a=tab][data-t=settle]'); await see(q, 'こども → あおい'); assert.ok((await q.textContent('.xfer')).includes('1,000円'), 'the child owes 1,000 yen (not 1,500)');
+    await q.click('[data-a=tab][data-t=exp]'); await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('.prow'); assert.deepStrictEqual(await q.locator('.pval').allTextContents(), ['1倍', '0.5倍'], 'the weights come back when editing');
+    await q.locator('[data-a=part-inc]').nth(1).click(); await q.click('[data-a=save-exp]'); await see(q, '全員で割り勘'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses[0].parts), undefined, 'equal again: no weights kept'); assert.deepStrictEqual(qerrs, []); await c8.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
