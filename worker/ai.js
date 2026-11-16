@@ -97,12 +97,12 @@ export async function aiParse(req, env, user) {
   const note = 'メンバー: ' + names.join('、') + '\nアプリを使っている本人: ' + me + '\n今日: ' + b.today + '\n旅行の日程: ' + b.start + ' から ' + b.end + '\n' + (m ? 'レシートの写真です。' : '') + (text ? '<user_text>' + text.replace(/<\/?user_text>/g, '') + '</user_text>' : '');
   try {
     const input = be === 'anthropic' ? await askAnthropic(env, m, note) : await askWorkers(env, m, note), ans = cleanAnswer(input, names);
-    if (!ans.ok) { return reply({ error: ans.error, name: ans.name, remaining }, 422); }   // the call was made, so it counts
+    if (!ans.ok) { return reply({ error: ans.error, name: ans.name, remaining, detail: input && input._detail }, 422); }   // the call was made, so it counts
     return reply({ ok: true, result: ans, remaining });
   } catch (e) {
     await refund(env, user.id, day, month, tot);
     if (e && e.busy) return reply({ error: 'busy' }, 429);   // the free allowance of the day is used up
-    console.error('ai failed', e && e.message); return reply({ error: 'upstream' }, 502);
+    console.error('ai failed', e && e.message, e && e.detail); return reply({ error: 'upstream', detail: String((e && e.detail) || (e && e.message) || '').slice(0, 300) }, 502);
   }
 }
 
@@ -139,6 +139,7 @@ async function askWorkers(env, m, note) {
       throw e;
     }
   };
-  let out; try { out = await attempt(true); } catch (e) { if (e && e.busy) throw e; out = await attempt(false); }   // some models do not take response_format
-  return pickJson(out);
+  let out; try { out = await attempt(true); } catch (e) { if (e && e.busy) throw e; try { out = await attempt(false); } catch (e2) { if (e2 && e2.busy) throw e2; const d = new Error(String(e2 && e2.message || e2)); d.detail = '[' + model + '] ' + String(e && e.message || e).slice(0, 120) + ' / ' + String(e2 && e2.message || e2).slice(0, 120); throw d; } }   // some models do not take response_format
+  const j = pickJson(out); if (j === null) return { readable: false, _detail: '[' + model + '] 答えが、JSONではありませんでした: ' + JSON.stringify(out).slice(0, 160) };   // the sentence was not an expense, or the model answered in words
+  return j;
 }

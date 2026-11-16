@@ -1260,6 +1260,7 @@ async function runAi(t, payload){
     if (ui.sheet !== cur) return; cur.busy = false; const k = e && e.message;
     cur.err = e && e.status === 401 ? 'LINEでログインすると、たびまるに頼めます。' : k === 'unknown_name' ? '書かれた名前が、この旅行のメンバーにいないようです。名前を確かめてください。' : AI_ERR[k] || AI_ERR.upstream;
     if (k === 'limit') ui.ai.remaining = 0;
+    if (e && e.detail) cur.detail = String(e.detail).slice(0, 300);
   }
   render();
 }
@@ -1405,7 +1406,7 @@ function viewSheet(){
     const rec = s.result && aiExpense(t, s.result);
     ttl = s.busy ? 'たびまるが読み取っています' : s.err || !rec ? 'たびまるからのお知らせ' : 'たびまるが読み取りました';
     if (s.busy){ body = '<div style="display:flex;gap:10px;align-items:center;margin:10px 0">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>少し待ってくださいね。</b></div></div>'; foot = '<button class="link" data-a="close-sheet">やめる</button>'; }
-    else if (s.err || !rec){ body = '<div style="display:flex;gap:10px;align-items:center;margin:10px 0">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>' + esc(s.err || AI_ERR.unreadable) + '</b></div></div>'; foot = '<button class="btn" data-a="close-sheet">とじる</button>'; }
+    else if (s.err || !rec){ body = '<div style="display:flex;gap:10px;align-items:center;margin:10px 0">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>' + esc(s.err || AI_ERR.unreadable) + '</b></div></div>' + (s.detail ? '<div class="sub sm" style="word-break:break-all">くわしい内容（開発者向け）：' + esc(s.detail) + '</div>' : ''); foot = '<button class="btn" data-a="close-sheet">とじる</button>'; }
     else {
       body = '<div style="display:flex;gap:10px;align-items:center;margin:6px 0 12px">' + tabimaru(34) + '<div class="panel" style="margin:0;flex:1;padding:10px 12px"><b>' + esc(s.result.comment || '読み取りました。内容を確かめてくださいね。') + '</b></div></div>' +
         '<div class="list">' + aiSummary(t, rec).map(r => '<div class="item slim"><div class="grow"><div class="sub sm">' + r[0] + '</div><div class="t">' + r[1] + '</div></div>' + (r[2] ? '<div class="amt">' + r[2] + '</div>' : '') + '</div>').join('') + '</div>' +
