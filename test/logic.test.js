@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -246,7 +246,7 @@ console.log('settlement round tests passed');
   assert.deepStrictEqual(w('夕食 3000円 こうき半分'), ['夕食', 3000, { こうき: 1 }, false], 'the longest name wins (こう / こうき)');
   assert.deepStrictEqual(w('夕食 3000円 こどもは4倍'), ['夕食', 3000, {}, true], 'out of range: an error'); assert.strictEqual(w('夕食 3000円 けんた0.3倍')[3], true); assert.strictEqual(w('夕食 3000円 けんた1.7倍')[3], true);
   assert.deepStrictEqual(w('夕食 3000円'), ['夕食', 3000, {}, false], 'no weights'); assert.deepStrictEqual(w('あおいと夕食 3000円'), ['あおいと夕食', 3000, {}, false], 'a name alone is just text');
-  assert.deepStrictEqual(q('夕食 3000円 こどもは半分'), { title: '夕食 こどもは半分', amount: 3000, cat: 'food', offset: 0, weights: {}, weightError: false, excluded: [], fixed: {} }, 'without names it is the same as before');
+  assert.deepStrictEqual(q('夕食 3000円 こどもは半分'), { title: '夕食 こどもは半分', amount: 3000, cat: 'food', offset: 0, weights: {}, weightError: false, excluded: [], fixed: {}, multi: false }, 'without names it is the same as before');
   // leaving a person out: けんたなし / 抜き / 無し / ぬき
   const ex = s => { const r = q(s, names); return r && [r.title, r.amount, r.excluded, r.weights]; };
   assert.deepStrictEqual(ex('夕食 3000円 けんたなし'), ['夕食', 3000, ['けんた'], {}]); assert.deepStrictEqual(ex('夕食 3000円 けんた抜き'), ['夕食', 3000, ['けんた'], {}]);
@@ -305,3 +305,15 @@ console.log('settlement round tests passed');
   assert.deepStrictEqual(f('夕食 5000円')[2], {}, 'nothing fixed by default');
   assert.deepStrictEqual(f('夕食 3000円 けんた×2')[3], { けんた: 4 }, 'weights are as before');
 }
+
+// 記録の入力欄: which sentences the quick record cannot read right (たびまる reads them)
+{ const names = ['こうき', 'あおい', 'けんた', 'みく'], n = t => L.needsTabimaru(t, names);
+  for (const t of ['夕食 2000円', '夕食 3,000円 全員で割り勘', 'タクシー 1,200円 けんたなし', '夕食 5000円 けんたは1000円だけ', '夕食 3000円 こどもは半分', '夕食 2000 3人', 'ランチ 1500円 昨日', '3000', 'ガム 80円'])
+    assert.strictEqual(n(t), '', 'the quick record takes it: ' + t);
+  for (const t of ['昨日の夕食、けんたが立て替えて3人で割った 6000円', '夕食 6000円 あおいが払った', '夕食 6000円 みくがおごり', '夕食 6000円 けんたが出してくれた', '夕食 6000円 たてかえ中 立替'])
+    assert.strictEqual(n(t), 'payer', t);
+  for (const t of ['タクシー 1,200円 あおいとみくの分', 'お菓子 600円 けんた以外', '夕食 6000円 あおいとけんたで割った']) assert.strictEqual(n(t), 'select', t);
+  for (const t of ['昼 1200、夜 3000', '昼 1200円 夜 3000円 タクシー 1500円', 'ガム 80円 お茶 150円', '昼1200 夜3000']) assert.strictEqual(n(t), 'multi', t);
+  assert.strictEqual(n('夕食 5000円 けんたは1000円だけ 昼 3000円'), 'multi', 'a fixed amount is not an extra expense, a second one is');
+  assert.strictEqual(n('夕食 5000円 けんたは1000円だけ'), '', 'a fixed amount alone is one expense'); assert.strictEqual(n('こんにちは'), '', 'no amount: nothing to read');
+  console.log('needsTabimaru tests passed'); }
