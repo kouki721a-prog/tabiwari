@@ -298,7 +298,7 @@ try {
     await q.click('[data-a=home]'); await q.click('[data-a=new]'); await q.waitForSelector('#d-name'); assert.strictEqual(await q.locator('.panel').count(), 0, 'no hint on a plain new trip');
     assert.deepStrictEqual(qerrs, []); await c9.close(); }
 
-  // ホームの上のタブ: 「これから・旅行中」と「終了した旅行」。精算が残る終了済みの旅行は、前のタブに残る。タブは、終了した旅行があるときだけ。見ていたタブは、旅行から戻っても、そのまま
+  // ホームの上のタブ: 「これから・旅行中」と「終了した旅行」。精算が残る終了済みの旅行は、前のタブに残る。タブは、いつも出る。見ていたタブは、旅行から戻っても、そのまま
   { const c10 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c10.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1');
       const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], base = { paid: {}, savings: {}, settlements: [], adjustments: [], members: m },
@@ -314,12 +314,12 @@ try {
     assert.deepStrictEqual(await names(), ['新しい旅', '古い旅'], 'newest first, and only the settled ones'); assert.strictEqual(await q.locator('h1').count() > 0, true);
     await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=home]'); await q.waitForSelector('.ut'); assert.deepStrictEqual(await names(), ['新しい旅', '古い旅'], 'back from a trip: the tab you were on');
     await q.click('[data-a=home-tab][data-v=now]'); await q.waitForFunction(() => document.querySelector('.ut button.on').dataset.v === 'now'); assert.deepStrictEqual(await names(), ['先の旅', '精算待ちの旅']);
-    // only ended trips: the second tab opens by itself; no ended trip at all: no tabs
+    // only ended trips: the second tab opens by itself; no ended trip at all: the tabs are there, the second one says it is empty
     const seed = trips => async () => { const x = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), y = await x.newPage(); await y.route('**/api/**', z => z.fulfill({ status: 404, json: {} }));
       await y.addInitScript(tr => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: tr })); }, trips); await y.goto('http://localhost:8797/'); await y.waitForSelector('.trip'); return [x, y]; };
     const T = (id, name, start, end) => ({ id, name, start, end, budget: 1000, members: [{ id: 'a', name: 'こうき', pos: 0 }], paid: {}, savings: {}, settlements: [], adjustments: [], expenses: [] });
     { const [x, y] = await seed([T('p1', '古い旅', '2020-01-01', '2020-01-02'), T('p2', '新しい旅', '2021-01-01', '2021-01-02')])(); assert.deepStrictEqual(await y.locator('.trip .trip-name').allTextContents(), ['新しい旅', '古い旅'], 'nothing in the first tab: the ended trips are shown at once'); assert.strictEqual(await y.locator('.ut').count(), 1); await x.close(); }
-    { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 0, 'no ended trip: no tabs'); await x.close(); }
+    { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=終了した旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
   // 受け取り方のメモ: written in the settlement tab, shown under the transfer to the receiver (with a copy button), carried to the next trip, never autofocused
