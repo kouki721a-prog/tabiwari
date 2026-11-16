@@ -315,6 +315,27 @@ try {
     await q.click('.trip >> nth=1'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=home]'); await q.waitForSelector('[data-a=past]');   // opened from home: back goes home
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
+  // 受け取り方のメモ: written in the settlement tab, shown under the transfer to the receiver (with a copy button), carried to the next trip, never autofocused
+  { const c11 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', permissions: ['clipboard-read', 'clipboard-write'] }), q = await c11.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
+        members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1, note: '現金でOK' }],
+        expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'b', cat: 'food', date: t, split: ['a', 'b'] }] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow');
+    assert.ok((await q.textContent('.noteRow')).includes('書いておくと'), 'asks to write one'); assert.ok((await q.textContent('.xnote')).includes('あおいさんの受け取り方：現金でOK'), "the receiver's memo is under the transfer");
+    await q.click('[data-a=copy-note]'); assert.strictEqual(await q.evaluate(() => navigator.clipboard.readText()), '現金でOK', 'the copy button copies only the memo');
+    await q.click('.noteRow'); await q.waitForSelector('#f-note'); assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.id === 'f-note'), false, 'the keyboard does not open by itself');
+    await q.click('[data-a=note-chip][data-v="PayPay："]'); assert.strictEqual(await q.inputValue('#f-note'), 'PayPay：'); await q.fill('#f-note', 'PayPay：kouki-0101'); await q.click('[data-a=note-save]');
+    await q.waitForSelector('.noteRow'); assert.ok((await q.textContent('.noteRow')).includes('PayPay：kouki-0101'));
+    assert.deepStrictEqual(await q.evaluate(() => [state.trips[0].members[0].note, state.payNote]), ['PayPay：kouki-0101', 'PayPay：kouki-0101']);
+    assert.strictEqual(await q.evaluate(() => sanitizeTrip(JSON.parse(JSON.stringify(state.trips[0])), 'n').members.map(m => m.note).join('|')), 'PayPay：kouki-0101|現金でOK', 'a restored or imported trip keeps the memos');
+    // the next trip starts with the same memo
+    await q.click('[data-a=home]'); await q.click('[data-a=new]'); await q.fill('#d-name', '次'); await q.fill('#d-budget', '10000'); await q.fill('#d-me', 'こうき'); await q.click('[data-a=save-trip]'); await q.waitForSelector('.ticket');
+    assert.strictEqual(await q.evaluate(() => state.trips[1].members[0].note), 'PayPay：kouki-0101');
+    await q.click('[data-a=tab][data-t=settle]'); await q.click('.noteRow'); await q.click('[data-a=note-clear]'); await q.waitForSelector('.noteRow');
+    assert.deepStrictEqual(await q.evaluate(() => [state.trips[1].members[0].note, state.payNote]), [undefined, undefined], 'clearing takes the memo away');
+    assert.deepStrictEqual(qerrs, []); await c11.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }

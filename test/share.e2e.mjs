@@ -63,6 +63,10 @@ try {
   await A.p.click('[data-a=tab][data-t=exp]'); await see(A.p, 'おみやげ代');
   await Bp.p.locator('[data-a=edit-exp]', { hasText: 'コーヒー' }).click(); await Bp.p.fill('#f-amount', '2000'); await Bp.p.click('[data-a=save-exp]'); await Bp.p.click('[data-a=save-exp]'); await see(Bp.p, '保存しました');
   await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, '過去の精算の変更による差額');
+  // 受け取り方のメモ: B writes one in the settlement tab; A sees it under the transfer to B after a refresh, and can copy it
+  await Bp.p.click('[data-a=tab][data-t=settle]'); await Bp.p.click('.noteRow'); await Bp.p.fill('#f-note', '現金でOK'); await Bp.p.click('[data-a=note-save]'); await see(Bp.p, '受け取り方を書きました');
+  await Bp.p.waitForFunction(() => document.body.innerText.indexOf('同期待ち') < 0, null, { timeout: 12000 });
+  await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, 'さんの受け取り方：現金でOK');
   await A.p.click('[data-a=tab][data-t=exp]'); await Bp.p.click('[data-a=tab][data-t=exp]');
 
   // ---------- offline edits wait, then go out when the connection returns

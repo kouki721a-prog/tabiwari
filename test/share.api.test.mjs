@@ -76,7 +76,7 @@ try {
     assert.strictEqual(x.status, 400, JSON.stringify(bad));
   }
   assert.strictEqual((await ops(A, [{ kind: 'insert', table: 'users', rows: [{}] }])).status, 400, 'unknown table');
-  assert.strictEqual((await ops(A, [{ kind: 'update', table: 'members', row: mem('m1', 'x', 0) }])).status, 400, 'members are not updatable');
+  assert.strictEqual((await ops(A, [{ kind: 'update', table: 'members', row: mem('m1', 'x', -1) }])).status, 400, 'a member row must still be valid (members only ever change their memo; see below)');
   assert.strictEqual((await ops(A, [])).status, 400); assert.strictEqual((await call(A, 'POST', '/api/ops', { ops: 'nope' })).status, 400);
   const after = (await call(A, 'GET', '/api/trip')).body;
   assert.strictEqual(after.rev, before.rev, 'rejected requests change nothing'); assert.deepStrictEqual(after.trip.trip_members, before.trip.trip_members);
@@ -141,6 +141,17 @@ try {
     assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'expenses', rows: [exp('e3', { parts: { m1: 3, m2: 1 } })] }])).status, 200); assert.deepStrictEqual((await call(T, 'GET', '/api/trip')).body.trip.expenses.find(e => e.id === 'e3').parts, { m1: 3, m2: 1 });
     for (const bad of [{ m1: 0 }, { m1: 7 }, { m1: 1.5 }, { m1: 'x' }, { zz: 2 }, [2, 2], {}, { m1: 2, m2: 2, m3: 2, m4: 2, m5: 2, m6: 2, m7: 2, m8: 2, m9: 2, m10: 2, m11: 2, m12: 2, m13: 2 }])
       assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'expenses', rows: [exp('e4', { parts: bad })] }])).status, 400, JSON.stringify(bad)); }
+
+  // --- 受け取り方のメモ (members.note): returned, updated, taken away; an older app that sends none must not wipe it; limited to 60 chars
+  { const T = await make(); const notes = async () => Object.fromEntries((await call(T, 'GET', '/api/trip')).body.trip.trip_members.map(m => [m.id, m.note]));
+    assert.deepStrictEqual(await notes(), { m1: '', m2: '' }, 'no memo by default');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'members', row: { ...mem('m1', 'あおい', 0), note: 'PayPay：aoi' } }])).status, 200); assert.deepStrictEqual(await notes(), { m1: 'PayPay：aoi', m2: '' });
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'members', row: mem('m1', 'あおい', 0) }])).status, 200); assert.strictEqual((await notes()).m1, 'PayPay：aoi', 'an update without a memo leaves it alone (older apps)');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'members', row: { ...mem('m1', 'あおい', 0), name: 'べつの名前', note: '現金' } }])).status, 200);
+    const mm = (await call(T, 'GET', '/api/trip')).body.trip.trip_members.find(m => m.id === 'm1'); assert.deepStrictEqual([mm.name, mm.note], ['あおい', '現金'], 'only the memo changes, never the name');
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'members', row: { ...mem('m1', 'あおい', 0), note: '' } }])).status, 200); assert.strictEqual((await notes()).m1, '', 'an empty memo takes it away');
+    assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'members', rows: [{ ...mem('m3', 'みく', 2), note: '現金' }] }])).status, 200); assert.strictEqual((await notes()).m3, '現金', 'a member can join with a memo');
+    for (const bad of ['あ'.repeat(61), 5, ['x']]) assert.strictEqual((await ops(T, [{ kind: 'update', table: 'members', row: { ...mem('m1', 'あおい', 0), note: bad } }])).status, 400, JSON.stringify(bad)); }
 
   // --- creating trips is rate limited (per day, per IP)
   let limited = false;
