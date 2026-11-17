@@ -12,6 +12,7 @@ const srv = http.createServer((q, r) => { const pth = q.url.split('?')[0]; if (/
   const f = path.join(dist, pth === '/' ? 'index.html' : /^\/(terms|privacy)$/.test(pth) ? pth + '.html' : pth); setTimeout(() => fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end('{}'); } else { r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'text/plain' }); r.end(d); } }), slow); }).listen(8797);
 const b = await chromium.launch(), errs = [];
 const see = (p, t, ms = 5000) => p.waitForSelector('text=' + t, { timeout: ms });
+const openRounds = async q => { for (const n of await q.$$eval('[data-a=toggle-round][aria-expanded=false]', es => es.map(e => e.getAttribute('data-v')))) await q.click('[data-a=toggle-round][data-v="' + n + '"]'); };   // settled expenses are folded by round
 try {
   const ctx = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await ctx.newPage();
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
@@ -107,20 +108,22 @@ try {
     assert.strictEqual(await q.locator('[data-a=settle-open]').count(), 1); await see(q, '支出 10,000円・送金 1件'); await q.click('[data-a=settle-open]'); await see(q, 'けんた → あおい'.length ? '第1回の精算' : ''); await see(q, '夕食'); await see(q, '宿');
     assert.ok((await q.textContent('.sheet')).includes('5,000円'), 'round 1 transfer'); await q.click('[data-a=close-sheet]');
     // editing a settled expense: warned first, then the difference goes to round 2 and round 1 stays
-    await q.click('[data-a=tab][data-t=exp]'); await q.locator('.item[data-a=edit-exp]', { hasText: '第1回で精算済み' }).first().click(); await see(q, '第1回で精算済みです。');
+    await q.click('[data-a=tab][data-t=exp]'); await openRounds(q); await q.locator('.rnd:has([data-v="1"]) .item[data-a=edit-exp]').first().click(); await see(q, '第1回で精算済みです。');
     const priceNow = await q.$eval('#f-amount', e => e.value); await q.fill('#f-amount', priceNow === '6000' ? '8000' : '5000'); await q.click('[data-a=save-exp]'); await see(q, '精算済みの支出を変更します'); await q.click('[data-a=settled-cancel]');
     assert.strictEqual(await q.locator('text=精算済みの支出を変更します').count(), 0, 'cancel closes the warning'); await q.click('[data-a=save-exp]'); await q.click('[data-a=save-exp]'); await q.waitForSelector('text=保存しました');
     await q.click('[data-a=tab][data-t=settle]'); await see(q, '過去の精算の変更による差額'); await q.click('[data-a=settle-open]'); assert.ok((await q.textContent('.sheet')).includes('5,000円'), 'round 1 transfer is unchanged after the edit'); await q.click('[data-a=close-sheet]');
     // deleting a settled expense, then undoing: the adjustment goes away with it
-    const adjBefore = await q.locator('text=の削除').count(); await q.click('[data-a=tab][data-t=exp]'); await q.locator('.item[data-a=edit-exp]', { hasText: '宿' }).click(); await q.click('[data-a=ask-del]'); await see(q, '精算済みです。削除すると、差額が第2回の精算に入ります'); await q.click('[data-a=del-exp]'); await see(q, '削除しました');
+    const adjBefore = await q.locator('text=の削除').count(); await q.click('[data-a=tab][data-t=exp]'); await openRounds(q); await q.locator('.item[data-a=edit-exp]', { hasText: '宿' }).click(); await q.click('[data-a=ask-del]'); await see(q, '精算済みです。削除すると、差額が第2回の精算に入ります'); await q.click('[data-a=del-exp]'); await see(q, '削除しました');
     await q.click('[data-a=tab][data-t=settle]'); await see(q, '「宿」の削除'); await q.click('[data-a=undo]'); await q.waitForSelector('text=元に戻しました'); assert.strictEqual(await q.locator('text=「宿」の削除').count(), 0, 'undo removes the adjustment');
     // the next round can be closed again and the history grows
     await q.click('[data-a=settle-ask]'); await q.click('[data-a=settle-go]'); await see(q, '第2回の精算を完了しました'); assert.strictEqual(await q.locator('[data-a=settle-open]').count(), 2); assert.deepStrictEqual(qerrs, []); }
 
   // the search box appears only once there are enough expenses
   for (const [a, t] of [[1000, '朝食'], [2000, '昼食'], [3000, '夕食'], [4000, 'お土産'], [5000, 'ロープウェイ']]) await add(a, t);
-  assert.strictEqual(await p.locator('#q-exp').count(), 0, 'no search box for a short list');
+  assert.strictEqual(await p.locator('[data-a=find-toggle]').count(), 0, 'no magnifier for a short list');
   await add(6000, '温泉');
+  assert.strictEqual(await p.locator('#q-exp').count(), 0, 'the search box is closed until the magnifier is pressed');
+  await p.click('[data-a=find-toggle]'); await p.waitForSelector('#q-exp'); assert.strictEqual(await p.evaluate(() => document.activeElement && document.activeElement.id === 'q-exp'), false, 'the keyboard does not open by itself');
   await p.fill('#q-exp', 'ロープ'); assert.strictEqual(await p.locator('.item[data-a=edit-exp]').count(), 1);
   await see(p, '1件・合計');
   await p.fill('#q-exp', '３０００'); await see(p, '夕食'); assert.strictEqual(await p.locator('.item[data-a=edit-exp]').count(), 1, 'full-width digits match the amount');

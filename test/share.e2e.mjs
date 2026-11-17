@@ -61,6 +61,7 @@ try {
   await Bp.p.click('[data-a=tab][data-t=exp]'); await see(Bp.p, '第1回で精算済み');
   await addExpense(Bp.p, 700, 'おみやげ代'); await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, '第2回の精算');
   await A.p.click('[data-a=tab][data-t=exp]'); await see(A.p, 'おみやげ代');
+  await Bp.p.click('[data-a=toggle-round]');   // settled expenses are folded by round
   await Bp.p.locator('[data-a=edit-exp]', { hasText: 'コーヒー' }).click(); await Bp.p.fill('#f-amount', '2000'); await Bp.p.click('[data-a=save-exp]'); await Bp.p.click('[data-a=save-exp]'); await see(Bp.p, '保存しました');
   await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, '過去の精算の変更による差額');
   // 受け取り方のメモ: B writes one in the settlement tab; A sees it under the transfer to B after a refresh, and can copy it
