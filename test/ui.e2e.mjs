@@ -139,6 +139,13 @@ try {
   await p.fill('#q-exp', '夕食 けんた'); await see(p, '見つかりませんでした');
   await p.fill('#q-exp', 'ほげ'); await see(p, '見つかりませんでした');
   await p.fill('#q-exp', ''); assert.strictEqual(await p.locator('.item[data-a=edit-exp]').count(), 6);
+  { // swipe a row left: the red 削除 shows (a short move does not); tapping it deletes, and 元に戻す brings it back
+    const rowSwipe = d => p.evaluate(dd => { const el = document.querySelector('.swp .item'), r = el.getBoundingClientRect(), y = r.top + r.height / 2, mk = x => new Touch({ identifier: 6, target: el, clientX: x, clientY: y }), fire = (type, x) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(x)], changedTouches: [mk(x)] })); fire('touchstart', 300); fire('touchmove', 300 + dd / 2); fire('touchmove', 300 + dd); fire('touchend', 300 + dd); }, d);
+    const n0 = await p.locator('.item[data-a=edit-exp]').count();
+    await rowSwipe(-30); assert.strictEqual(await p.locator('.swp.open').count(), 0, 'a short move does not open it');
+    await rowSwipe(-150); assert.strictEqual(await p.locator('.swp.open').count(), 1, 'a long move opens it');
+    await p.waitForTimeout(450); await p.click('.swp.open [data-a=swipe-del]'); await see(p, '削除しました'); assert.strictEqual(await p.locator('.item[data-a=edit-exp]').count(), n0 - 1, 'the row is deleted');
+    await p.click('[data-a=undo]'); await see(p, '元に戻しました'); assert.strictEqual(await p.locator('.item[data-a=edit-exp]').count(), n0, 'and comes back'); }
 
   // undo after deleting an expense: it comes back to the same place
   const names = () => p.$$eval('.item[data-a=edit-exp] .t', els => els.map(e => e.textContent));
