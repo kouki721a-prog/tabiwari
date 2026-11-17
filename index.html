@@ -1463,8 +1463,8 @@ function viewSheet(){
     foot = err + '<button class="btn" data-a="save-saving">記録する</button>';
   } else if (s.type === 'settings'){
     const d = s.data, used = id => t.expenses.some(e => e.payer === id || e.split.indexOf(id) >= 0) || (t.adjustments || []).some(a => a.nets[id]);
-    ttl = '旅行の設定';
-    body = '<label class="lab" for="s-name">旅行の名前</label><input class="field" id="s-name" type="text" value="' + esc(d.name) + '">' +
+    ttl = s.confirmDel ? '旅行を削除' : '旅行の設定';
+    body = s.confirmDel ? '<div class="panel" style="margin:4px 0 0"><b>' + esc(t.name) + '</b><div class="sub sm">支出 ' + t.expenses.length + '件・メンバー ' + t.members.length + '人</div></div><div style="margin:12px 2px 0">この端末から、この旅行を削除します。' + (t.share ? '共有している友だちの旅行は、残ります。' : '') + '<div class="sub sm" style="margin-top:8px">残しておきたいときは、［やめる］を押して、設定の［CSV書き出し］を使ってください。</div></div>' : '<label class="lab" for="s-name">旅行の名前</label><input class="field" id="s-name" type="text" value="' + esc(d.name) + '">' +
       '<div class="two"><div><label class="lab" for="s-start">出発日</label><input class="field" id="s-start" type="date" value="' + d.start + '"></div>' +
       '<div><label class="lab" for="s-end">帰着日</label><input class="field" id="s-end" type="date" value="' + d.end + '"></div></div>' +
       '<label class="lab" for="s-budget">全体の予算（円）</label><input class="field" id="s-budget" type="text" inputmode="numeric" value="' + esc(d.budget) + '">' +
@@ -1473,9 +1473,10 @@ function viewSheet(){
       '<div class="tiles" style="--n:' + (t.expenses.length ? 3 : 2) + '"><button class="tile" data-a="export-csv">' + icon('upload', 18) + 'CSV書き出し</button>' +
       '<button class="tile" data-a="import-csv">' + icon('download', 18) + 'CSV取り込み</button><input type="file" id="csv-file" accept=".csv,text/csv,text/plain" hidden>' +
       (t.expenses.length ? '<button class="tile" data-a="recap">' + icon('image', 18) + 'まとめ画像</button>' : '') + '</div>' +
-      (s.confirmDel ? '<div style="margin-top:10px">' + (t.share ? '<div class="sub" style="margin-bottom:8px">この端末から削除します。共有している友だちの旅行は、残ります。</div>' : '') + '<button class="btn bad" data-a="del-trip">本当にこの旅行を削除する</button>' + '</div>'
-        : '<button class="delrow" data-a="ask-del-trip">' + icon('trash', 18) + 'この旅行を削除</button>');
-    foot = err + '<button class="btn" data-a="save-settings">保存する</button>';
+      (s.confirmDel ? '' : '<button class="delrow" data-a="ask-del-trip">' + icon('trash', 18) + 'この旅行を削除</button>');
+    foot = s.confirmDel   // asking to delete: the confirm takes the place of 保存する, in the footer, so it is always on screen
+      ? err + '<div style="display:flex;gap:8px"><button class="btn line" data-a="del-trip-cancel" style="flex:1">やめる</button><button class="btn bad" data-a="del-trip" style="flex:2">本当に削除する</button></div>'
+      : err + '<button class="btn" data-a="save-settings">保存する</button>';
   }
   if (s.type === 'app-settings'){
     ttl = '設定';
@@ -1983,6 +1984,7 @@ document.addEventListener('click', e => {
     }
   }
   else if (a === 'ask-del-trip'){ readSheet(); s.confirmDel = true; }
+  else if (a === 'del-trip-cancel'){ s.confirmDel = false; }
   else if (a === 'del-trip'){
     const ix = state.trips.findIndex(x => x.id === t.id), gone = t;
     state.trips = state.trips.filter(x => x.id !== t.id); lsSet(GONE_KEY, JSON.stringify(readGone().concat(gone.id))); save(); if (lineAcct.user) bkSoon(); ui.sheet = null; ui.view = 'home'; ui.tripId = null; render();
