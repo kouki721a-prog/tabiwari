@@ -145,7 +145,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .home0-steps li{display:flex;gap:14px;align-items:center}
 .home0-steps .n{width:32px;height:32px;border-radius:50%;background:var(--soft);color:var(--ink);font-weight:700;display:grid;place-items:center;flex:none}
 .home0-steps b{display:block;font-size:15px}.home0-steps span:not(.n){display:block;color:var(--sub);font-size:13px}
-.home1{display:flex;flex-direction:column;min-height:calc(100vh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}
+.home1{touch-action:pan-y;display:flex;flex-direction:column;min-height:calc(100vh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}
 @supports (height:100dvh){.home1{min-height:calc(100dvh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}}
 .home1-foot{margin-top:auto;padding-top:16px}
 .foot1{text-align:center;white-space:nowrap}.foot1 button{color:var(--sub);text-decoration:underline;font:inherit;padding:8px 0}.foot1 a{display:inline-block;padding:8px 0}
@@ -327,6 +327,9 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
 @media (prefers-reduced-motion: no-preference){
   .sheet{animation:up .22s ease-out}
+  .sl-l{animation:slL .22s ease-out}.sl-r{animation:slR .22s ease-out}
+  @keyframes slL{from{transform:translateX(36px);opacity:.4}to{transform:none;opacity:1}}
+  @keyframes slR{from{transform:translateX(-36px);opacity:.4}to{transform:none;opacity:1}}
   @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
 }
 </style>
@@ -1151,7 +1154,8 @@ function viewHome(){
     if (!now.length) h += '<div class="empty" style="padding:28px 8px"><b>これから・旅行中の旅行は、ありません</b>下の［旅行をつくる］から、つくれます。</div>';
     h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
   } else h += past.length ? past.map(tripCard).join('') : '<div class="empty" style="padding:28px 8px"><b>終了した旅行は、まだありません</b>旅行が終わって、精算が済むと、ここに並びます。</div>';
-  return '<div class="home1"><div>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
+  const sl = ui.slide || ''; ui.slide = '';   // a swipe between the two tabs slides the list in from that side
+  return '<div class="home1"><div' + (sl ? ' class="sl-' + sl + '"' : '') + '>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
 function legalLinks(){
@@ -1681,6 +1685,25 @@ document.addEventListener('change', e => {
     ui.sheet = { type: 'csv-import', err: '', file: f.name, res: importCsv(t, text, uid, byLabel) }; render();
   }, () => flash('ファイルを読み込めませんでした。'));
 });
+
+/* home: swipe left / right between 「これから・旅行中」 and 「終了した旅行」 (a horizontal move only; not from the screen's edges, where iPhone's own swipe lives) */
+let swipe = null, swipedAt = 0;
+document.addEventListener('touchstart', e => {
+  const t = e.touches[0]; swipe = null;
+  if (e.touches.length !== 1 || ui.view !== 'home' || ui.sheet || !state.trips.length || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
+  swipe = { x: t.clientX, y: t.clientY };
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  const s = swipe; swipe = null; if (!s || ui.view !== 'home' || ui.sheet) return;
+  const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  const cur = document.querySelector('.ut button.on'), tab = cur && cur.getAttribute('data-v');
+  if (dx < 0 && tab === 'now') ui.homeTab = 'past', ui.slide = 'l';
+  else if (dx > 0 && tab === 'past') ui.homeTab = 'now', ui.slide = 'r';
+  else return;
+  swipedAt = Date.now(); ui.resetScroll = true; render();
+}, { passive: true });
+document.addEventListener('click', e => { if (Date.now() - swipedAt < 400){ e.stopPropagation(); e.preventDefault(); } }, true);   // the lift of a swipe is not a tap on a trip
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]');
