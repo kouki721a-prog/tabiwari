@@ -127,7 +127,8 @@ try {
   // the search box appears only once there are enough expenses
   for (const [a, t] of [[1000, '朝食'], [2000, '昼食'], [3000, '夕食'], [4000, 'お土産'], [5000, 'ロープウェイ']]) await add(a, t);
   assert.strictEqual(await p.locator('[data-a=find-toggle]').count(), 0, 'no magnifier for a short list');
-  await add(6000, '温泉');
+  await p.click('[data-a=add-exp]'); await p.fill('#f-amount', '6000'); await p.fill('#f-title', '温泉'); await p.click('[data-a=save-exp]'); await p.waitForSelector('.item.fresh', { timeout: 2000 }); assert.strictEqual(await p.locator('.item.fresh').count(), 1, 'the row just recorded comes in with a mark');
+  await p.waitForFunction(() => !document.querySelector('.item.fresh'), null, { timeout: 3000 }); await see(p, '温泉');   // and the mark goes away
   assert.strictEqual(await p.locator('#q-exp').count(), 0, 'the search box is closed until the magnifier is pressed');
   await p.click('[data-a=find-toggle]'); await p.waitForSelector('#q-exp'); assert.strictEqual(await p.evaluate(() => document.activeElement && document.activeElement.id === 'q-exp'), false, 'the keyboard does not open by itself');
   await p.fill('#q-exp', 'ロープ'); assert.strictEqual(await p.locator('.item[data-a=edit-exp]').count(), 1);
