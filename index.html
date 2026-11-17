@@ -334,6 +334,8 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
   .fab{transition:transform .12s ease-out}.fab:active{transform:translateX(-50%) scale(.97)}
   .btn:disabled:active{transform:none}
   #app.go-f>:not(.nav):not(.fab):not(.toast):not(.sheet-bg){animation:slL .24s ease-out}#app.go-b>:not(.nav):not(.fab):not(.toast):not(.sheet-bg){animation:slR .24s ease-out}   /* a move between screens: forward comes in from the right, back from the left */
+  .item.fresh{animation:fresh .5s ease-out}
+  @keyframes fresh{0%{transform:translateY(-14px);opacity:0;background:rgba(255,200,60,.28)}45%{transform:none;opacity:1;background:rgba(255,200,60,.2)}100%{background:transparent}}
   .sl-l{animation:slL .22s ease-out}.sl-r{animation:slR .22s ease-out}
   @keyframes slL{from{transform:translateX(36px);opacity:.4}to{transform:none;opacity:1}}
   @keyframes slR{from{transform:translateX(-36px);opacity:.4}to{transform:none;opacity:1}}
@@ -1054,6 +1056,7 @@ function render(){
   app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : (ui.view === 'home' && !state.trips.length) ? 'fit nonav' : '';
   if (dv) app.className += (app.className ? ' ' : '') + (dv > 0 ? 'go-f' : 'go-b');
   app.innerHTML = html;
+  if (ui.fresh && !ui.freshT) ui.freshT = setTimeout(() => { ui.fresh = null; ui.freshT = 0; }, 700);   // a row just recorded keeps its mark for a moment (a toast may re-draw the list), for its entrance
   document.body.style.overflow = ui.sheet ? 'hidden' : '';
   const nl = document.querySelector('.scroll'); if (nl) nl.scrollTop = keepList;
   const sh = document.querySelector('.sheet-body');
@@ -1252,7 +1255,7 @@ function usageBar(t, inCard){   // the share of each category (a tap opens the l
 function expLabel(t, e){ return { cat: (CAT[e.cat] || CAT.other)[2], payer: nameOf(t, e.payer), split: e.split.map(id => nameOf(t, id)) }; }
 function expRow(t, e, inRound){
   const c = CAT[e.cat] || CAT.other;
-  return '<button class="item" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
+  return '<button class="item' + (ui.fresh && ui.fresh[e.id] ? ' fresh' : '') + '" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
     '<div class="grow"><div class="t">' + esc(e.title || c[2]) + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
     (e.fixed ? '金額を指定して割り勘' : e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (!inRound && isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
     '<div class="amt">' + yen(e.amount) + '</div></button>';
@@ -1669,7 +1672,7 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   t.members.forEach(m => { if (left.indexOf(m.id) >= 0 && fx[m.id] === undefined && r.weights[m.name] && wp[m.id] === undefined){ wp[m.id] = r.weights[m.name]; said.push(m.name + ' ' + partLabel(r.weights[m.name])); } });
   r.excluded.forEach(n => said.push(n + 'なし'));
   const pp = cleanParts(wp, rec.split.slice()), full = {}; if (pp){ rec.split.forEach(id => { full[id] = wp[id] || 2; }); const fp = cleanParts(full, rec.split); if (fp) rec.parts = fp; }
-  const before = catSums(t); t.expenses.push(rec); ui.quick = ''; ui.quickErr = ''; save(); render();
+  const before = catSums(t); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render();
   const cn = capNotice(t, before);
   flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
 });
@@ -1966,7 +1969,7 @@ document.addEventListener('click', e => {
         const adj = expenseAdjustment(t, old, x, uid(), '「' + (rec.title || (CAT[rec.cat] || CAT.other)[2]) + '」の変更', todayStr());
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }
-      else t.expenses.push(Object.assign({ id: uid() }, rec));
+      else { const ne = Object.assign({ id: uid() }, rec); t.expenses.push(ne); ui.fresh = { [ne.id]: 1 }; }
       const wasEdit = !!s.editId; save(); ui.sheet = null; render(); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
     }
   }
@@ -2010,7 +2013,7 @@ document.addEventListener('click', e => {
       ui.sheet = { type: 'exp', err: '', editId: null, partsOpen: !!rec.fixed, data: { amount: String(rec.amount), title: rec.title, cat: rec.cat, payer: rec.payer, all: rec.split.length === t.members.length, split: rec.split.slice(), date: rec.date, parts: {},
         fixed: rec.fixed ? Object.fromEntries(Object.keys(rec.fixed).map(k => [k, String(rec.fixed[k])])) : {} } };
     } else {
-      const tid = t.id, before = catSums(t), fulls = take.map(rec => Object.assign({ id: uid() }, rec)); fulls.forEach(f => t.expenses.push(f)); ui.sheet = null; ui.quick = ''; save(); render();
+      const tid = t.id, before = catSums(t), fulls = take.map(rec => Object.assign({ id: uid() }, rec)); fulls.forEach(f => t.expenses.push(f)); ui.fresh = {}; fulls.forEach(f => { ui.fresh[f.id] = 1; }); ui.sheet = null; ui.quick = ''; save(); render();
       const cn = capNotice(t, before), one = take[0], total = take.reduce((x, r) => x + r.amount, 0);
       flash((take.length > 1 ? take.length + '件（合わせて ' + yen(total) + '）' : (one.title || (CAT[one.cat] || CAT.other)[2]) + ' ' + yen(one.amount)) + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; const ids = fulls.map(f => f.id); tt.expenses = tt.expenses.filter(q => ids.indexOf(q.id) < 0); save(); render(); });
       return;
