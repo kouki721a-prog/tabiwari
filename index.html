@@ -324,6 +324,9 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) * .5 + 14px);width:calc(100% - 32px);max-width:488px;box-shadow:0 8px 20px rgba(0,0,0,.22);z-index:10}
 .toast button{margin-left:14px;color:#fff;text-decoration:underline;font-weight:700;font-size:14px}
 .toast{display:flex;align-items:center;white-space:nowrap;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 100px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:99px;font-size:14px;font-weight:500;z-index:40}
+.swp{position:relative;overflow:hidden;border-top:1px solid var(--line)}.swp:first-child{border-top:0}.swp .item{border-top:0;background:var(--card);position:relative;z-index:1;transition:transform .18s ease-out}.swp.open .item{transform:translateX(-84px)}
+.swp-del{position:absolute;right:0;top:0;bottom:0;width:84px;background:#d4372f;color:#fff;font-weight:700;font-size:15px;display:grid;place-items:center;padding:0}
+.list>.item+.swp,.list>.swp+.item{border-top:1px solid var(--line)}
 #ptr{position:fixed;left:50%;top:0;width:40px;height:40px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:5;pointer-events:none;opacity:0}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
 @media (prefers-reduced-motion: no-preference){
@@ -868,7 +871,7 @@ function openFromUrl(href){
   const id = u.searchParams.get('trip'); if (!id) return false;
   try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
   if (!state.trips.some(x => x.id === id)) return false;
-  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : 'exp'; ui.q = ''; ui.qOpen = false; ui.resetScroll = true; render(); return true;
+  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : 'exp'; ui.q = ''; ui.qOpen = false; ui.swp = null; ui.resetScroll = true; render(); return true;
 }
 function bootShare(){
   if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open) openFromUrl(e.data.open); });
@@ -1256,11 +1259,12 @@ function usageBar(t, inCard){   // the share of each category (a tap opens the l
 }
 function expLabel(t, e){ return { cat: (CAT[e.cat] || CAT.other)[2], payer: nameOf(t, e.payer), split: e.split.map(id => nameOf(t, id)) }; }
 function expRow(t, e, inRound){
-  const c = CAT[e.cat] || CAT.other;
-  return '<button class="item' + (ui.fresh && ui.fresh[e.id] ? ' fresh' : '') + '" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
+  const c = CAT[e.cat] || CAT.other, swp = !isSettled(t, e);   // an unsettled row can be swiped left to delete (a settled one is deleted from its edit sheet, which explains the difference)
+  const row = '<button class="item' + (ui.fresh && ui.fresh[e.id] ? ' fresh' : '') + '" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
     '<div class="grow"><div class="t">' + esc(e.title || c[2]) + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
     (e.fixed ? '金額を指定して割り勘' : e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (!inRound && isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
     '<div class="amt">' + yen(e.amount) + '</div></button>';
+  return swp ? '<div class="swp' + (ui.swp === e.id ? ' open' : '') + '" data-swp="' + e.id + '">' + row + '<button class="swp-del" data-a="swipe-del" data-id="' + e.id + '" aria-label="「' + esc(e.title || c[2]) + '」を削除">削除</button></div>' : row;
 }
 function expList(t, q){
   const searching = !!q.trim(), list = searching ? t.expenses.filter(e => matchExpense(e, q, expLabel(t, e))) : t.expenses.filter(e => !isSettled(t, e));   // without a search, the settled ones are folded by round
@@ -1707,6 +1711,7 @@ let swipe = null, swipedAt = 0;
 document.addEventListener('touchstart', e => {
   const t = e.touches[0]; swipe = null;
   if (e.touches.length !== 1 || !((ui.view === 'home' && state.trips.length) || (ui.view === 'trip' && trip())) || ui.sheet || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
+  if (e.target.closest('.swp')) return;   // a swipe on an expense row belongs to the row (delete)
   swipe = { x: t.clientX, y: t.clientY };
 }, { passive: true });
 document.addEventListener('touchend', e => {
@@ -1716,7 +1721,7 @@ document.addEventListener('touchend', e => {
   if (ui.view === 'trip'){   // inside a trip: 記録 / 精算 / 積立
     const order = ['exp', 'settle', 'save'], j = order.indexOf(ui.tab) + (dx < 0 ? 1 : -1);
     if (j < 0 || j >= order.length) return;
-    ui.tab = order[j]; ui.q = ''; ui.qOpen = false; ui.slide = dx < 0 ? 'l' : 'r';
+    ui.tab = order[j]; ui.q = ''; ui.qOpen = false; ui.swp = null; ui.slide = dx < 0 ? 'l' : 'r';
   } else {
     const cur = document.querySelector('.ut button.on'), tab = cur && cur.getAttribute('data-v');
     if (dx < 0 && tab === 'now') ui.homeTab = 'past', ui.slide = 'l';
@@ -1725,6 +1730,33 @@ document.addEventListener('touchend', e => {
   }
   swipedAt = Date.now(); ui.resetScroll = true; render();
 }, { passive: true });
+/* an expense row: swipe left to show the red 削除 (a tap on it deletes; 元に戻す stays for a few seconds). Another touch, or a swipe right, closes it. */
+let rs = null;
+const SWP = 84;
+document.addEventListener('touchstart', e => {
+  rs = null; const w = e.touches.length === 1 && !ui.sheet ? e.target.closest('.swp') : null;
+  if (!w || e.target.closest('.swp-del')) return;
+  rs = { w, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, on: false, open: w.classList.contains('open') };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!rs) return; const dx = e.touches[0].clientX - rs.x, dy = e.touches[0].clientY - rs.y;
+  if (!rs.on){ if (Math.abs(dy) > Math.abs(dx) + 6){ rs = null; return; } if (Math.abs(dx) > 10 && (dx < 0 || rs.open)) rs.on = true; else return; }
+  e.preventDefault(); rs.dx = dx;
+  const it = rs.w.querySelector('.item'), x = Math.max(-SWP - 24, Math.min(0, (rs.open ? -SWP : 0) + dx));
+  it.style.transition = 'none'; it.style.transform = 'translateX(' + x + 'px)';
+}, { passive: false });
+document.addEventListener('touchend', () => {
+  const r = rs; rs = null; if (!r || !r.on) return;
+  const it = r.w.querySelector('.item'), open = (r.open ? -SWP : 0) + r.dx < -SWP / 2; swipedAt = Date.now();
+  it.style.transition = ''; it.style.transform = '';
+  document.querySelectorAll('.swp.open').forEach(x => { if (x !== r.w) x.classList.remove('open'); });
+  r.w.classList.toggle('open', open); ui.swp = open ? r.w.getAttribute('data-swp') : null;
+}, { passive: true });
+document.addEventListener('click', e => {   // a tap elsewhere closes an open row; a tap on the open row itself only closes it (it does not open the editor)
+  if (!ui.swp || e.target.closest('.swp-del')) return;
+  const o = document.querySelector('.swp.open'); ui.swp = null; if (o) o.classList.remove('open');
+  if (o && o.contains(e.target)){ e.stopPropagation(); e.preventDefault(); }
+}, true);
 /* pull down at the top of a shared trip's list to sync now (about 70px; a yellow arrow grows, then spins while it syncs) */
 let pull = null, pullAt = 0;
 const PULL = 70;
@@ -1787,9 +1819,9 @@ document.addEventListener('click', e => {
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
   if (a === 'bg'){ if (e.target !== el) return; ui.sheet = null; render(); return; }
 
-  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; }   // the tab you were on stays (ui.homeTab)
+  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.swp = null; }   // the tab you were on stays (ui.homeTab)
   else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; }
-  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; ui.qOpen = false; }
+  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; ui.qOpen = false; ui.swp = null; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
     readSheet();   // keep what is typed in an open sheet
@@ -1959,7 +1991,7 @@ document.addEventListener('click', e => {
       expenses: [ex('夕食', 9000, 0, 'food', [0, 1, 2]), ex('宿', 12000, 1, 'stay', [0, 1, 2]), ex('電車', 3000, 2, 'transport', [1, 2])] };
     state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'settle'; ui.draft = null;
   }
-  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.qOpen = false; ui.resetScroll = true; }
+  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.qOpen = false; ui.swp = null; ui.resetScroll = true; }
 
   else if (a === 'add-exp'){
     const today = todayStr();
@@ -2012,12 +2044,13 @@ document.addEventListener('click', e => {
   }
   else if (a === 'settled-cancel'){ s.confirmSettled = false; }
   else if (a === 'ask-del'){ readSheet(); s.confirmDel = true; }
-  else if (a === 'del-exp'){
-    const ix = t.expenses.findIndex(q => q.id === s.editId), gone = t.expenses[ix], tid = t.id;
+  else if (a === 'del-exp' || a === 'swipe-del'){   // from the edit sheet, or the red button a swipe left on a row shows
+    const did = a === 'swipe-del' ? el.getAttribute('data-id') : s.editId; ui.swp = null;
+    const ix = t.expenses.findIndex(q => q.id === did), gone = t.expenses[ix], tid = t.id;
     if (ix < 0){ ui.sheet = null; render(); return; }
     const adj = expenseAdjustment(t, gone, null, uid(), '「' + (gone.title || (CAT[gone.cat] || CAT.other)[2]) + '」の削除', todayStr());   // a closed round's expense: the difference goes to the current round
     if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
-    t.expenses = t.expenses.filter(q => q.id !== s.editId); save(); ui.sheet = null; render();
+    t.expenses = t.expenses.filter(q => q.id !== did); save(); ui.sheet = null; render();
     flash('削除しました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt || tt.expenses.some(q => q.id === gone.id)) return; tt.expenses.splice(Math.min(ix, tt.expenses.length), 0, gone);
       if (adj) tt.adjustments = (tt.adjustments || []).filter(a => a.id !== adj.id);   // undoing the deletion also takes the difference back
       save(); render(); flash('元に戻しました'); });
@@ -2056,7 +2089,7 @@ document.addEventListener('click', e => {
       return;
     }
   }
-  else if (a === 'find-toggle'){ if (ui.qOpen || ui.q){ ui.q = ''; ui.qOpen = false; } else ui.qOpen = true; }
+  else if (a === 'find-toggle'){ if (ui.qOpen || ui.q){ ui.q = ''; ui.qOpen = false; ui.swp = null; } else ui.qOpen = true; }
   else if (a === 'toggle-round'){ const n = el.getAttribute('data-v'); ui.rounds = ui.rounds || {}; ui.rounds[n] = !ui.rounds[n]; }
   else if (a === 'caps-edit'){ ui.sheet = { type: 'caps', err: '' }; }
   else if (a === 'caps-save'){
