@@ -139,7 +139,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
 .home0>*{flex:none}
 .home0-intro{text-align:center;color:var(--sub);font-size:min(14px, calc((100vw - 36px) / 27.5));line-height:1.6;padding:18px 0 16px;white-space:nowrap}
-.home0-intro b{display:block;color:var(--ink);font-size:20px;font-weight:700;margin-bottom:4px}
+.home0-tags{text-align:center;color:var(--ink);font-size:13px;margin:-6px 0 12px;white-space:nowrap}
+.home0-note{border:1px solid var(--sun);border-radius:14px;padding:9px 12px;font-size:12.5px;line-height:1.5;color:var(--ink);margin:0 2px 8px}.home0-note b{display:block}
+.home0-intro b{display:block;color:var(--ink);font-size:min(20px, calc((100vw - 36px) / 16.5));white-space:nowrap;font-weight:700;margin-bottom:4px}
 @media (max-height:700px){.home0-intro{padding:8px 0 10px}.home0-steps{gap:10px;padding:10px 4px}.home0 .legal{margin-top:8px}.home0.sa .home0-steps{padding:10px 4px 0;gap:10px}.home0.sa .home0-intro{padding:2px 0 8px}.home0.sa>.home0-mid{padding-bottom:4px}}
 .home0-steps{list-style:none;margin:0;padding:0;flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:18px 4px}
 .home0-steps li{display:flex;gap:14px;align-items:center}
@@ -156,6 +158,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .home0.sa>.home0-mid{display:flex;flex-direction:column;flex:1 0 auto;justify-content:center;padding-bottom:8px}
 .home0.sa>.home0-bottom{display:block}
 .home0.sa .home0-steps{flex:none;padding:18px 4px 0;gap:14px}
+/* short screens (after the base rules above, so these win): a tighter note; the smallest phones drop the steps (the heading and the note say it already) */
+@media (max-height:700px){.home0-tags{margin:-2px 0 8px}.home0-note{font-size:12px;padding:7px 10px;line-height:1.45;margin-bottom:6px}}
+@media (max-height:600px){.home0-steps{display:none}}
 .home0.sa .home0-intro{padding-top:6px}
 .home0-line{display:flex;flex-direction:column;gap:6px;padding:0 2px}
 .home0-line .sub{text-align:center}
@@ -1121,11 +1126,11 @@ function viewHomeEmpty(){
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">' + (isStandalone() ? 'LINEでログインすると、通知とバックアップを使えます。' : 'LINEでログインすると、旅行をバックアップできます。') + '</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + '<div class="home0-mid">' + remoteCard() + installBanner() +
-    '<div class="home0-intro"><b>最初の旅行をつくりましょう</b>予算を決めて記録するだけ。割り勘は自動で計算します。</div>' +
+    '<div class="home0-intro"><b>友だちと行く旅行の、割り勘アプリ</b>予算を決めて記録するだけ。割り勘は自動で計算します。</div><div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div>' +
     '<button class="btn" data-a="new">旅行をつくる</button>' +
     '<button class="btn line" data-a="join-paste" style="margin-top:10px">共有リンクで参加する</button>' +
     '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol></div>' +
-    '<div class="home0-bottom">' + line + legalLinks() + '</div></div>';
+    '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>データは、この端末に保存されます。</b>ログインしなくても使えます。ただ、ブラウザのデータを消したり、端末を替えたりすると、旅行は消えます。LINEでログインすると、バックアップして、戻せます。</div>') + line + legalLinks() + '</div></div>';
 }
 /* the one line on a home card that says what to do next */
 function homeHint(t){
@@ -1182,7 +1187,7 @@ function legalLinks(){
 function lineCard(){
   if (!lineAcct.login) return '';
   if (lineAcct.waiting) return '<div class="install"><div class="grow">LINEでのログインを待っています。LINEの画面で、許可してください。</div><button class="btn line" data-a="line-cancel" style="font-size:14px;padding:8px 12px">やめる</button></div>';
-  if (!lineAcct.user) return '<div class="install col"><div>LINEでログインすると、旅行をバックアップして、別の端末でも戻せます。</div><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
+  if (!lineAcct.user) return '<div class="install col"><div>LINEでログインすると、旅行をバックアップして、別の端末でも戻せます。ログインしないと、端末を替えたときに、旅行は消えます。</div><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   return '';
 }
 function viewNew(){

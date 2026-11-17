@@ -24,7 +24,7 @@ const addExpense = async (p, amount, title) => { await p.click('[data-a=add-exp]
 try {
   // ---------- A creates a trip, records one expense, adds a member, shares
   const A = await person();
-  await A.p.goto(base + '/'); await see(A.p, '最初の旅行をつくりましょう');
+  await A.p.goto(base + '/'); await see(A.p, '友だちと行く旅行の、割り勘アプリ');
   await A.p.click('[data-a=new]'); await A.p.fill('#d-name', '共有テスト'); await A.p.fill('#d-budget', '30000'); await A.p.fill('#d-me', 'あおい'); await A.p.click('[data-a=save-trip]');
   await addExpense(A.p, 3000, '夕食');
   await A.p.setViewportSize({ width: 390, height: 780 });
