@@ -85,7 +85,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #app.fit{height:100%;overflow:hidden;display:flex;flex-direction:column;padding-bottom:0}
 #app.fit>*{flex:none}
 #app.fit>.sp{display:block;flex:10 1 0;min-height:6px;max-height:24px}
-#app.fit>.scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin:0 -16px;padding:0 16px 8px}
+#app.fit>.scroll{touch-action:pan-y;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin:0 -16px;padding:0 16px 8px}
 #app.nonav{padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 10px)}
 .cta{padding-top:10px}
 .scroll>.lab:first-child{margin-top:6px}
@@ -333,6 +333,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
   .iconbtn:active,.tab:active,.plus:active{transform:scale(.92)}
   .fab{transition:transform .12s ease-out}.fab:active{transform:translateX(-50%) scale(.97)}
   .btn:disabled:active{transform:none}
+  #app.go-f>:not(.nav):not(.fab):not(.toast):not(.sheet-bg){animation:slL .24s ease-out}#app.go-b>:not(.nav):not(.fab):not(.toast):not(.sheet-bg){animation:slR .24s ease-out}   /* a move between screens: forward comes in from the right, back from the left */
   .sl-l{animation:slL .22s ease-out}.sl-r{animation:slR .22s ease-out}
   @keyframes slL{from{transform:translateX(36px);opacity:.4}to{transform:none;opacity:1}}
   @keyframes slR{from{transform:translateX(-36px);opacity:.4}to{transform:none;opacity:1}}
@@ -1048,7 +1049,10 @@ function render(){
   let html = ui.view === 'home' ? viewHome() : ui.view === 'new' ? viewNew() : viewTrip();
   if (ui.sheet) html += viewSheet();
   if (ui.toast) html += '<div class="toast" role="status">' + esc(ui.toast) + (ui.undo ? '<button data-a="undo">元に戻す</button>' : '') + '</div>';
+  const depth = { home: 0, new: 1, trip: 1 }, key = ui.view === 'trip' && !trip() ? 'home' : ui.view, dv = lastView === null ? 0 : (depth[key] - depth[lastView]) || (key !== lastView ? 1 : 0);   // forward (+) / back (-) between screens
+  lastView = key;
   app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : (ui.view === 'home' && !state.trips.length) ? 'fit nonav' : '';
+  if (dv) app.className += (app.className ? ' ' : '') + (dv > 0 ? 'go-f' : 'go-b');
   app.innerHTML = html;
   document.body.style.overflow = ui.sheet ? 'hidden' : '';
   const nl = document.querySelector('.scroll'); if (nl) nl.scrollTop = keepList;
@@ -1057,7 +1061,7 @@ function render(){
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet;
 }
-let sheetWasOpen = false, toastN = 0;
+let sheetWasOpen = false, toastN = 0, lastView = null;
 function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
 /* the first screen (no trips yet): one screen, no scrolling. Order: intro, the main button, join by link, the 3 steps, LINE login (small), legal links at the very bottom */
@@ -1219,7 +1223,8 @@ function viewTrip(){
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   if (ui.tab !== 'exp') h += memRow(t);   // on the record tab the members sit on the date line
   if (ui.tab === 'exp' && st[0] === '準備中') h += '<i class="sp"></i>' + usageBar(t);   // otherwise the categories sit inside the budget card
-  h += '<i class="sp"></i><div class="scroll">' + (ui.tab === 'exp' ? tabExp(t) : ui.tab === 'settle' ? tabSettle(t) : tabSave(t)) + '</div>';
+  const sl = ui.slide || ''; ui.slide = '';   // a swipe between the tabs slides the list in
+  h += '<i class="sp"></i><div class="scroll' + (sl ? ' sl-' + sl : '') + '">' + (ui.tab === 'exp' ? tabExp(t) : ui.tab === 'settle' ? tabSettle(t) : tabSave(t)) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
   return h + '<nav class="nav"><div class="nav-in">' + tb('exp', 'list', '記録') + tb('settle', 'swap', '精算') +
     '<button class="plus" data-a="add-exp" aria-label="支出を追加">' + icon('plus', 28) + '</button>' + tb('save', 'coin', '積立') +
@@ -1692,21 +1697,27 @@ document.addEventListener('change', e => {
   }, () => flash('ファイルを読み込めませんでした。'));
 });
 
-/* home: swipe left / right between 「これから・旅行中」 and 「終了した旅行」 (a horizontal move only; not from the screen's edges, where iPhone's own swipe lives) */
+/* swipe left / right: on the home screen between 「これから・旅行中」 and 「終了した旅行」, inside a trip between 記録 / 精算 / 積立 (a horizontal move only; not from the screen's edges, where iPhone's own swipe lives) */
 let swipe = null, swipedAt = 0;
 document.addEventListener('touchstart', e => {
   const t = e.touches[0]; swipe = null;
-  if (e.touches.length !== 1 || ui.view !== 'home' || ui.sheet || !state.trips.length || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
+  if (e.touches.length !== 1 || !((ui.view === 'home' && state.trips.length) || (ui.view === 'trip' && trip())) || ui.sheet || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
   swipe = { x: t.clientX, y: t.clientY };
 }, { passive: true });
 document.addEventListener('touchend', e => {
-  const s = swipe; swipe = null; if (!s || ui.view !== 'home' || ui.sheet) return;
+  const s = swipe; swipe = null; if (!s || ui.sheet || (ui.view !== 'home' && ui.view !== 'trip')) return;
   const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
   if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-  const cur = document.querySelector('.ut button.on'), tab = cur && cur.getAttribute('data-v');
-  if (dx < 0 && tab === 'now') ui.homeTab = 'past', ui.slide = 'l';
-  else if (dx > 0 && tab === 'past') ui.homeTab = 'now', ui.slide = 'r';
-  else return;
+  if (ui.view === 'trip'){   // inside a trip: 記録 / 精算 / 積立
+    const order = ['exp', 'settle', 'save'], j = order.indexOf(ui.tab) + (dx < 0 ? 1 : -1);
+    if (j < 0 || j >= order.length) return;
+    ui.tab = order[j]; ui.q = ''; ui.qOpen = false; ui.slide = dx < 0 ? 'l' : 'r';
+  } else {
+    const cur = document.querySelector('.ut button.on'), tab = cur && cur.getAttribute('data-v');
+    if (dx < 0 && tab === 'now') ui.homeTab = 'past', ui.slide = 'l';
+    else if (dx > 0 && tab === 'past') ui.homeTab = 'now', ui.slide = 'r';
+    else return;
+  }
   swipedAt = Date.now(); ui.resetScroll = true; render();
 }, { passive: true });
 /* sheets: drag down to close (from the top of the sheet, or anywhere while its content is scrolled to the top); it closes the same way the close button does */
