@@ -1254,6 +1254,7 @@ function expList(t, q){
     const sub = days[d].reduce((s, e) => s + e.amount, 0);
     h += '<div class="sec"><h2>' + fmtDay(d) + '<span>' + yen(sub) + '</span></h2><div class="list">' + days[d].slice().reverse().map(e => expRow(t, e)).join('') + '</div></div>';
   });
+  if (!searching && !list.length) h += '<div class="sub sm" style="margin:10px 2px 8px">未精算の支出はありません。</div>';   // everything is settled: say so above the folded rounds
   rn.forEach(n => {
     const es = rounds[n], open = !!(ui.rounds && ui.rounds[n]);
     h += '<div class="sec rnd"><div class="list"><button class="item" data-a="toggle-round" data-v="' + n + '" aria-expanded="' + open + '"><div class="grow"><div class="t">第' + n + '回で精算済み</div><div class="sub">' + es.length + '件・' + yen(es.reduce((s, e) => s + e.amount, 0)) + '</div></div><span class="chev' + (open ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
