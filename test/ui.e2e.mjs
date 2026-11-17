@@ -46,7 +46,7 @@ try {
   assert.strictEqual(await p.getAttribute('.tab.on', 'aria-current'), 'page');
 
   // home with trips: a settings button at the top right replaces the three small links at the bottom; the settings sheet holds the rules and the version
-  await p.click('[data-a=home]'); await p.waitForSelector('.home1');
+  await p.click('[data-a=home]'); await p.waitForSelector('.home1'); await p.waitForTimeout(350);   // the slide between screens has ended
   { const m = await p.evaluate(() => { const b = document.querySelector('[data-a=app-settings]').getBoundingClientRect(), h = document.querySelector('.brand').getBoundingClientRect(), fab = document.querySelector('.fab').getBoundingClientRect(); return { right: innerWidth - b.right, sameRow: Math.abs((b.top + b.bottom) / 2 - (h.top + h.bottom) / 2) < 14, scrolls: document.documentElement.scrollHeight - innerHeight, links: document.querySelectorAll('.home1 .legal, .foot1').length, fabBottom: innerHeight - fab.bottom }; });
     assert.ok(m.right < 40 && m.sameRow && m.scrolls <= 1 && m.links === 0, 'settings button at the top right, no footer links: ' + JSON.stringify(m)); }
   await p.click('[data-a=app-settings]'); await see(p, '規約'); await see(p, '利用規約'); await see(p, 'プライバシーポリシー'); await see(p, 'このアプリについて');
@@ -328,6 +328,14 @@ try {
       await swipe(200, 300, 190, 300); assert.strictEqual(await on(), 'now', 'a short move does nothing'); await swipe(300, 300, 150, 420); assert.strictEqual(await on(), 'now', 'a mostly vertical move does nothing'); await swipe(10, 300, -140, 300).catch(() => {}); assert.strictEqual(await on(), 'now', 'a swipe from the edge does nothing');
       await swipe(300, 300, 120, 310); await q.waitForFunction(() => document.querySelector('.ut button.on').dataset.v === 'past'); assert.strictEqual(await q.locator('.home1 > div.sl-l').count(), 1, 'it slides in from the right');
       await swipe(300, 300, 120, 310); assert.strictEqual(await on(), 'past', 'swiping on the last tab does nothing more'); await swipe(100, 300, 280, 310); await q.waitForFunction(() => document.querySelector('.ut button.on').dataset.v === 'now'); }
+    // screens slide (forward in from the right, back from the left); inside a trip, swiping switches 記録 / 精算 / 積立
+    { const swipe = (x0, x1) => q.evaluate(([a, c]) => { const el = document.querySelector('.scroll') || document.body, mk = x => new Touch({ identifier: 3, target: el, clientX: x, clientY: 300 }), fire = (type, x) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(x)], changedTouches: [mk(x)] })); fire('touchstart', a); fire('touchmove', c); fire('touchend', c); }, [x0, x1]), cur = () => q.$eval('.nav .tab[aria-current=page]', e => e.dataset.t);
+      await q.waitForTimeout(450);   // a tap right after a swipe is ignored (the finger lifting)
+      await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); assert.ok(await q.$eval('#app', e => e.classList.contains('go-f')), 'opening a trip slides in from the right'); assert.strictEqual(await cur(), 'exp');
+      await swipe(300, 120); assert.strictEqual(await cur(), 'settle', 'swipe left: the next tab'); assert.strictEqual(await q.locator('.scroll.sl-l').count(), 1, 'the list slides in');
+      await swipe(300, 120); assert.strictEqual(await cur(), 'save'); await swipe(300, 120); assert.strictEqual(await cur(), 'save', 'nothing after the last tab');
+      await swipe(100, 280); assert.strictEqual(await cur(), 'settle', 'swipe right: the previous tab'); await swipe(100, 280); assert.strictEqual(await cur(), 'exp'); await swipe(100, 280); assert.strictEqual(await cur(), 'exp', 'nothing before the first tab');
+      await q.waitForTimeout(450); await q.click('[data-a=home]'); await q.waitForSelector('.ut'); assert.ok(await q.$eval('#app', e => e.classList.contains('go-b')), 'going back slides in from the left'); }
     // only ended trips: the second tab opens by itself; no ended trip at all: the tabs are there, the second one says it is empty
     const seed = trips => async () => { const x = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), y = await x.newPage(); await y.route('**/api/**', z => z.fulfill({ status: 404, json: {} }));
       await y.addInitScript(tr => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: tr })); }, trips); await y.goto('http://localhost:8797/'); await y.waitForSelector('.trip'); return [x, y]; };
