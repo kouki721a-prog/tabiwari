@@ -666,6 +666,7 @@ const CAT = {}; CATS.forEach(c => { CAT[c[0]] = c; });
 const HUES = [200, 28, 332, 150, 265, 48, 8, 180];
 const WD = ['日','月','火','水','木','金','土'];
 const IC = {
+  find:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   list:'<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
   swap:'<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
@@ -853,7 +854,7 @@ function openFromUrl(href){
   const id = u.searchParams.get('trip'); if (!id) return false;
   try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
   if (!state.trips.some(x => x.id === id)) return false;
-  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : 'exp'; ui.q = ''; ui.resetScroll = true; render(); return true;
+  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : 'exp'; ui.q = ''; ui.qOpen = false; ui.resetScroll = true; render(); return true;
 }
 function bootShare(){
   if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open) openFromUrl(e.data.open); });
@@ -1234,23 +1235,29 @@ function usageBar(t, inCard){   // the share of each category (a tap opens the l
     (hasCaps || inCard ? '' : '<div class="sub sm" style="margin-top:6px">タップして、カテゴリごとの上限を決める ›</div>') + '</button>';
 }
 function expLabel(t, e){ return { cat: (CAT[e.cat] || CAT.other)[2], payer: nameOf(t, e.payer), split: e.split.map(id => nameOf(t, id)) }; }
+function expRow(t, e, inRound){
+  const c = CAT[e.cat] || CAT.other;
+  return '<button class="item" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
+    '<div class="grow"><div class="t">' + esc(e.title || c[2]) + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
+    (e.fixed ? '金額を指定して割り勘' : e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (!inRound && isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
+    '<div class="amt">' + yen(e.amount) + '</div></button>';
+}
 function expList(t, q){
-  const list = q.trim() ? t.expenses.filter(e => matchExpense(e, q, expLabel(t, e))) : t.expenses;
-  if (!list.length) return '<div class="empty"><b>見つかりませんでした</b>別の言葉で、探してみてください。</div>';
-  let h = q.trim() ? '<div class="sub sm" style="margin-top:8px">' + list.length + '件・合計 ' + yen(list.reduce((n, e) => n + e.amount, 0)) + '</div>' : '';
+  const searching = !!q.trim(), list = searching ? t.expenses.filter(e => matchExpense(e, q, expLabel(t, e))) : t.expenses.filter(e => !isSettled(t, e));   // without a search, the settled ones are folded by round
+  const rounds = {}; if (!searching) t.expenses.forEach(e => { if (isSettled(t, e)) { const n = roundNo(t, e.settleId); (rounds[n] = rounds[n] || []).push(e); } });
+  const rn = Object.keys(rounds).map(Number).sort((a, b) => b - a);
+  if (!list.length && !rn.length) return '<div class="empty"><b>見つかりませんでした</b>別の言葉で、探してみてください。</div>';
+  let h = searching ? '<div class="sub sm" style="margin-top:8px">' + list.length + '件・合計 ' + yen(list.reduce((n, e) => n + e.amount, 0)) + '</div>' : '';
   const days = {};
   list.forEach(e => { (days[e.date] = days[e.date] || []).push(e); });
   Object.keys(days).sort().reverse().forEach(d => {
     const sub = days[d].reduce((s, e) => s + e.amount, 0);
-    h += '<div class="sec"><h2>' + fmtDay(d) + '<span>' + yen(sub) + '</span></h2><div class="list">';
-    days[d].slice().reverse().forEach(e => {
-      const c = CAT[e.cat] || CAT.other;
-      h += '<button class="item" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
-        '<div class="grow"><div class="t">' + esc(e.title || c[2]) + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
-        (e.fixed ? '金額を指定して割り勘' : e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
-        '<div class="amt">' + yen(e.amount) + '</div></button>';
-    });
-    h += '</div></div>';
+    h += '<div class="sec"><h2>' + fmtDay(d) + '<span>' + yen(sub) + '</span></h2><div class="list">' + days[d].slice().reverse().map(e => expRow(t, e)).join('') + '</div></div>';
+  });
+  rn.forEach(n => {
+    const es = rounds[n], open = !!(ui.rounds && ui.rounds[n]);
+    h += '<div class="sec rnd"><div class="list"><button class="item" data-a="toggle-round" data-v="' + n + '" aria-expanded="' + open + '"><div class="grow"><div class="t">第' + n + '回で精算済み</div><div class="sub">' + es.length + '件・' + yen(es.reduce((s, e) => s + e.amount, 0)) + '</div></div><span class="chev' + (open ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
+      (open ? es.slice().reverse().map(e => expRow(t, e, true)).join('') : '') + '</div></div>';
   });
   return h;
 }
@@ -1305,14 +1312,15 @@ function aiSummary(t, rec){ const nm = id => esc(nameOf(t, id));
     ].concat(rec.fixed ? [['金額の指定', Object.keys(rec.fixed).map(id => nm(id) + ' ' + yen(rec.fixed[id])).join('、'), '']] : []);
 }
 function quickForm(){
-  return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとことで記録：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button>' + aiButtons() + '</form>' +
+  return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとこと：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button>' + aiButtons() + (ui.canFind ? '<button class="btn line aibtn" type="button" data-a="find-toggle" aria-label="支出を探す" aria-pressed="' + !!(ui.qOpen || ui.q) + '">' + icon('find', 22) + '</button>' : '') + '</form>' +
     (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '');
 }
 function tabExp(t){
+  ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
   if (!t.expenses.length) return quickForm() + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:14px;padding:8px 14px">まとめ画像</button></div>' : '';
-  const box = done + (t.expenses.length >= 6 ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
-  return quickForm() + box + '<div id="exp-list">' + expList(t, box ? ui.q : '') + '</div>';
+  const box = done + (ui.canFind && (ui.qOpen || ui.q) ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
+  return quickForm() + box + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
 }
 
 const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
@@ -1678,9 +1686,9 @@ document.addEventListener('click', e => {
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
   if (a === 'bg'){ if (e.target !== el) return; ui.sheet = null; render(); return; }
 
-  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; }   // the tab you were on stays (ui.homeTab)
+  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; }   // the tab you were on stays (ui.homeTab)
   else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; }
-  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; }
+  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; ui.qOpen = false; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
     readSheet();   // keep what is typed in an open sheet
@@ -1850,7 +1858,7 @@ document.addEventListener('click', e => {
       expenses: [ex('夕食', 9000, 0, 'food', [0, 1, 2]), ex('宿', 12000, 1, 'stay', [0, 1, 2]), ex('電車', 3000, 2, 'transport', [1, 2])] };
     state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'settle'; ui.draft = null;
   }
-  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.resetScroll = true; }
+  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.qOpen = false; ui.resetScroll = true; }
 
   else if (a === 'add-exp'){
     const today = todayStr();
@@ -1947,6 +1955,8 @@ document.addEventListener('click', e => {
       return;
     }
   }
+  else if (a === 'find-toggle'){ if (ui.qOpen || ui.q){ ui.q = ''; ui.qOpen = false; } else ui.qOpen = true; }
+  else if (a === 'toggle-round'){ const n = el.getAttribute('data-v'); ui.rounds = ui.rounds || {}; ui.rounds[n] = !ui.rounds[n]; }
   else if (a === 'caps-edit'){ ui.sheet = { type: 'caps', err: '' }; }
   else if (a === 'caps-save'){
     const caps = {}; let bad = false;
