@@ -61,6 +61,10 @@ try {
   await Bp.p.click('[data-a=tab][data-t=exp]'); await see(Bp.p, '第1回で精算済み');
   await addExpense(Bp.p, 700, 'おみやげ代'); await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, '第2回の精算');
   await A.p.click('[data-a=tab][data-t=exp]'); await see(A.p, 'おみやげ代');
+  // pull down at the top of the list: the arrow shows, and the other person's new record comes in
+  await addExpense(Bp.p, 300, 'ひっぱり代');
+  { const shown = await A.p.evaluate(() => { const el = document.querySelector('.scroll .item') || document.querySelector('.scroll'), mk = y => new Touch({ identifier: 4, target: el, clientX: 200, clientY: y }), fire = (type, y) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(y)], changedTouches: [mk(y)] })); fire('touchstart', 200); fire('touchmove', 230); fire('touchmove', 300); const s = !!document.getElementById('ptr'); fire('touchend', 300); return s; });
+    assert.ok(shown, 'the pull arrow shows'); await see(A.p, 'ひっぱり代'); await A.p.waitForFunction(() => !document.getElementById('ptr'), null, { timeout: 4000 }); }
   await Bp.p.click('[data-a=toggle-round]');   // settled expenses are folded by round
   await Bp.p.locator('[data-a=edit-exp]', { hasText: 'コーヒー' }).click(); await Bp.p.fill('#f-amount', '2000'); await Bp.p.click('[data-a=save-exp]'); await Bp.p.click('[data-a=save-exp]'); await see(Bp.p, '保存しました');
   await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, '過去の精算の変更による差額');
