@@ -40,11 +40,14 @@ try {
 
   // ---------- B opens the link (a fresh browser), picks who they are, sees A's data
   const Bp = await person();
-  await Bp.p.goto(link); await see(Bp.p, '共有された旅行'); await see(Bp.p, '共有テスト');
+  await Bp.p.goto(link); await see(Bp.p, 'に招待されました'); await see(Bp.p, '共有テスト');
   assert.ok(!Bp.p.url().includes('#t='), 'token is removed from the address bar after it is read');
   await Bp.p.click('[data-a=join-share-go]'); await see(Bp.p, '名前を入力するか');             // nothing entered yet -> asked
   await Bp.p.fill('#j-name', 'けんた'); await Bp.p.click('[data-a=join-share-go]');
   await see(Bp.p, '参加しました'); await see(Bp.p, '夕食'); await see(Bp.p, '3,000円');
+  // a person who has just joined sees a short guide once; "わかった" dismisses it for good
+  await see(Bp.p, '支出は、下の［＋］か、ひとことで記録できます'); await Bp.p.click('[data-a=welcome-ok]'); assert.strictEqual(await Bp.p.locator('[data-a=welcome-ok]').count(), 0, 'the guide goes away');
+  await refresh(Bp.p); assert.strictEqual(await Bp.p.locator('[data-a=welcome-ok]').count(), 0, 'and does not come back');
 
   // ---------- B records; A sees it; A edits; B sees it; both compute the same settlement
   await addExpense(Bp.p, 1200, 'コーヒー');
@@ -83,7 +86,7 @@ try {
   const C = await person();
   await C.p.goto(base + '/'); await C.p.click('[data-a=join-paste]'); await C.p.fill('#p-link', 'https://example.invalid/#t=short');
   await C.p.click('[data-a=join-paste-go]'); await see(C.p, 'リンクの形式を確認してください');
-  await C.p.fill('#p-link', '「共有テスト」の割り勘に参加してね。\n' + link + '\n'); await C.p.click('[data-a=join-paste-go]'); await see(C.p, '共有された旅行');
+  await C.p.fill('#p-link', '「共有テスト」の割り勘に参加してね。\n' + link + '\n'); await C.p.click('[data-a=join-paste-go]'); await see(C.p, 'に招待されました');
   await C.p.fill('#j-name', 'けんた'); await C.p.click('[data-a=join-share-go]'); await see(C.p, '同じ名前のメンバーがいます');
   await C.p.fill('#j-name', 'みく'); await C.p.click('[data-a=join-share-go]'); await see(C.p, '参加しました'); await see(C.p, '共有テスト'); await C.p.waitForTimeout(1200);   // let C's new member reach the server
   await refresh(A.p); await A.p.waitForTimeout(1500); await A.p.click('[data-a=settings]'); await see(A.p, 'みく'); await see(A.p, 'けんた');

@@ -143,7 +143,9 @@ html,body{overscroll-behavior-x:none}
 .home0>*{flex:none}
 .home0-intro{text-align:center;color:var(--sub);font-size:min(14px, calc((100vw - 36px) / 27.5));line-height:1.6;padding:18px 0 16px;white-space:nowrap}
 .home0-tags{text-align:center;color:var(--ink);font-size:13px;margin:-6px 0 12px;white-space:nowrap}
-.home0-note{border:1px solid var(--sun);border-radius:14px;padding:9px 12px;font-size:12.5px;line-height:1.5;color:var(--ink);margin:0 2px 8px}.home0-note b{display:block}
+.home0-note-sub{color:var(--sub);font-size:11.5px;margin-top:3px}
+.home0-steps span:not(.n){line-height:1.45}
+.home0-note{border:1px solid var(--line);border-radius:14px;padding:9px 12px;font-size:12.5px;line-height:1.5;color:var(--ink);margin:0 2px 8px}.home0-note b{display:block}
 .home0-intro b{display:block;color:var(--ink);font-size:min(20px, calc((100vw - 36px) / 16.5));white-space:nowrap;font-weight:700;margin-bottom:4px}
 @media (max-height:700px){.home0-intro{padding:8px 0 10px}.home0-steps{gap:10px;padding:10px 4px}.home0 .legal{margin-top:8px}.home0.sa .home0-steps{padding:10px 4px 0;gap:10px}.home0.sa .home0-intro{padding:2px 0 8px}.home0.sa>.home0-mid{padding-bottom:4px}}
 .home0-steps{list-style:none;margin:0;padding:0;flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:18px 4px}
@@ -163,6 +165,7 @@ html,body{overscroll-behavior-x:none}
 .home0.sa .home0-steps{flex:none;padding:18px 4px 0;gap:14px}
 /* short screens (after the base rules above, so these win): a tighter note; the smallest phones drop the steps (the heading and the note say it already) */
 @media (max-height:700px){.home0-tags{margin:-2px 0 8px}.home0-note{font-size:12px;padding:7px 10px;line-height:1.45;margin-bottom:6px}}
+@media (max-height:660px){.home0-steps{gap:8px;padding:4px 4px}.home0-intro{padding:4px 0 6px}.home0-tags{margin:-2px 0 6px}}
 @media (max-height:600px){.home0-steps{display:none}}
 .home0.sa .home0-intro{padding-top:6px}
 .home0-line{display:flex;flex-direction:column;gap:6px;padding:0 2px}
@@ -1144,7 +1147,7 @@ async function makeRecap(t){
 }
 const brandRow = () => '<div class="brandrow"><h1 class="brand">たびわり</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 function viewHomeEmpty(){
-  const steps = [['旅行をつくる', '日程と、予算を決めます。'], ['支出を記録する', '誰が払ったか、誰の分かを選びます。'], ['精算する', '誰が誰にいくら払うかが、自動で出ます。']];
+  const steps = [['旅行をつくる', '友だちはリンクで参加。アプリもログインも不要。'], ['支出を記録する', '「夕食 2000円」で記録。レシートの写真も可。'], ['精算する', '誰が誰にいくら払うかが、自動で出ます。']];
   let line = '';
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line"><div class="sub sm">' + (isStandalone() ? 'LINEでログインすると、通知とバックアップを使えます。' : 'LINEでログインすると、旅行をバックアップできます。') + '</div><button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
@@ -1153,7 +1156,7 @@ function viewHomeEmpty(){
     '<button class="btn" data-a="new">旅行をつくる</button>' +
     '<button class="btn line" data-a="join-paste" style="margin-top:10px">共有リンクで参加する</button>' +
     '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol></div>' +
-    '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>データは、この端末に保存されます。</b>ログインしなくても使えます。ただ、ブラウザのデータを消したり、端末を替えたりすると、旅行は消えます。LINEでログインすると、バックアップして、戻せます。</div>') + line + legalLinks() + '</div></div>';
+    '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。（ログインなしでも使えます）<div class="home0-note-sub">ログインしないと、ブラウザのデータを消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>';
 }
 /* the one line on a home card that says what to do next */
 function homeHint(t){
@@ -1216,7 +1219,7 @@ function legalLinks(){
 function lineCard(){
   if (!lineAcct.login) return '';
   if (lineAcct.waiting) return '<div class="install"><div class="grow">LINEでのログインを待っています。LINEの画面で、許可してください。</div><button class="btn line" data-a="line-cancel" style="font-size:14px;padding:8px 12px">やめる</button></div>';
-  if (!lineAcct.user) return '<div class="install col"><div>LINEでログインすると、旅行をバックアップして、別の端末でも戻せます。ログインしないと、端末を替えたときに、旅行は消えます。</div><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
+  if (!lineAcct.user) return '<div class="install col"><div>LINEでログインすると、旅行をバックアップして、別の端末でも戻せます。<span class="sub sm" style="display:block;margin-top:2px">ログインしないと、端末を替えたときに、旅行は消えます。</span></div><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   return '';
 }
 function viewNew(){
@@ -1384,13 +1387,14 @@ function quickForm(){
   return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとこと：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button>' + aiButtons() + (ui.canFind ? '<button class="btn line aibtn" type="button" data-a="find-toggle" aria-label="支出を探す" aria-pressed="' + !!(ui.qOpen || ui.q) + '">' + icon('find', 22) + '</button>' : '') + '</form>' +
     (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '');
 }
+const welcomeCard = t => lsGet('tabiwari.welcome.' + t.id) ? '<div class="install" style="margin:0 0 8px"><div class="grow"><b>参加しました。</b><div class="sub sm">支出は、下の［＋］か、ひとことで記録できます。割り勘は、自動で計算されます。</div></div><button class="btn line" data-a="welcome-ok" style="font-size:14px;padding:8px 14px;width:auto">わかった</button></div>' : '';
 const tabHtml = (t, k) => k === 'exp' ? tabExp(t) : k === 'settle' ? tabSettle(t) : tabSave(t);
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
-  if (!t.expenses.length) return quickForm() + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
+  if (!t.expenses.length) return welcomeCard(t) + quickForm() + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:14px;padding:8px 14px">まとめ画像</button></div>' : '';
   const box = done + (ui.canFind && (ui.qOpen || ui.q) ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
-  return quickForm() + box + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
+  return welcomeCard(t) + quickForm() + box + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
 }
 
 const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
@@ -1593,11 +1597,11 @@ function viewSheet(){
     foot = err + (s.items && s.items.length ? '<button class="btn" data-a="bk-restore-go"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '戻しています…' : '選んだ旅行を戻す') + '</button>' + (s.delAsk ? '<div class="sub" style="margin:8px 0">選んだ ' + s.pick.length + '件を、バックアップから削除します（この端末や、共有している旅行には、影響しません）。元に戻せません。</div><button class="btn bad" data-a="bk-del-yes">本当に削除する</button><button class="link" data-a="bk-del-no">やめる</button>' : '<button class="link bad" data-a="bk-del-go">選んだものを、バックアップから削除</button>') : '<button class="link" data-a="close-sheet">閉じる</button>');
   }
   if (s.type === 'join-share'){
-    const jt = s.trip; ttl = '共有された旅行';
+    const jt = s.trip; ttl = '「' + jt.name + '」に招待されました';
     body = '<div class="panel" style="margin-top:12px"><div class="num">' + esc(jt.name) + '</div><div class="sub">' + fmtDate(jt.start) + ' - ' + fmtDate(jt.end) + '・メンバー ' + jt.members.length + '人・支出 ' + jt.expenses.length + '件</div></div>' +
       '<label class="lab" for="j-name">あなたの名前</label><input class="field" id="j-name" type="text" maxlength="50" value="' + esc(s.name) + '" placeholder="例：みく">' +
       (jt.members.length ? '<span class="lab">すでに参加している人（別の端末から入り直すとき）</span><div class="chips">' + jt.members.map(m => '<button class="chip ' + (s.pick === m.id ? 'on' : '') + '" data-a="join-pick" data-v="' + m.id + '" aria-pressed="' + (s.pick === m.id) + '">' + av(jt, m.id) + esc(m.name) + '</button>').join('') + '</div><div class="sub sm" style="margin-top:6px">自分が、すでにこの旅行に参加しているときだけ、選びます。ほかの人の名前は、選ばないでください。</div>' : '') +
-      '<div class="sub sm" style="margin-top:8px">参加すると、この旅行の支出と精算を、見て、記録できます。</div>';
+      '<div class="panel" style="margin-top:12px;padding:10px 12px;font-size:13px;line-height:1.6"><b>参加のしかた</b><br>① あなたの名前を入れます<br>② ［参加する］を押します<div class="sub sm" style="margin-top:2px">参加すると、支出と精算を、見て、記録できます。LINEのログインや、アプリのインストールは、要りません。</div></div>';
     foot = err + '<button class="btn" data-a="join-share-go"' + (s.busy ? ' disabled' : '') + '>参加する</button><button class="link" data-a="close-sheet">やめる</button>';
   }
   if (s.type === 'csv-import'){
@@ -2031,6 +2035,7 @@ document.addEventListener('click', e => {
       let me = s.pick;
       jt.share = { token: s.token, me: null, rev: s.rev, snap: Sync.flatten([jt]), dirty: false };   // what the server has right now
       if (!me){ me = uid(); jt.members.push(Object.assign({ id: me, name: nm, pos: nextPos(jt) }, state.payNote ? { note: state.payNote } : {})); }
+      if (!s.pick) lsSet('tabiwari.welcome.' + jt.id, '1');   // someone new: show the short guide once
       jt.share.me = me; state.trips.push(jt); ui.sheet = null; ui.view = 'trip'; ui.tripId = jt.id; ui.tab = 'exp'; ui.resetScroll = true;
       save(); render(); flash('参加しました'); return;
     }
@@ -2182,6 +2187,7 @@ document.addEventListener('click', e => {
   }
   else if (a === 'find-toggle'){ if (ui.qOpen || ui.q){ ui.q = ''; ui.qOpen = false; ui.swp = null; } else ui.qOpen = true; }
   else if (a === 'toggle-round'){ const n = el.getAttribute('data-v'); ui.rounds = ui.rounds || {}; ui.rounds[n] = !ui.rounds[n]; }
+  else if (a === 'welcome-ok'){ lsSet('tabiwari.welcome.' + t.id, null); }
   else if (a === 'caps-edit'){ ui.sheet = { type: 'caps', err: '' }; }
   else if (a === 'caps-save'){
     const caps = {}; let bad = false;
