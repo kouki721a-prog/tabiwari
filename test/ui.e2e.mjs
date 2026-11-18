@@ -174,6 +174,12 @@ try {
   await p.click('.trip'); await see(p, '夕食');
 
   // LINE login button follows LINE's colour rules: base #06C755 (no tint), white text, divider black 8%, black 30% only while pressed (under the text and logo, no hover shade)
+  { // the first screen fits on one page with the "add to the home screen" banner above it too, whatever the height (it gives things up in turn)
+    for (const [w, h] of [[390, 844], [390, 730], [390, 664], [375, 667], [360, 640], [320, 568]]){
+      const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: w, height: h } }), q = await c.newPage(); await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
+      const r = await q.evaluate(() => { const e = document.querySelector('.home0'); return { fit: e.scrollHeight <= e.clientHeight + 1, banner: !!document.querySelector('.install'), cls: e.className }; });
+      assert.ok(r.fit && r.banner, 'the first screen with the banner fits at ' + w + 'x' + h + ': ' + JSON.stringify(r)); await c.close();
+    } }
   { const q = await (await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 } })).newPage();
     await q.route('**/api/me', r => r.fulfill({ json: { login: true, user: null, push: null } }));
     await q.goto('http://localhost:8797/'); await q.waitForSelector('.lineg');
