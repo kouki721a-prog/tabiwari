@@ -55,6 +55,9 @@ try {
     const drag = dy => p.evaluate(async d => { const el = document.querySelector('.sheet h2'), mk = y => new Touch({ identifier: 2, target: el, clientX: 200, clientY: y }), fire = (type, y) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(y)], changedTouches: [mk(y)] })); fire('touchstart', 300); fire('touchmove', 300 + d / 2); fire('touchmove', 300 + d); fire('touchend', 300 + d); }, dy);
     await drag(40); await p.waitForTimeout(400); assert.strictEqual(await p.locator('.sheet').count(), 1, 'a short pull keeps the sheet'); assert.strictEqual(await p.$eval('.sheet', e => e.style.transform), '', 'and it springs back');
     await drag(220); await p.waitForFunction(() => !document.querySelector('.sheet'), null, { timeout: 3000 });
+    await p.click('[data-a=app-settings]'); await see(p, '利用規約');
+    assert.strictEqual(await p.evaluate(() => { document.querySelector('.sheet [data-a=close-sheet]').click(); return !!document.querySelector('.sheet-bg.ghost') && !document.querySelector('.sheet-bg:not(.ghost)'); }), true, 'a closing sheet leaves a copy that slides down');
+    await p.waitForFunction(() => !document.querySelector('.ghost'), null, { timeout: 2000 });
     assert.ok(await p.evaluate(() => [...document.styleSheets].some(s => [...s.cssRules].some(r => (r.cssRules ? [...r.cssRules] : [r]).some(x => x.selectorText && x.selectorText.includes('.btn:active') && /scale/.test(x.style.transform))))), 'pressed buttons sink a little'); await p.click('[data-a=app-settings]'); await see(p, '利用規約'); }
   await p.click('[data-a=close-sheet]');
   await p.locator('.trip').first().click(); await p.waitForSelector('[data-a=add-exp]');
