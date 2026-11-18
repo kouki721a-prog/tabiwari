@@ -355,6 +355,9 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
   .btn:disabled:active{transform:none}
   #app.go-f>:not(.nav):not(.fab):not(.toast):not(.sheet-bg){animation:slL .28s var(--ease)}#app.go-b>:not(.nav):not(.fab):not(.toast):not(.sheet-bg){animation:slR .28s var(--ease)}   /* a move between screens: forward comes in from the right, back from the left */
   .item.fresh{animation:fresh .6s var(--ease)}
+  .xfer.pop{animation:payRow .7s var(--ease)}.xfer.pop .paidbtn svg{animation:payCheck .5s cubic-bezier(.34,1.56,.64,1)}.xfer.pop .avs,.xfer.pop .names,.xfer.pop .amt{animation:payFade .5s var(--ease)}
+  @keyframes payRow{0%{background:rgba(23,137,92,.28)}100%{background:transparent}}@keyframes payCheck{0%{transform:scale(.3);opacity:0}100%{transform:none;opacity:1}}@keyframes payFade{from{opacity:1}to{opacity:.5}}
+  .alldone{animation:allDone .6s var(--ease)}@keyframes allDone{0%{transform:translateY(6px) scale(.94);opacity:0}100%{transform:none;opacity:1}}
   @keyframes fresh{0%{transform:translateY(-14px);opacity:0;background:rgba(255,200,60,.28)}45%{transform:none;opacity:1;background:rgba(255,200,60,.2)}100%{background:transparent}}
   #ptr.spin svg{animation:spinr .8s linear infinite}@keyframes spinr{to{transform:rotate(360deg)}}
   .toast.in{animation:toastIn .3s var(--ease)}@keyframes toastIn{from{transform:translateX(-50%) translateY(14px);opacity:0}to{transform:translateX(-50%);opacity:1}}
@@ -1091,6 +1094,7 @@ function render(){
   if (oldKey === app.dataset.view && calm()){   // the bars grow or shrink from where they were
     document.querySelectorAll('#app .t-bar i, #app .seg i').forEach((e, i) => { const to = e.style.width, from = oldBars[i]; if (from && to && from !== to){ e.style.width = from; e.getBoundingClientRect(); e.style.transition = 'width .55s var(--ease)'; e.style.width = to; } });
   }
+  if (ui.justPaid && !ui.justPaidT) ui.justPaidT = setTimeout(() => { ui.justPaid = null; ui.justPaidT = 0; }, 900);   // the row just marked as paid keeps its mark for its small celebration
   if (ui.fresh && !ui.freshT) ui.freshT = setTimeout(() => { ui.fresh = null; ui.freshT = 0; }, 700);   // a row just recorded keeps its mark for a moment (a toast may re-draw the list), for its entrance
   document.body.style.overflow = ui.sheet ? 'hidden' : '';
   const nl = document.querySelector('.scroll'); if (nl) nl.scrollTop = keepList;
@@ -1434,7 +1438,7 @@ function xferList(t, pays, n){
   const order = [], by = {};   // grouped by who receives; a receiver with two or more payers gets a header with the total
   pays.forEach(p => { if (!by[p.to]){ by[p.to] = []; order.push(p.to); } by[p.to].push(p); });
   const row = (p, grouped) => { const k = payKey(n, p), on = !!t.paid[k];
-    return '<div class="xfer ' + (on ? 'done' : '') + '"><span class="avs">' + av(t, p.from) + '</span>' +
+    return '<div class="xfer ' + (on ? 'done' : '') + (on && ui.justPaid === k ? ' pop' : '') + '"><span class="avs">' + av(t, p.from) + '</span>' +
       '<div class="names"><span class="nm">' + (grouped ? esc(nameOf(t, p.from)) : esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to))) + '</span></div><div class="amt">' + yen(p.amount) + '</div>' +
       '<button class="paidbtn ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? icon('check', 14) + '済み' : '支払い済み') + '</button></div>'; };
   return order.map(to => { const g = by[to];
@@ -1452,7 +1456,7 @@ function tabSettle(t){
   const left = pays.filter(p => !t.paid[payKey(n, p)]).length;
   if (t.share && (!ui.reach || ui.reach.id !== t.id || Date.now() - ui.reach.at > 60000)) refreshReach(t);
   const me = meId(t), off = t.share && ui.reach && ui.reach.id === t.id && ui.reach.ids ? t.members.filter(m => m.id !== me && ui.reach.ids.indexOf(m.id) < 0) : [];
-  let h = (off.length ? '<div class="panel" style="margin:0 0 10px"><b>まだ' + off.map(m => esc(m.name)).join('さん、') + 'さんが、お知らせを受け取れません。</b><div class="sub sm">LINEにログインして、通知をオンにすると、精算のお知らせが届きます。</div></div>' : '') + '<div class="sec"><h2>第' + n + '回の精算<span>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件・残り ' + yen(pays.reduce((a, p) => a + (t.paid[payKey(n, p)] ? 0 : p.amount), 0)) : 'すべて完了') + '</span></h2>';
+  let h = (off.length ? '<div class="panel" style="margin:0 0 10px"><b>まだ' + off.map(m => esc(m.name)).join('さん、') + 'さんが、お知らせを受け取れません。</b><div class="sub sm">LINEにログインして、通知をオンにすると、精算のお知らせが届きます。</div></div>' : '') + '<div class="sec"><h2>第' + n + '回の精算<span' + (ui.justPaid && has && pays.length && !left ? ' class="alldone"' : '') + '>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件・残り ' + yen(pays.reduce((a, p) => a + (t.paid[payKey(n, p)] ? 0 : p.amount), 0)) : 'すべて完了') + '</span></h2>';
   h += noteRow(t);
   if (!has) h += '<div class="panel"><b>未精算の支出はありません。</b><div class="sub">これから記録する支出は、第' + n + '回の精算になります。</div></div>';
   else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
@@ -2222,7 +2226,7 @@ document.addEventListener('click', e => {
   }
   else if (a === 'undo'){ const f = ui.undo; ui.toast = null; ui.undo = null; toastN++; if (f) f(); else render(); return; }
 
-  else if (a === 'toggle-paid'){ const k = el.getAttribute('data-k'); if (t.paid[k]) delete t.paid[k]; else t.paid[k] = true; save(); }
+  else if (a === 'toggle-paid'){ const k = el.getAttribute('data-k'); if (t.paid[k]){ delete t.paid[k]; ui.justPaid = null; } else { t.paid[k] = true; ui.justPaid = k; } save(); }
   else if (a === 'settle-ask'){ if (openItems(t).expenses.length || openItems(t).adjustments.length) ui.sheet = { type: 'settle-confirm', err: '' }; }
   else if (a === 'settle-go'){
     const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; save(); render(); flash('第' + n + '回の精算を完了しました'); return;
