@@ -2038,7 +2038,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]');
   if (!el) return;
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
-  if (a === 'bg'){ if (e.target !== el) return; ui.sheet = null; render(); return; }
+  if (a === 'bg'){ if (e.target !== el) return; ui.sheet = (s && s.back) || null; render(); return; }   // a sheet opened from another sheet (アカウント from 設定) goes back to it
 
   if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }   // the tab you were on stays (ui.homeTab)
   else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; }
@@ -2107,7 +2107,7 @@ document.addEventListener('click', e => {
       er => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = er && er.status ? Line.errText(er) : '設定を保存できませんでした。もう一度お試しください。'; render(); } });
     return;
   }
-  else if (a === 'line-account'){ ui.sheet = { type: 'line-account', err: '', confirm: false, ntf: null }; ntfRefreshSheet(); Line.backupGet().then(r => { lineAcct.count = r.items.length; render(); }, () => {}); }
+  else if (a === 'line-account'){ ui.sheet = { type: 'line-account', err: '', confirm: false, ntf: null, back: s && s.type === 'app-settings' ? s : null }; ntfRefreshSheet(); Line.backupGet().then(r => { lineAcct.count = r.items.length; render(); }, () => {}); }
   else if (a === 'ntf-diag'){
     s.diagging = true; s.diag = ['調べています…']; s.err = '';
     Line.pushDiagnose().then(r => { s.diagging = false; s.diag = diagLines(r); render(); }, er => { s.diagging = false; s.diag = null; s.err = Line.errText(er); render(); });
@@ -2361,7 +2361,7 @@ document.addEventListener('click', e => {
     flash('旅行を削除しました', () => { if (state.trips.some(x => x.id === gone.id)) return; state.trips.splice(Math.min(ix, state.trips.length), 0, gone); lsSet(GONE_KEY, JSON.stringify(readGone().filter(id => id !== gone.id))); const sg = readSigs(); delete sg[gone.id]; lsSet(BK_SIGS, JSON.stringify(sg)); save(); render(); flash('元に戻しました'); });
     return;
   }
-  else if (a === 'close-sheet'){ ui.sheet = null; }
+  else if (a === 'close-sheet'){ ui.sheet = (s && s.back) || null; }
   render();
 });
 
