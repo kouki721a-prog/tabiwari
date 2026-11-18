@@ -201,36 +201,38 @@ html,body{overscroll-behavior-x:none}
 .ticket.c{border-radius:16px;padding:9px 16px 11px}.ticket.c .t-amount{font-size:22px;line-height:1.2}.ticket.c .t-bar{height:5px;margin-top:6px}
 
 /* lists */
-/* settings + LINE account sheets: one calm, roomy list style (icon tile, 16px title, 13px note) */
-.sheet-body.pref{margin-right:-10px;padding:0 10px 16px 0;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 14px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 14px),transparent 100%)}   /* the scroll bar sits in the sheet's side gutter, not on the cards; content fades out under the title instead of being cut */
+/* settings + LINE account sheets: a flat, full-width list (icon, title, note, chevron); groups are split by a thick band, not by cards */
+.sheet:has(.pref){background:var(--card);padding-left:0;padding-right:0}
+.sheet:has(.pref)>.row{padding:0 16px 8px}
 .sheet:has(.pref) h2{font-size:20px;letter-spacing:.01em}
-.sheet:has(.pref)>.row{padding-bottom:6px}
-.sechd{font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--sub);margin:26px 6px 8px}
-.pref>.sechd:first-child{margin-top:14px}
-.acc-me{display:flex;align-items:center;gap:14px;margin-top:10px;padding:6px 6px 2px}
-.acc-me .av{width:56px;height:56px;font-size:22px}
-.av.s34{width:34px;height:34px;font-size:15px}
+.sheet:has(.pref) .sheet-foot{padding-left:16px;padding-right:16px}
+.sheet-body.pref{padding:0 0 16px;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 10px,#000 calc(100% - 14px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 10px,#000 calc(100% - 14px),transparent 100%)}   /* content fades out under the title instead of being cut */
+.pref .list{background:none;border:0;border-radius:0;overflow:visible}
+.pref .item{border-top:0}
+.sechd{font-size:14px;font-weight:700;color:var(--sub);margin:0;padding:22px 20px 6px;border-top:8px solid var(--paper)}
+.pref>.sechd:first-child{border-top:0;padding-top:8px}
+.acc-me{display:flex;align-items:center;gap:14px;padding:12px 20px 22px}
+.acc-me .av{width:64px;height:64px;font-size:24px}
 .acc-me .t{font-size:19px;font-weight:700;line-height:1.3}
 .acc-me .sub{margin-top:1px}
-.item.acc{padding:14px 16px;gap:14px;align-items:center;min-height:60px}
-.item.acc .t{font-size:16px;line-height:1.4;overflow-wrap:break-word;line-break:strict;word-break:auto-phrase;text-wrap:balance}   /* no single character left alone on a line */
-.item.acc .sub{font-size:13px;line-height:1.55;margin-top:3px;line-break:strict;word-break:auto-phrase;text-wrap:pretty}
-.item.acc .btn.sm{width:84px;padding-left:0;padding-right:0;text-align:center}
+.item.acc{padding:13px 20px;gap:14px;align-items:center;min-height:56px}
+.item.acc .t{font-size:16px;line-height:1.4;overflow-wrap:break-word}
+.item.acc .sub{font-size:13px;line-height:1.55;margin-top:2px;line-break:strict}
 .item.acc>svg,.item.acc .chev{flex:none;color:var(--sub)}
 .chev{display:grid;place-items:center;transition:transform .15s}.chev.open{transform:rotate(90deg)}
-.ico{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--soft);color:var(--ink)}
-.ico img{width:34px;height:34px;border-radius:10px;display:block}
-.ico.bad{background:rgba(194,51,45,.12);color:var(--bad)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .ico.bad{background:rgba(255,122,115,.16)}}
-:root[data-theme="dark"] .ico.bad{background:rgba(255,122,115,.16)}
-.btn.sm{width:auto;flex:none;padding:8px 16px;font-size:14px;border-radius:12px}
-.acc-note{margin:10px 8px 0;line-height:1.6;line-break:strict;word-break:auto-phrase;text-wrap:pretty}
+.ico{flex:none;width:34px;height:34px;display:grid;place-items:center start;color:var(--ink)}   /* the icon column: icons, the avatar and the app icon share one width, so every title lines up */
+.ico svg{width:26px;height:26px}
+.ico img{width:30px;height:30px;border-radius:8px;display:block}
+.ico.bad{color:var(--bad)}
+.item.acc .btn.sm{width:84px;padding:8px 0;font-size:14px;border-radius:12px;text-align:center}
+.btn.sm{width:auto;flex:none;padding:7px 14px;font-size:14px;border-radius:12px}
+.acc-note{margin:4px 20px 18px;line-height:1.6;line-break:strict}
 .item.acc .bad-t{color:var(--bad)}
-.acc-del{margin-top:12px;border-color:var(--bad)}
+.acc-del{margin:14px 20px 0;border-color:var(--bad)}
 .item.acc{text-align:left;color:inherit;text-decoration:none}
-.item.acc.sub-row{padding-left:30px;background:var(--soft)}   /* the 「うまく届かないとき」 helpers: a step in, on a tinted ground */
-.item.acc.sub-row .ico{background:var(--card)}
-.ver-foot{text-align:center;color:var(--sub);font-size:12px;margin:22px 0 0}
+.item.acc.sub-row{padding-left:68px}.item.acc.sub-row .ico{display:none}   /* the 「うまく届かないとき」 helpers: stepped in under their title */
+.pref .acc-danger{border-top:8px solid var(--paper);margin-top:4px}
+.av.s34{width:34px;height:34px;font-size:15px}
 .sw{position:relative;flex:none;width:51px;height:31px;border-radius:99px;background:#b4bfcc;transition:background .15s}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
 .sw[aria-checked=true]{background:var(--good)}.sw[aria-checked=true]::after{transform:translateX(20px)}
@@ -1635,7 +1637,7 @@ function viewSheet(){
     const nm0 = lineAcct.user ? lineAcct.user.name || 'LINE' : '', meAv = lineAcct.user ? '<span class="av s34" aria-hidden="true" style="--h:150">' + esc(Array.from(nm0)[0] || 'L') + (lineAcct.user.picture ? '<img class="avimg" src="' + esc(lineAcct.user.picture) + '" alt="" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '</span>' : '';
     body = (lineAcct.login ? sec('LINEアカウント') + '<div class="list">' + (lineAcct.user
         ? '<button class="item slim acc" data-a="line-account">' + meAv + '<div class="grow"><div class="t">' + esc(nm0) + '</div><div class="sub sm">バックアップ、通知、ログアウト</div></div>' + chev + '</button>'
-        : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 16px 16px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
+        : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 20px 16px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
       (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener">' + ico('userplus') + '<div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「たびわり」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
       (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html">' + ico('doc') + '<div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
       sec('このアプリについて') + '<div class="list"><div class="item slim acc"><span class="ico" aria-hidden="true"><img src="icons/icon-192.png" alt=""></span><div class="grow"><div class="t">たびわり</div><div class="sub sm">' + (s.ver ? '版 ' + esc(s.ver) : '旅行の予算管理と割り勘') + '</div></div></div></div>';
@@ -1664,7 +1666,7 @@ function viewSheet(){
       '<div class="sechd">アカウント</div><div class="list">' +
         (CFG.legalReady ? '<a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + icon('chev', 18) + '</a>' : '') +
         '<button class="item slim acc" data-a="line-logout">' + ico('logout') + '<div class="grow"><div class="t">ログアウト</div><div class="sub sm">この端末の通知は、止まります。旅行は、端末に残ります。</div></div>' + icon('chev', 18) + '</button></div>' +
-      (s.confirm ? '' : '<div class="list" style="margin-top:28px"><button class="item slim acc" data-a="line-del-ask">' + ico('trash', 'bad') + '<div class="grow"><div class="t bad-t">アカウントを削除</div></div>' + icon('chev', 18) + '</button></div>') +
+      (s.confirm ? '' : '<div class="list acc-danger"><button class="item slim acc" data-a="line-del-ask">' + ico('trash', 'bad') + '<div class="grow"><div class="t bad-t">アカウントを削除</div></div>' + icon('chev', 18) + '</button></div>') +
       (s.confirm ? '<div class="panel acc-del"><b>アカウントを削除しますか？</b><div class="sub" style="margin:6px 0 12px">LINEのログイン情報と、バックアップを、サーバーから削除します。この端末の旅行は、そのまま残ります。元に戻せません。</div>' +
         '<button class="btn bad" data-a="line-del-go">本当に削除する</button><button class="link" data-a="line-del-no" style="margin-top:4px">やめる</button></div>' : '');
     foot = err;
