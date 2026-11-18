@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {noteUrl, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -317,3 +317,11 @@ console.log('settlement round tests passed');
   assert.strictEqual(n('夕食 5000円 けんたは1000円だけ 昼 3000円'), 'multi', 'a fixed amount is not an extra expense, a second one is');
   assert.strictEqual(n('夕食 5000円 けんたは1000円だけ'), '', 'a fixed amount alone is one expense'); assert.strictEqual(n('こんにちは'), '', 'no amount: nothing to read');
   console.log('needsTabimaru tests passed'); }
+
+// 受け取り方メモの https リンク: https だけがリンクになる。ほかは、リンクにしない
+assert.strictEqual(L.noteUrl('PayPay：https://pay.paypay.ne.jp/AbCd123xyz'), 'https://pay.paypay.ne.jp/AbCd123xyz');
+assert.strictEqual(L.noteUrl('https://pay.paypay.ne.jp/AbCd。よろしく'), 'https://pay.paypay.ne.jp/AbCd', 'stops at a Japanese full stop');
+assert.strictEqual(L.noteUrl('（https://example.com/x）'), 'https://example.com/x', 'and at a closing bracket');
+for (const bad of ['現金でOK', 'PayPay：kouki-0101', 'http://example.com/x', 'javascript:alert(1)', 'HTTP://example.com', 'ftp://example.com', 'https://', 'https://user:pw@example.com/x', 'https://evil@example.com', 'https://localhost/x', '//example.com/x', 'data:text/html,https', '', null, undefined])
+  assert.strictEqual(L.noteUrl(bad), '', 'no link for: ' + bad);
+assert.strictEqual(L.noteUrl('x'.repeat(10) + 'https://a.example/' + 'y'.repeat(300)), '', 'a very long one is not linked');

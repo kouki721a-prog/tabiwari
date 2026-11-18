@@ -276,7 +276,7 @@ html,body{overscroll-behavior-x:none}
 .xfer+.xfer{border-top:1px solid var(--line)}
 .noteRow{padding:4px 12px!important;font-size:13px;color:var(--sub)}.noteRow .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .list.xl{margin-top:8px}.xfer{padding:10px 12px}
-.xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:13px;color:var(--sub)}.xnote .link{width:auto;flex:none;padding:6px 8px;font-size:13px;font-weight:700;color:var(--ink)}.noteRow{margin-bottom:10px}
+.xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:13px;color:var(--sub)}.xnote .link{width:auto;flex:none;padding:6px 8px;font-size:13px;font-weight:700;color:var(--ink)}.xnote>span:first-child{min-width:0;flex:1 1 auto;overflow-wrap:anywhere}.xnote .xact{display:flex;align-items:center;flex:none}.xnote a.link{text-decoration:underline;text-underline-offset:3px}.noteRow{margin-bottom:10px}
 .paidbtn{flex:none;display:inline-flex;align-items:center;gap:3px;min-height:34px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:13px;font-weight:500;white-space:nowrap}
 .paidbtn .ring{display:inline-block;width:15px;height:15px;border-radius:50%;border:2px solid currentColor;opacity:.75;box-sizing:border-box}
 .paidbtn.on{background:var(--good);border-color:var(--good);color:#fff}
@@ -722,6 +722,11 @@ function needsTabimaru(text, names){
   if (/(立て替|立替|たてか|が払|が出し|が支払|おごり|奢|払ってくれ|出してくれ)/.test(s)) return 'payer';
   if ((names || []).some(function(n){ return n && s.indexOf(n) >= 0; }) && /(の分|以外|で割った|で割る)/.test(s)) return 'select';
   var r = parseQuick(s, names); return r && r.multi ? 'multi' : '';
+}
+/* the one https link in a 受け取り方 memo (a PayPay receiving link and the like), or '' - nothing else is ever turned into a link: not http, not javascript:, not a link with a user name in it; we only recognise what the person wrote, never build one */
+function noteUrl(note){
+  var m = /https:\/\/[^\s<>"'`\u3000「」『』、。，．）)]+/.exec(String(note == null ? '' : note)); if (!m) return '';
+  try { var u = new URL(m[0]); return u.protocol === 'https:' && u.hostname && u.hostname.indexOf('.') > 0 && !u.username && !u.password && m[0].length <= 200 ? u.href : ''; } catch(e){ return ''; }
 }
 /* ===== LOGIC_END ===== */
 
@@ -1525,7 +1530,8 @@ const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; retur
 const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => esc(nameOf(t, id)) + ' ' + (nets[id] > 0 ? '+' : '−') + Math.abs(nets[id]).toLocaleString('ja-JP')).join('・');
 function noteLine(t, id){   // how the receiver wants to be paid (the memo they wrote), with a button to copy it
   const m = t.members.find(x => x.id === id); if (!m || !m.note) return '';
-  return '<div class="xnote"><span>' + esc(m.name) + 'さんの受け取り方：' + esc(m.note) + '</span><button class="link" data-a="copy-note" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'さんの受け取り方をコピー">コピー</button></div>';
+  const url = noteUrl(m.note);
+  return '<div class="xnote"><span>' + esc(m.name) + 'さんの受け取り方：' + esc(m.note) + '</span><span class="xact">' + (url ? '<a class="link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(m.name) + 'さんの受け取りリンクを開く">開く</a>' : '') + '<button class="link" data-a="copy-note" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'さんの受け取り方をコピー">コピー</button></span></div>';
 }
 function xferList(t, pays, n){
   const order = [], by = {};   // grouped by who receives; a receiver with two or more payers gets a header with the total

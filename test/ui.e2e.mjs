@@ -429,6 +429,14 @@ try {
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow');
     assert.ok((await q.textContent('.noteRow')).includes('受け取り方を書く'), 'asks to write one'); assert.ok((await q.textContent('.xnote')).includes('あおいさんの受け取り方：現金でOK'), "the receiver's memo is under the transfer");
     await q.click('[data-a=copy-note]'); assert.strictEqual(await q.evaluate(() => navigator.clipboard.readText()), '現金でOK', 'the copy button copies only the memo');
+    assert.strictEqual(await q.locator('.xnote a').count(), 0, 'a memo without a link has no link button');
+    // a memo with an https link: a tappable button (new tab, no referrer / opener); http:, javascript: and the like are never links
+    for (const [note, want] of [['PayPay：https://pay.paypay.ne.jp/AbCd123', 'https://pay.paypay.ne.jp/AbCd123'], ['http://example.com/x', null], ['javascript:alert(1)', null], ['https://user:pw@example.com/', null]]) {
+      await q.evaluate(n => { state.trips[0].members[1].note = n; render(); }, note); await q.waitForSelector('.xnote');
+      const links = await q.locator('.xnote a').count(); assert.strictEqual(links, want ? 1 : 0, 'link for: ' + note);
+      if (want) { assert.deepStrictEqual(await q.evaluate(() => { const a = document.querySelector('.xnote a'); return [a.getAttribute('href'), a.target, a.rel]; }), [want, '_blank', 'noopener noreferrer']); assert.ok(await q.locator('.xnote [data-a=copy-note]').count() === 1, 'the copy button stays'); }
+    }
+    await q.evaluate(() => { state.trips[0].members[1].note = '現金でOK'; render(); }); await q.waitForSelector('.xnote');
     await q.click('.noteRow'); await q.waitForSelector('#f-note'); assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.id === 'f-note'), false, 'the keyboard does not open by itself');
     await q.click('[data-a=note-chip][data-v="PayPay："]'); assert.strictEqual(await q.inputValue('#f-note'), 'PayPay：'); await q.fill('#f-note', 'PayPay：kouki-0101'); await q.click('[data-a=note-save]');
     await q.waitForSelector('.noteRow'); assert.ok((await q.textContent('.noteRow')).includes('PayPay：kouki-0101'));
