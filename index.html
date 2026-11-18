@@ -105,7 +105,7 @@ html,body{overscroll-behavior-x:none}
 /* tags and avatars share one hue system */
 .tag,.av{--h:215;background:hsl(var(--h) var(--tbs) var(--tbl));color:hsl(var(--h) var(--tfs) var(--tfl));display:grid;place-items:center;font-weight:700;flex:none}
 .tag{width:42px;height:42px;border-radius:14px;font-size:17px}
-.av{width:30px;height:30px;border-radius:50%;font-size:14px}
+.av{width:30px;height:30px;border-radius:50%;font-size:14px;position:relative;overflow:hidden}.avimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
 .avs{display:flex}
 .avs .av{border:2px solid var(--card);margin-left:-8px}
 .avs .av:first-child{margin-left:0}
@@ -780,7 +780,15 @@ const pill = st => '<span class="pill ' + st[1] + '">' + st[0] + '</span>';
 const midx = (t, id) => Math.max(0, t.members.findIndex(m => m.id === id));
 const nameOf = (t, id) => { const m = t.members.filter(x => x.id === id)[0]; return m ? m.name : '(削除済み)'; };
 const total = t => t.expenses.reduce((s, e) => s + e.amount, 0);
-function av(t, id){ const nm = nameOf(t, id), mm = t.members.filter(x => x.id === id)[0]; return '<span class="av" aria-hidden="true" style="--h:' + HUES[midx(t, id) % HUES.length] + '">' + esc(Array.from(nm)[0] || '?') + '</span>'; }
+/* a member's round icon: the LINE picture when there is one (your own from your login; a friend's from the server, for the members who share theirs), else the first letter of the name (also when the picture cannot be loaded) */
+let picCache = {}; try { picCache = JSON.parse(localStorage.getItem('tabiwari.pics') || '{}') || {}; } catch(e){ picCache = {}; }
+const picOf = (t, id) => (id === meId(t) && lineAcct.user && lineAcct.user.picture) || (picCache[t.id] && picCache[t.id][id]) || '';
+function av(t, id){ const nm = nameOf(t, id), pic = picOf(t, id); return '<span class="av" aria-hidden="true" style="--h:' + HUES[midx(t, id) % HUES.length] + '">' + esc(Array.from(nm)[0] || '?') + (pic ? '<img class="avimg" src="' + esc(pic) + '" alt="" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '</span>'; }
+const picAt = {};
+function refreshPics(t){   // the friends' pictures of a shared trip (at most every 5 minutes)
+  if (!t || !t.share || Date.now() - (picAt[t.id] || 0) < 300000) return; picAt[t.id] = Date.now();
+  Share.pics(t.share.token).then(r => { const next = r && r.pics && typeof r.pics === 'object' ? r.pics : {}; if (JSON.stringify(picCache[t.id] || {}) === JSON.stringify(next)) return; picCache[t.id] = next; try { localStorage.setItem('tabiwari.pics', JSON.stringify(picCache)); } catch(e){} if (ui.view === 'home' || ui.view === 'trip') render(); }).catch(() => {});
+}
 function tag(c){ return '<span class="tag" aria-hidden="true" style="--h:' + c[3] + '">' + c[1] + '</span>'; }
 
 /* ---- install guidance (home screen) ---- */
@@ -844,7 +852,7 @@ async function shareSync(t){
       else if (!Sync.diff(sh.snap, Sync.flatten([t])).length) { applyRemote(t, Sync.assemble([g.trip])[0], g.rev); render(); }
     }
     if (sh.dirty){ sh.dirty = false; render(); }
-    linkMe(t);
+    linkMe(t); refreshPics(t);
   } catch(e){
     if (e && e.status === 404){ result = 'gone'; unshare(t); flash('共有が終了しました。この端末には残っています。'); render(); }
     else { result = 'offline'; if (!sh.dirty){ sh.dirty = true; render(); } }
@@ -950,6 +958,7 @@ async function lineInit(){
   try {
     const m = await Line.me(); lineAcct.login = !!m.login; lineAcct.user = m.user; lineAcct.push = m.push || null;
     linkDone = {}; if (m.user) shared().forEach(linkMe);
+    if (m.user && m.user.picture && !lsGet('tabiwari.picnote')){ lsSet('tabiwari.picnote', '1'); setTimeout(() => flash('LINEの写真は、同じ旅行の友だちに表示されます。アカウント画面で、止められます。'), 800); }
     if (m.user){ try { lineAcct.count = (await Line.backupGet()).items.length; } catch(e){} bkRun(); }
   } catch(e){ /* offline or no server: login simply is not offered */ }
   if (lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); else { lineAcct.waiting = false; }
@@ -1607,6 +1616,7 @@ function viewSheet(){
         row('自動でバックアップ', esc(saved) + (lineAcct.bkErr ? '<br><span class="bad-t">' + esc(lineAcct.bkErr) + '</span>' : ''), smallBtn('bk-now', '今すぐ')) +
         '<button class="item slim acc" data-a="bk-restore"><div class="grow"><div class="t">バックアップから戻す</div><div class="sub sm">別の端末に移すときや、消した旅行を戻すとき</div></div>' + icon('chev', 18) + '</button></div>' +
       '<div class="sub sm acc-note">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを暗号化して控えます。</div>' +
+      '<div class="sechd">写真</div><div class="list">' + row('LINEの写真を、友だちに見せる', '同じ旅行の友だちの画面に、あなたのLINEの写真が出ます。止めると、頭文字のアイコンになります。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.pic !== false) + '" aria-label="LINEの写真を、友だちに見せる" data-a="pic-toggle"></button>') + '</div>' +
       (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('この端末に通知する', ntfSub, sw) +
         (s.ntf === 'on' || s.ntf === 'off' ? row('精算のお知らせ', '精算ができたときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
         (s.ntf === 'on' || s.ntf === 'off' ? row('今日の使いすぎのお知らせ', '旅行中、今日の支出が1日の目安を超えたら、1日に1回お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.over !== false) + '" aria-label="今日の使いすぎのお知らせ" data-a="over-toggle"></button>') : '') +
@@ -2037,6 +2047,12 @@ document.addEventListener('click', e => {
   else if (a === 'app-settings'){
     ui.sheet = { type: 'app-settings', ver: null };
     try { caches.keys().then(ks => { const k = ks.filter(x => /^tabiwari-v\d+$/.test(x)).sort().pop(); if (k && ui.sheet && ui.sheet.type === 'app-settings'){ ui.sheet.ver = k.replace('tabiwari-', ''); render(); } }, () => {}); } catch(e){}
+  }
+  else if (a === 'pic-toggle'){
+    const next = lineAcct.user.pic === false;
+    Line.pushSettingPic(next).then(() => { lineAcct.user.pic = next; if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = ''; render(); } },
+      er => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = er && er.status ? Line.errText(er) : '設定を保存できませんでした。もう一度お試しください。'; render(); } });
+    return;
   }
   else if (a === 'over-toggle'){
     const next = lineAcct.user.over === false;

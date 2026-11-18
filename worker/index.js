@@ -1,7 +1,7 @@
 import { reply, sha256hex, limited } from './util.js';
 import { ACCOUNT_SCHEMA, handleAccount, purgeAccountData } from './account.js';
 import { runReminders } from './reminders.js';
-import { notifyOps, reachable } from './settlenotify.js';
+import { notifyOps, reachable, pictures } from './settlenotify.js';
 import { lineWebhook } from './linewebhook.js';
 
 /* たびわり sharing API: Cloudflare Worker + D1.
@@ -30,7 +30,7 @@ const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prep
   .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN fixed TEXT').run().catch(() => { /* the column already exists */ }))   // exact amounts for some people of an expense (JSON, NULL = none)
   .then(() => env.DB.prepare('ALTER TABLE trips ADD COLUMN caps TEXT').run().catch(() => { /* the column already exists */ }))   // limits per category (JSON, NULL = none)
   .then(() => env.DB.prepare('ALTER TABLE users ADD COLUMN settle_notif INTEGER NOT NULL DEFAULT 1').run().catch(() => { /* the column already exists */ }))   // 精算のお知らせ on/off per account
-  .then(() => Promise.all(['over_notif INTEGER NOT NULL DEFAULT 1', 'friend_flag INTEGER NOT NULL DEFAULT 0', 'friend_changed INTEGER', 'friend_checked_at INTEGER'].map(c => env.DB.prepare('ALTER TABLE users ADD COLUMN ' + c).run().catch(() => { /* already there */ }))))   // official-account friend state, saved at login
+  .then(() => Promise.all(['over_notif INTEGER NOT NULL DEFAULT 1', 'pic_share INTEGER NOT NULL DEFAULT 1', 'friend_flag INTEGER NOT NULL DEFAULT 0', 'friend_changed INTEGER', 'friend_checked_at INTEGER'].map(c => env.DB.prepare('ALTER TABLE users ADD COLUMN ' + c).run().catch(() => { /* already there */ }))))   // official-account friend state, saved at login
   .catch(e => { ready = null; throw e; }));
 
 const LIMITS = { members: 12, expenses: 2000, settlements: 100, adjustments: 2000, paid: 500, body: 256 * 1024, opsPerRequest: 400 };
@@ -200,6 +200,7 @@ export default {
       if (url.pathname === '/api/trip' && req.method === 'GET') return await getTrip(env, id, url.searchParams.get('rev'));
       if (url.pathname === '/api/ops' && req.method === 'POST') return await applyOps(env, req, id, ctx);
       if (url.pathname === '/api/reach' && req.method === 'GET') { if (!(await env.DB.prepare('SELECT 1 AS x FROM trips WHERE id=?').bind(id).first())) return reply({ error: 'not_found' }, 404); return reply({ reachable: await reachable(env, id) }); }   // which members can get 精算のお知らせ
+      if (url.pathname === '/api/pics' && req.method === 'GET') { if (!(await env.DB.prepare('SELECT 1 AS x FROM trips WHERE id=?').bind(id).first())) return reply({ error: 'not_found' }, 404); return reply({ pics: await pictures(env, id) }); }   // LINE profile pictures of the members who are signed in and share theirs
       if (url.pathname === '/api/trip' && req.method === 'DELETE') {
         if (await limited(env, req, 'w', WRITES_PER_10MIN, 600)) return reply({ error: 'rate_limited' }, 429);
         await env.DB.batch(wipe(env.DB, id)); return reply({ ok: true });

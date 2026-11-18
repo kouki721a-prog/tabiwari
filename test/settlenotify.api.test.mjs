@@ -64,6 +64,17 @@ try {
   assert.deepStrictEqual(await reach(), ['m-aoi', 'm-kenta'], 'linked and with a device; みく has no device; the claim on あおい by みく was refused and left her own link alone');
   assert.strictEqual((await fetch(B + '/api/reach', { headers: { Authorization: 'Bearer ' + 'Y'.repeat(40) } })).status, 404);
 
+  // LINE pictures: the linked members who share theirs (the default); an account can stop it; only LINE's own picture host is ever kept
+  const pics = async () => (await fetch(B + '/api/pics', { headers: { Authorization: 'Bearer ' + T } }).then(r => r.json())).pics;
+  assert.deepStrictEqual(Object.keys(await pics()).sort(), ['m-aoi', 'm-kenta', 'm-miku'], 'every linked member shows a picture');
+  assert.ok(Object.values(await pics()).every(u => u.startsWith('https://profile.line-scdn.net/')), 'only LINE\'s own picture host');
+  assert.strictEqual((await fetch(B + '/api/pics', { headers: { Authorization: 'Bearer ' + 'Y'.repeat(40) } })).status, 404);
+  assert.strictEqual((await j('/api/push/settings', { cookie: cKenta, method: 'POST', body: { pic: 'no' } })).status, 400);
+  assert.strictEqual((await j('/api/push/settings', { cookie: cKenta, method: 'POST', body: { pic: false } })).status, 200);
+  assert.deepStrictEqual(Object.keys(await pics()).sort(), ['m-aoi', 'm-miku'], 'けんた stopped showing the picture');
+  assert.strictEqual((await j('/api/me', { cookie: cKenta })).data.user.pic, false); assert.ok((await j('/api/me', { cookie: cKenta })).data.user.picture.startsWith('https://profile.line-scdn.net/'), 'it is still her own picture');
+  assert.strictEqual((await j('/api/push/settings', { cookie: cKenta, method: 'POST', body: { pic: true } })).status, 200);
+
   // a confirmed round: who owes is told
   assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'settlements', rows: [settlement] }, { kind: 'update', table: 'expenses', row: { id: 'e1', title: '宿', amount: 9000, payer: 'm-aoi', cat: 'stay', spent_on: '2026-11-18', split: ['m-aoi', 'm-kenta', 'm-miku'], settle_id: 'r1' } }])).status, 200);
   const k1 = await waitFor(dKenta);
