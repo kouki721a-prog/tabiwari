@@ -254,6 +254,7 @@ html,body{overscroll-behavior-x:none}
 .list.xl{margin-top:8px}.xfer{padding:10px 12px}
 .xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:13px;color:var(--sub)}.xnote .link{width:auto;flex:none;padding:6px 8px;font-size:13px;font-weight:700;color:var(--ink)}.noteRow{margin-bottom:10px}
 .paidbtn{flex:none;display:inline-flex;align-items:center;gap:3px;min-height:34px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:13px;font-weight:500;white-space:nowrap}
+.paidbtn .ring{display:inline-block;width:15px;height:15px;border-radius:50%;border:2px solid currentColor;opacity:.75;box-sizing:border-box}
 .paidbtn.on{background:var(--good);border-color:var(--good);color:#fff}
 .xfer .names{flex:1;min-width:0;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .xfer .amt{font-weight:700;font-size:16px;white-space:nowrap}
@@ -1440,7 +1441,7 @@ function xferList(t, pays, n){
   const row = (p, grouped) => { const k = payKey(n, p), on = !!t.paid[k];
     return '<div class="xfer ' + (on ? 'done' : '') + (on && ui.justPaid === k ? ' pop' : '') + '"><span class="avs">' + av(t, p.from) + '</span>' +
       '<div class="names"><span class="nm">' + (grouped ? esc(nameOf(t, p.from)) : esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to))) + '</span></div><div class="amt">' + yen(p.amount) + '</div>' +
-      '<button class="paidbtn ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? icon('check', 14) + '済み' : '支払い済み') + '</button></div>'; };
+      '<button class="paidbtn ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="' + (on ? '済みを取り消す' : '済みにする') + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? icon('check', 14) + '済み' : '<span class="ring" aria-hidden="true"></span>済み') + '</button></div>'; };
   return order.map(to => { const g = by[to];
     return (g.length > 1 ? '<div class="xgroup"><div class="xhead"><span>' + esc(nameOf(t, to)) + 'さんへ</span><span>合計 ' + yen(g.reduce((a, p) => a + p.amount, 0)) + '</span></div><div class="list">' + g.map(p => row(p, true)).join('') + '</div></div>'
       : '<div class="list xl">' + row(g[0], false) + '</div>') + noteLine(t, to); }).join('');
