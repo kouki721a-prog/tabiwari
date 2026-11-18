@@ -1664,7 +1664,6 @@ function viewSheet(){
           (s.help ? row('send', 'テスト通知を送る', s.testMsg ? esc(s.testMsg) : '今すぐ、この端末に1件送ります。', smallBtn('ntf-test', '送る', s.testing), 'sub-row') +
             row('pulse', 'サーバーの状態を調べる', s.diag ? s.diag.map(l => esc(l)).join('<br>') : '端末の登録や、自動の判定の記録を確認します。', smallBtn('ntf-diag', '調べる', s.diagging), 'sub-row') : '') : '') + '</div>' : '') +
       '<div class="sechd">アカウント</div><div class="list">' +
-        (CFG.legalReady ? '<a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + icon('chev', 18) + '</a>' : '') +
         '<button class="item slim acc" data-a="line-logout">' + ico('logout') + '<div class="grow"><div class="t">ログアウト</div><div class="sub sm">この端末の通知は、止まります。旅行は、端末に残ります。</div></div>' + icon('chev', 18) + '</button></div>' +
       (s.confirm ? '' : '<div class="list acc-danger"><button class="item slim acc" data-a="line-del-ask">' + ico('trash', 'bad') + '<div class="grow"><div class="t bad-t">アカウントを削除</div></div>' + icon('chev', 18) + '</button></div>') +
       (s.confirm ? '<div class="panel acc-del"><b>アカウントを削除しますか？</b><div class="sub" style="margin:6px 0 12px">LINEのログイン情報と、バックアップを、サーバーから削除します。この端末の旅行は、そのまま残ります。元に戻せません。</div>' +
