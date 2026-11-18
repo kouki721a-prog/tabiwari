@@ -44,7 +44,8 @@ const device = async (opts = {}) => {
   return { ctx, p };
 };
 const login = async p => { await p.goto(base + '/'); await p.click('[data-a=line-login]'); await p.waitForURL(/\/api\/auth\/line\/callback/); await p.click('a[href="/"]'); await p.waitForFunction(() => typeof lineAcct !== 'undefined' && lineAcct.user); };
-const newTrip = async (p, name, start, end) => { await p.click('[data-a=new]'); await p.fill('#d-name', name); await p.fill('#d-start', start); await p.fill('#d-end', end); await p.fill('#d-budget', '30000'); if (await p.locator('[data-a=draft-me-edit]').count()) await p.click('[data-a=draft-me-edit]'); await p.fill('#d-me', 'あおい'); await p.click('[data-a=save-trip]'); await p.click('[data-a=home]'); };
+const closeSheets = async p => { for (let i = 0; i < 4 && await p.locator('.sheet-bg:not(.ghost)').count(); i++) { await p.click('.sheet-bg:not(.ghost) [data-a=close-sheet]'); await p.waitForTimeout(350); } };   // アカウント goes back to 設定: close them all
+const newTrip = async (p, name, start, end) => { await closeSheets(p); await p.click('[data-a=new]'); await p.fill('#d-name', name); await p.fill('#d-start', start); await p.fill('#d-end', end); await p.fill('#d-budget', '30000'); if (await p.locator('[data-a=draft-me-edit]').count()) await p.click('[data-a=draft-me-edit]'); await p.fill('#d-me', 'あおい'); await p.click('[data-a=save-trip]'); await p.click('[data-a=home]'); };
 
 try {
   line.setIdentity('U-notify', 'ほしい人');
@@ -59,7 +60,7 @@ try {
   await d.p.click('[data-a=ntf-diag]'); await see(d.p, '通知を受け取る端末：1台');
   await d.p.click('[data-a=ntf-test]'); await see(d.p, '送りました'); inbox.splice(0);   // the test notification is not a reminder
   assert.deepStrictEqual(await d.p.evaluate(() => window.__subscribeOptions), { userVisibleOnly: true, keyLength: 65 }, 'subscribed with the site key, as a visible-notification subscription');
-  await d.p.click('[data-a=close-sheet]');
+  await d.p.click('[data-a=close-sheet]'); await d.p.waitForSelector('.sheet [data-a=line-account]'); await d.p.click('[data-a=close-sheet]'); await d.p.waitForFunction(() => !document.querySelector('.sheet-bg'));   // アカウント goes back to 設定; close that too
 
   // ---- a trip that starts on Jan 11; its backup reaches the server by itself; at 18:30 on Jan 10 (Japan time) the reminder goes out
   await newTrip(d.p, '通知テスト旅行', '2027-01-11', '2027-01-12');
@@ -90,7 +91,7 @@ try {
     let rc = []; for (let i = 0; i < 40 && !rc.includes(info.me); i++) { await d.p.waitForTimeout(250); rc = (await api('GET', '/api/reach')).reachable; }
     assert.deepStrictEqual(rc, [info.me], 'sharing linked this LINE account to its member');
     await api('POST', '/api/ops', { ops: [{ kind: 'insert', table: 'members', rows: [{ id: 'm-miku', name: 'みく', position: 1 }] }, { kind: 'insert', table: 'expenses', rows: [{ id: 'ex1', title: '昼食', amount: 2000, payer: info.me, cat: 'food', spent_on: '2027-01-11', split: [info.me, 'm-miku'] }] }] });
-    await d.p.evaluate(id => { ui.view = 'trip'; ui.tripId = id; ui.tab = 'settle'; render(); }, info.id);
+    await d.p.evaluate(id => { ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'settle'; render(); }, info.id);   // a remote change is not applied under an open sheet
     await see(d.p, 'まだみくさんが、お知らせを受け取れません。', 20000); await see(d.p, 'LINEにログインして、通知をオンにすると');
     inbox.splice(0);
     await api('POST', '/api/ops', { ops: [{ kind: 'insert', table: 'settlements', rows: [{ id: 'r1', n: 1, at: '2027-01-12', total: 2000, transfers: [{ from: info.me, to: 'm-miku', amount: 1000 }] }] }] });
@@ -118,7 +119,7 @@ try {
   await login(d.p); await d.p.evaluate(() => { window.__denied = true; });
   if (await d.p.locator('.sheet-bg').count()) console.log('DEBUG sheet open after login:', (await d.p.locator('.sheet').innerText()).replace(/\n+/g, ' | ').slice(0, 200));
   await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await see(d.p, '端末の設定で、通知を許可してください。');
-  assert.strictEqual(await d.p.locator('[data-a=ntf-toggle]').count(), 0); await d.p.click('[data-a=close-sheet]'); await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=line-logout]'); await see(d.p, 'ログアウトしました');
+  assert.strictEqual(await d.p.locator('[data-a=ntf-toggle]').count(), 0); await d.p.click('[data-a=close-sheet]'); await d.p.waitForSelector('.sheet [data-a=line-account]'); await d.p.click('[data-a=line-account]'); await d.p.click('[data-a=line-logout]');   // closing アカウント lands on 設定 await see(d.p, 'ログアウトしました');
 
   // ---- an iPhone that has not been added to the home screen cannot receive Web Push: say so instead of showing a dead button
   const ios = await device({ ...devices['iPhone 13'], serviceWorkers: 'block' }); line.setIdentity('U-notify', 'ほしい人');

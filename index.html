@@ -385,6 +385,8 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
   .alldone{animation:allDone .6s var(--ease)}@keyframes allDone{0%{transform:translateY(6px) scale(.94);opacity:0}100%{transform:none;opacity:1}}
   @keyframes fresh{0%{transform:translateY(-14px);opacity:0;background:rgba(255,200,60,.28)}45%{transform:none;opacity:1;background:rgba(255,200,60,.2)}100%{background:transparent}}
   #ptr.spin svg{animation:spinr .8s linear infinite}@keyframes spinr{to{transform:rotate(360deg)}}
+  @keyframes sheetFadeIn{from{opacity:0}to{opacity:1}}@keyframes sheetFadeOut{to{opacity:0}}
+  .sheet-bg.ghost.back{background:transparent;animation:none}.sheet-bg.ghost.back .sheet{animation:sheetFadeOut .16s ease-out forwards}
   .toast.in{animation:toastIn .3s var(--ease)}@keyframes toastIn{from{transform:translateX(-50%) translateY(14px);opacity:0}to{transform:translateX(-50%);opacity:1}}
   .ghost{pointer-events:none}.sheet-bg.ghost{animation:bgOut .24s ease-out forwards}.sheet-bg.ghost .sheet{animation:sheetOut .26s var(--ease) forwards}.sheet-bg.ghost.dragged .sheet{animation:none}
   @keyframes bgOut{to{opacity:0}}@keyframes sheetOut{to{transform:translateY(100%)}}
@@ -1135,6 +1137,7 @@ function render(){
   const oldSheet = document.querySelector('.sheet-bg'), oldToast = document.querySelector('.toast'), oldBars = [...document.querySelectorAll('#app .t-bar i, #app .seg i')].map(e => e.style.width), oldKey = app.dataset.view;
   app.innerHTML = html; ui.toastNew = false; app.dataset.view = key + ':' + ui.tab;
   if (oldSheet && !ui.sheet) ghost(oldSheet);   // a sheet that closes slides down instead of vanishing
+  else if (oldSheet && ui.sheet && ui.sheetBack) ghost(oldSheet, 'back');   // going back to the sheet underneath (アカウント → 設定): the one that closes fades out while the other fades in, not a hard cut
   if (oldToast && !ui.toast) ghost(oldToast);
   if (oldKey === app.dataset.view && calm()){   // the bars grow or shrink from where they were
     document.querySelectorAll('#app .t-bar i, #app .seg i').forEach((e, i) => { const to = e.style.width, from = oldBars[i]; if (from && to && from !== to){ e.style.width = from; e.getBoundingClientRect(); e.style.transition = 'width .55s var(--ease)'; e.style.width = to; } });
@@ -1145,9 +1148,14 @@ function render(){
   const nl = document.querySelector('.scroll'); if (nl) nl.scrollTop = keepList;
   const sh = document.querySelector('.sheet-body');
   if (sh) sh.scrollTop = keep;
-  /* going back to the sheet underneath (アカウント → 設定): it is simply there, not slid up again */
-  { const el = document.querySelector('.sheet');   // a redraw while the sheet is sliding up (the version arrives, a backup count arrives) must not restart the slide: it picks up where it was, or stays still once it has finished
-    if (ui.sheet && el){ if (!sheetWasOpen || sheetKind !== ui.sheet.type){ const stay = sheetWasOpen && ui.sheetBack; sheetSince = stay ? -1e9 : performance.now(); sheetKind = ui.sheet.type; if (stay) el.style.animation = 'none'; } else { const ms = performance.now() - sheetSince; if (ms < 320) el.style.animationDelay = (-ms) + 'ms'; else el.style.animation = 'none'; } } }
+  /* going back to the sheet underneath (アカウント → 設定): it fades in instead of sliding up again */
+  { const el = document.querySelector('.sheet');   // a redraw while the sheet is moving in (the version arrives, a backup count arrives) must not restart it: it picks up where it was, or stays still once it has finished
+    if (ui.sheet && el){
+      if (!sheetWasOpen || sheetKind !== ui.sheet.type){ sheetBackMode = sheetWasOpen && !!ui.sheetBack; sheetSince = performance.now(); sheetKind = ui.sheet.type; }
+      const ms = performance.now() - sheetSince;
+      if (sheetBackMode){ if (ms < 260 && calm()) el.style.animation = 'sheetFadeIn .22s cubic-bezier(.22,1,.36,1) ' + (-ms) + 'ms both'; else el.style.animation = 'none'; }   // the sheet underneath comes back with a soft fade
+      else if (ms < 320) el.style.animationDelay = (-ms) + 'ms'; else el.style.animation = 'none';
+    } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
   fitHome0();
@@ -1159,15 +1167,15 @@ function fitHome0(){
   for (const c of ['t1', 't2', 't3', 't4', 't5']){ if (h.scrollHeight <= h.clientHeight + 1) break; h.classList.add(c); }
 }
 window.addEventListener('resize', fitHome0);
-let sheetWasOpen = false, sheetSince = 0, sheetKind = '', toastN = 0, lastView = null;
+let sheetWasOpen = false, sheetSince = 0, sheetKind = '', sheetBackMode = false, toastN = 0, lastView = null;
 const calm = () => !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 function inert(root){   // a copy that only looks like the page: nothing in it can be found, focused or pressed
   root.setAttribute('aria-hidden', 'true');
   [root, ...root.querySelectorAll('[data-a],[id],[data-id],[data-swp],button,input,textarea,a')].forEach(x => { x.removeAttribute('data-a'); x.removeAttribute('id'); x.removeAttribute('data-id'); x.removeAttribute('data-swp'); if (/^(BUTTON|INPUT|TEXTAREA|A)$/.test(x.tagName)) x.tabIndex = -1; });
 }
-function ghost(node){   // a still copy of what has just gone, animated out and then removed
+function ghost(node, kind){   // a still copy of what has just gone, animated out and then removed
   if (!node || !calm()) return;
-  const g = node.cloneNode(true); g.classList.add('ghost'); inert(g);
+  const g = node.cloneNode(true); g.classList.add('ghost'); if (kind) g.classList.add(kind); inert(g);
   const sh = g.querySelector('.sheet'); if (sh && sh.style.transform) g.classList.add('dragged');   // dragged away by hand: it is already gone
   g.dataset.t = Date.now(); document.body.appendChild(g); setTimeout(() => g.remove(), 320);
 }
