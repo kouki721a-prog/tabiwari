@@ -190,6 +190,12 @@ try {
     await p.fill('#d-name', 'LINE名の旅'); await p.fill('#d-budget', '10000'); await p.click('[data-a=save-trip]'); await p.waitForSelector('[data-a=add-exp]');
     assert.strictEqual(await p.evaluate(() => state.trips[state.trips.length - 1].members[0].name), 'テスト太郎ですよろしくお願いします長い名', 'the trip is made with the LINE name as your name');
     await c.close(); }
+  { // (own page) going back from アカウント to 設定: the sheet that closes fades out while the other fades in (not a hard cut)
+    const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await c.newPage(); await p.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); }); await p.goto('http://localhost:8797/'); await p.waitForSelector('[data-a=app-settings]');
+    await p.evaluate(() => { lineAcct.login = true; lineAcct.user = { name: 'こうき', picture: '', pic: true, settle: true, over: true }; render(); });
+    await p.click('[data-a=app-settings]'); await p.waitForSelector('[data-a=line-account]'); await p.click('[data-a=line-account]'); await p.waitForSelector('.sheet [data-a=pic-toggle]'); await p.waitForTimeout(450);
+    const r = await p.evaluate(() => { document.querySelector('.sheet [data-a=close-sheet]').click(); return { ghost: !!document.querySelector('.sheet-bg.ghost.back'), title: document.querySelector('.sheet-bg:not(.ghost) h2').textContent, anim: getComputedStyle(document.querySelector('.sheet-bg:not(.ghost) .sheet')).animationName }; });
+    assert.ok(r.ghost && r.title === '設定' && r.anim === 'sheetFadeIn', 'the sheet underneath fades in, the closed one fades out: ' + JSON.stringify(r)); await p.waitForFunction(() => !document.querySelector('.ghost'), null, { timeout: 2000 }); await c.close(); }
   { // (own page) the date heading of a long list stays at the top while that day's expenses scroll under it
     const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await c.newPage();
     await p.addInitScript(() => { const x = new Date(), d = n => { const y = new Date(x.getTime() - n * 864e5); return y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0'); }; const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }];
