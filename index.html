@@ -1269,7 +1269,7 @@ function viewTrip(){
     a = ['使った合計', sp]; b = ['1人あたり', Math.round(sp / t.members.length)];
   }
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1>' + pill(st) + '</div>' +
-    '<div class="sub' + (ui.tab === 'exp' ? ' subrow' : '') + '"><span>' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' : '') + '</span>' + (ui.tab === 'exp' ? memRow(t) : '') + '</div>';
+    '<div class="sub subrow"><span>' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' : '') + '</span>' + memRow(t) + '</div>';
   const lab = over ? '予算オーバー' : '予算の残り', amt = '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>', bar = '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>';
   if (ui.tab === 'exp' && st[0] === '準備中')   // before the trip: the budget, and how much of it the group has saved
     h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">予算</span><span class="t-label">積立 ' + yen(savedOf(t)) + '（' + savedPct(t) + '%）</span></div><div class="t-amount">' + yen(t.budget) + '</div><div class="t-bar"><i style="width:' + savedPct(t) + '%"></i></div></div>' +
@@ -1279,10 +1279,10 @@ function viewTrip(){
       '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div>' + usageBar(t, true) + '</div>';
   else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
     const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = Math.min(100, Math.round(ssum / t.budget * 100));
-    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">予算 ' + yen(t.budget) + ' の ' + spct + '%' + (st[0] === '準備中' ? '・出発まで あと' + dayDiff(today, t.start) + '日' : '') + '</div>' + savePace(t, today) + '</div>';
+    const saveMiss = t.budget - savedOf(t), saveInline = st[0] !== '準備中' || saveMiss <= 0 || dayDiff(today, t.start) <= 0;   // one line when there is no daily pace to show
+    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">予算 ' + yen(t.budget) + ' の ' + spct + '%' + (st[0] === '準備中' ? '・出発まで あと' + dayDiff(today, t.start) + '日' : '') + (saveInline ? '・' + (saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)) : '') + '</div>' + (saveInline ? '' : savePace(t, today)) + '</div>';
   } else   // settlement tab: one thin line
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
-  if (ui.tab !== 'exp') h += memRow(t);   // on the record tab the members sit on the date line
   if (ui.tab === 'exp' && st[0] === '準備中') h += '<i class="sp"></i>' + usageBar(t);   // otherwise the categories sit inside the budget card
   h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
