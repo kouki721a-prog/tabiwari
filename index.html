@@ -86,6 +86,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #app.fit{height:100%;overflow:hidden;display:flex;flex-direction:column;padding-bottom:0}
 #app.fit>*{flex:none}
 #app.fit>.sp{display:block;flex:10 1 0;min-height:6px;max-height:24px}
+#app{touch-action:pan-y;overflow-x:clip}
+html,body{overscroll-behavior-x:none}
 #app.fit>.scroll{touch-action:pan-y;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin:0 -16px;padding:0 16px 8px}
 #app.nonav{padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 10px)}
 .cta{padding-top:10px}
@@ -1785,13 +1787,13 @@ document.addEventListener('touchmove', e => {
   if (!swipe) return;
   const t = e.touches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
   if (!pg){
-    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-    if (Math.abs(dx) < Math.abs(dy) * 1.5 || ui.sheet){ swipe = null; return; }   // mostly vertical: scrolling
+    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.5 || ui.sheet){ if (Math.abs(dy) >= 6 || ui.sheet) swipe = null; return; }   // mostly vertical: scrolling (a tiny sideways wobble at the start is waited out)
     const ctx = pageCtx(), i = ctx ? ctx.order.indexOf(ctx.cur) : -1; if (i < 0){ swipe = null; return; }
-    pg = Object.assign(ctx, { i, rect: ctx.el.getBoundingClientRect(), peek: null, j: -1, t0: Date.now(), x0: swipe.x + (dx > 0 ? 10 : -10), dx: 0, raw: 0, has: false });
-    document.documentElement.style.overflowX = 'hidden'; pg.el.style.willChange = 'transform';
+    pg = Object.assign(ctx, { i, rect: ctx.el.getBoundingClientRect(), peek: null, j: -1, t0: Date.now(), x0: swipe.x + (dx > 0 ? 6 : -6), dx: 0, raw: 0, has: false });
+    pg.el.style.willChange = 'transform';
   }
-  e.preventDefault();
+  if (e.cancelable) e.preventDefault();
   const raw = t.clientX - pg.x0, want = raw < 0 ? pg.i + 1 : pg.i - 1, has = want >= 0 && want < pg.order.length;
   if (has && pg.j !== want) pgPeek(want);
   if (!has && pg.peek){ pg.peek.remove(); pg.peek = null; pg.j = -1; }
@@ -1799,12 +1801,12 @@ document.addEventListener('touchmove', e => {
   pg.el.style.transition = 'none'; pg.el.style.transform = 'translateX(' + pg.dx + 'px)';
   if (pg.peek) pg.peek.style.transform = 'translateX(' + (pg.dx + (raw < 0 ? pg.rect.width : -pg.rect.width)) + 'px)';
 }, { passive: false });
-document.addEventListener('touchend', () => {
-  const g = pg; pg = null; swipe = null; document.documentElement.style.overflowX = '';
+function pgFinish(cancelled){
+  const g = pg; pg = null; swipe = null;
   if (!g) return;
   swipedAt = Date.now();
   const W = g.rect.width, v = g.raw / Math.max(1, Date.now() - g.t0), alive = document.body.contains(g.el);   // px per ms
-  const go = alive && g.has && g.peek && (Math.abs(g.raw) > Math.min(W * 0.3, 120) || (Math.abs(v) > 0.45 && Math.abs(g.raw) > 30)) && Math.sign(g.raw) === Math.sign(g.dx);
+  const go = !cancelled && alive && g.has && g.peek && (Math.abs(g.raw) > Math.min(W * 0.3, 120) || (Math.abs(v) > 0.45 && Math.abs(g.raw) > 30)) && Math.sign(g.raw) === Math.sign(g.dx);
   g.el.style.willChange = '';
   const anim = (el, from, to, done) => { if (!calm() || !el.animate){ if (done) done(); return; } const a = el.animate([{ transform: 'translateX(' + from + 'px)' }, { transform: 'translateX(' + to + 'px)' }], { duration: 280, easing: EASE }); a.onfinish = () => { if (done) done(); }; };
   if (!go){   // back to where it was
@@ -1819,7 +1821,9 @@ document.addEventListener('touchend', () => {
   const el = g.kind === 'home' ? document.querySelector('.hlist') : document.querySelector('#app.fit>.scroll');
   if (el) anim(el, peekX, 0);
   if (old) anim(old, g.dx, dir * W, () => old.remove());
-}, { passive: true });
+}
+document.addEventListener('touchend', () => pgFinish(false), { passive: true });
+document.addEventListener('touchcancel', () => pgFinish(true), { passive: true });
 /* an expense row: swipe left to show the red 削除 (a tap on it deletes; 元に戻す stays for a few seconds). Another touch, or a swipe right, closes it. */
 let rs = null;
 const SWP = 84;
