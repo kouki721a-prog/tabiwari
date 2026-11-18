@@ -1810,6 +1810,7 @@ document.addEventListener('touchmove', e => {
     if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
     if (Math.abs(dx) < Math.abs(dy) * 1.5 || ui.sheet){ if (Math.abs(dy) >= 6 || ui.sheet) swipe = null; return; }   // mostly vertical: scrolling (a tiny sideways wobble at the start is waited out)
     const ctx = pageCtx(), i = ctx ? ctx.order.indexOf(ctx.cur) : -1; if (i < 0){ swipe = null; return; }
+    if (ctx.kind === 'trip' && i === 0 && dx > 0){ swipe = null; return; }   // right on the first tab: back to the home screen (below)
     pg = Object.assign(ctx, { i, rect: ctx.el.getBoundingClientRect(), peek: null, j: -1, t0: Date.now(), x0: swipe.x + (dx > 0 ? 6 : -6), dx: 0, raw: 0, has: false });
     pg.el.style.willChange = 'transform';
   }
@@ -1844,11 +1845,11 @@ function pgFinish(cancelled){
 }
 document.addEventListener('touchend', () => pgFinish(false), { passive: true });
 document.addEventListener('touchcancel', () => pgFinish(true), { passive: true });
-/* the 旅行をつくる screen: swipe right to go back to the home screen. The screen follows the finger and the home screen waits behind it; let go early and it springs back. */
+/* the 旅行をつくる screen, and a trip's first tab (記録): swipe right to go back to the home screen. The screen follows the finger and the home screen waits behind it; let go early and it springs back. */
 let nb = null;
 document.addEventListener('touchstart', e => {
   if (nb) nbFinish(true); nb = null; const t = e.touches[0];
-  if (ui.view !== 'new' || ui.sheet || e.touches.length !== 1 || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
+  if (!(ui.view === 'new' || (ui.view === 'trip' && ui.tab === 'exp' && trip())) || ui.sheet || e.touches.length !== 1 || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select,.swp.open')) return;
   nb = { x: t.clientX, y: t.clientY, on: false, dx: 0, t0: Date.now() };
 }, { passive: true });
 document.addEventListener('touchmove', e => {
