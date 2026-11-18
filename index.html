@@ -105,6 +105,7 @@ html,body{overscroll-behavior-x:none}
 /* tags and avatars share one hue system */
 .tag,.av{--h:215;background:hsl(var(--h) var(--tbs) var(--tbl));color:hsl(var(--h) var(--tfs) var(--tfl));display:grid;place-items:center;font-weight:700;flex:none}
 .tag{width:42px;height:42px;border-radius:14px;font-size:17px}
+.melink{border:1.5px solid var(--line);border-radius:14px;background:var(--card);padding:10px 14px!important;margin-top:4px;width:100%;text-align:left;color:var(--ink)}
 .av{width:30px;height:30px;border-radius:50%;font-size:14px;position:relative;overflow:hidden}.avimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
 .avs{display:flex}
 .avs .av{border:2px solid var(--card);margin-left:-8px}
@@ -890,7 +891,7 @@ async function beginJoin(token){
   const id = await Share.sha256hex(token), have = state.trips.filter(x => x.id === id)[0];
   if (have){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.resetScroll = true; render(); flash('この旅行には、すでに参加しています'); return null; }
   const g = await Share.get(token);
-  return { type: 'join-share', token: token, rev: g.rev, trip: Sync.assemble([g.trip])[0], pick: null, name: '', err: '' };
+  return { type: 'join-share', token: token, rev: g.rev, trip: Sync.assemble([g.trip])[0], pick: null, name: lineName(), err: '' };
 }
 async function captureShareHash(){
   const m = /[#&]t=([A-Za-z0-9_-]{32,64})/.exec(location.hash); if (!m) return;
@@ -1262,7 +1263,9 @@ function viewNew(){
     '<div><label class="lab" for="d-end">帰着日</label><input class="field" id="d-end" type="date" data-draft="end" value="' + d.end + '"></div></div>' +
     '<label class="lab" for="d-budget">全体の予算（円）</label><input class="field" id="d-budget" type="text" inputmode="numeric" data-draft="budget" value="' + esc(d.budget) + '" placeholder="例：50000">' +
     '<div class="chips" style="margin-top:10px">' + [30000, 50000, 100000].map(n => '<button class="chip plain" data-a="preset" data-v="' + n + '">' + n.toLocaleString('ja-JP') + '</button>').join('') + '</div>' +
-    '<label class="lab" for="d-me">あなたの名前</label><input class="field" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">' +
+    (lineName() && !d.editMe && !d.me.trim()
+      ? '<span class="lab">あなたの名前</span><button type="button" class="item slim acc melink" data-a="draft-me-edit" aria-label="あなたの名前を変える"><div class="grow"><b>' + esc(lineName()) + '</b> <span class="sub sm">（LINEの名前）</span></div><span class="sub sm">変える</span></button>'
+      : '<label class="lab" for="d-me">あなたの名前</label><input class="field" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">') +
     (d.from ? '<div class="panel" style="margin-top:10px;padding:10px 12px;font-size:13px">「' + esc(d.from.name) + '」のメンバー（' + esc(d.from.names) + '）を、つくったあとの画面で、招待できます。</div>' : '') + '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあとに、旅行の設定の「友だちと共有」から誘えます。</div>' +
     '<button class="link" data-a="make-demo" style="width:auto;padding:12px 0 0;font-size:12px">動作確認用に、3人のテスト旅行をつくる</button>';
   if (d.err) h += '<div class="err" role="alert">' + esc(d.err) + '</div>';
@@ -1643,7 +1646,7 @@ function viewSheet(){
     body = '<div class="panel" style="margin-top:12px"><div class="num">' + esc(jt.name) + '</div><div class="sub">' + fmtDate(jt.start) + ' - ' + fmtDate(jt.end) + '・メンバー ' + jt.members.length + '人・支出 ' + jt.expenses.length + '件</div></div>' +
       '<label class="lab" for="j-name">あなたの名前</label><input class="field" id="j-name" type="text" maxlength="50" value="' + esc(s.name) + '" placeholder="例：みく">' +
       (jt.members.length ? '<span class="lab">すでに参加している人（別の端末から入り直すとき）</span><div class="chips">' + jt.members.map(m => '<button class="chip ' + (s.pick === m.id ? 'on' : '') + '" data-a="join-pick" data-v="' + m.id + '" aria-pressed="' + (s.pick === m.id) + '">' + av(jt, m.id) + esc(m.name) + '</button>').join('') + '</div><div class="sub sm" style="margin-top:6px">自分が、すでにこの旅行に参加しているときだけ、選びます。ほかの人の名前は、選ばないでください。</div>' : '') +
-      '<div class="panel" style="margin-top:12px;padding:10px 12px;font-size:13px;line-height:1.6"><b>参加のしかた</b><br>① あなたの名前を入れます<br>② ［参加する］を押します<div class="sub sm" style="margin-top:2px">参加すると、支出と精算を、見て、記録できます。LINEのログインや、アプリのインストールは、要りません。</div></div>';
+      '<div class="panel" style="margin-top:12px;padding:10px 12px;font-size:13px;line-height:1.6"><b>参加のしかた</b><br>① あなたの名前を' + (s.name ? '確かめます' : '入れます') + '<br>② ［参加する］を押します<div class="sub sm" style="margin-top:2px">参加すると、支出と精算を、見て、記録できます。LINEのログインや、アプリのインストールは、要りません。</div></div>';
     foot = err + '<button class="btn" data-a="join-share-go"' + (s.busy ? ' disabled' : '') + '>参加する</button><button class="link" data-a="close-sheet">やめる</button>';
   }
   if (s.type === 'csv-import'){
@@ -1723,6 +1726,7 @@ function splitHint(d){
 
 /* ---- actions ---- */
 function nextPos(t){ return t.members.reduce((mx, m, i) => Math.max(mx, m.pos != null ? m.pos : i), -1) + 1; }
+const lineName = () => lineAcct.user && lineAcct.user.name ? Array.from(String(lineAcct.user.name).trim()).slice(0, 20).join('') : '';   // the LINE display name (at most 20 characters), when signed in
 function newDraft(){ const d = todayStr(); return { name: '', start: d, end: addDays(d, 1), budget: '', me: '', err: '' }; }
 function readSheet(){
   const s = ui.sheet; if (!s) return;
@@ -2023,6 +2027,7 @@ document.addEventListener('click', e => {
   else if (a === 'copy-site'){ const u = location.origin + '/'; try { navigator.clipboard.writeText(u).then(() => flash('リンクをコピーしました'), () => flash(u)); } catch(err){ flash(u); } return; }
   else if (a === 'install'){ if (deferredInstall){ deferredInstall.prompt(); deferredInstall = null; } }
   else if (a === 'dismiss-install'){ try { localStorage.setItem('tabiwari.noinstall', '1'); } catch(err){} }
+  else if (a === 'draft-me-edit'){ if (ui.draft){ ui.draft.editMe = true; if (!ui.draft.me.trim()) ui.draft.me = lineName(); } }
   else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
   else if (a === 'next-trip'){   // a new trip with the same name base, length, budget and my name. Members join again by invite (they join themselves).
     const t0 = state.trips.find(x => x.id === id); if (!t0) return;
@@ -2161,9 +2166,9 @@ document.addEventListener('click', e => {
     if (!d.name.trim()) d.err = '旅行の名前を入力してください。';
     else if (d.end < d.start) d.err = '帰着日は、出発日と同じか、それ以降にしてください。';
     else if (!(b > 0)) d.err = '予算を、1以上の数字で入力してください。';
-    else if (!d.me.trim()) d.err = 'あなたの名前を入力してください。メンバーの一覧に、この名前で表示されます。';
+    else if (!d.me.trim() && !lineName()) d.err = 'あなたの名前を入力してください。メンバーの一覧に、この名前で表示されます。';
     else {
-      const me = d.me.trim(); state.me = me;
+      const me = d.me.trim() || lineName(); state.me = me;
       const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, savings: {}, settlements: [], adjustments: [],
         members: [Object.assign({ id: uid(), name: me, pos: 0 }, state.payNote ? { note: state.payNote } : {})], expenses: [] };
       const next = !!d.from;
@@ -2172,7 +2177,7 @@ document.addEventListener('click', e => {
     }
   }
   else if (a === 'make-demo'){   // a 3-person trip with a few receipts, to try settlement and payment requests alone
-    const me = (ui.draft && ui.draft.me.trim()) || state.me || 'あなた', today = todayStr(), ids = [uid(), uid(), uid()];
+    const me = (ui.draft && ui.draft.me.trim()) || lineName() || state.me || 'あなた', today = todayStr(), ids = [uid(), uid(), uid()];
     const ex = (title, amount, payer, cat, split) => ({ id: uid(), title: title, amount: amount, payer: ids[payer], cat: cat, date: today, split: split.map(i => ids[i]) });
     const nt = { id: uid(), name: 'テスト旅行', start: today, end: addDays(today, 1), budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
       members: [{ id: ids[0], name: me, pos: 0 }, { id: ids[1], name: 'あおい', pos: 1 }, { id: ids[2], name: 'けんた', pos: 2 }],

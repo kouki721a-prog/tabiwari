@@ -181,6 +181,15 @@ try {
     const mid = await drag(180, true); assert.ok(mid.peek && /translateX\(/.test(mid.tr), 'the screen follows the finger, the home screen is behind it: ' + JSON.stringify(mid));
     await q.waitForFunction(() => !document.querySelector('.peek'), null, { timeout: 2000 }); assert.strictEqual(await q.locator('#d-name').count(), 1, 'a short drag springs back'); await q.waitForTimeout(450);
     await drag(330, true); await q.waitForFunction(() => !document.querySelector('#d-name') && document.querySelector('#app .home0'), null, { timeout: 3000 }); assert.strictEqual(await q.locator('#d-name').count(), 0, 'a long swipe goes back to the home screen'); await c.close(); }
+  { // (own page) signed in with LINE: the name field gives way to a row with the LINE name; "変える" opens the field (filled with it); saving needs no typing
+    const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await c.newPage(); await p.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); }); await p.goto('http://localhost:8797/'); await p.waitForSelector('[data-a=new]'); await p.click('[data-a=new]'); await p.waitForSelector('#d-name');
+    await p.evaluate(() => { lineAcct.user = { name: 'テスト太郎ですよろしくお願いします長い名前の人', picture: '', pic: true }; render(); });
+    assert.strictEqual(await p.locator('#d-me').count(), 0, 'no name field when signed in'); assert.strictEqual((await p.textContent('.melink')).includes('テスト太郎ですよろしくお願いします長い名'), true, 'the LINE name is shown (at most 20 characters)'); assert.strictEqual((await p.textContent('.melink')).includes('前の人'), false);
+    await p.click('[data-a=draft-me-edit]'); assert.strictEqual(await p.inputValue('#d-me'), 'テスト太郎ですよろしくお願いします長い名', 'the field opens filled with it');
+    await p.evaluate(() => { ui.draft.editMe = false; ui.draft.me = ''; render(); });
+    await p.fill('#d-name', 'LINE名の旅'); await p.fill('#d-budget', '10000'); await p.click('[data-a=save-trip]'); await p.waitForSelector('[data-a=add-exp]');
+    assert.strictEqual(await p.evaluate(() => state.trips[state.trips.length - 1].members[0].name), 'テスト太郎ですよろしくお願いします長い名', 'the trip is made with the LINE name as your name');
+    await c.close(); }
   { // the first screen fits on one page with the "add to the home screen" banner above it too, whatever the height (it gives things up in turn)
     for (const [w, h] of [[390, 844], [390, 730], [390, 664], [375, 667], [360, 640], [320, 568]]){
       const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: w, height: h } }), q = await c.newPage(); await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
