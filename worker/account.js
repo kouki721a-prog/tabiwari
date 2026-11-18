@@ -239,6 +239,11 @@ export async function handleAccount(req, env, url) {
       env.DB.prepare('INSERT OR IGNORE INTO member_links(trip_id, member_id, user_id) VALUES (?1,?2,?3)').bind(trip, b.member, user.id)]);
     return reply({ ok: true });
   }
+  if (p === '/api/push/unsubscribe-all' && method === 'POST') {   // forget every device of the caller (a stale registration blocks the LINE fallback for settlement notices)
+    if (await limited(env, req, 't', 10, 600)) return reply({ error: 'rate_limited' }, 429);
+    const r = await env.DB.prepare('DELETE FROM push_subs WHERE user_id = ?1').bind(user.id).run();
+    return reply({ ok: true, removed: (r.meta && r.meta.changes) || 0 });
+  }
   if (p === '/api/push/unsubscribe' && method === 'POST') {
     let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
     if (!b || typeof b.endpoint !== 'string') return reply({ error: 'invalid' }, 400);

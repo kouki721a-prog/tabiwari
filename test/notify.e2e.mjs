@@ -57,6 +57,9 @@ try {
   await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]');
   // 「お知らせの届き方」は、通知がオンでも、折りたたみの外から調べられる
   await d.p.click('[data-a=ntf-reach]'); await see(d.p, '公式LINEの友だち：'); await see(d.p, '共有中の旅行での登録：');
+  await d.p.click('[data-a=ntf-stop-ask]'); await see(d.p, '通知を、すべて止めますか'); await d.p.click('[data-a=ntf-stop-no]');
+  await d.p.click('[data-a=ntf-stop-ask]'); await d.p.click('[data-a=ntf-stop-go]'); await see(d.p, '止めました。通知を受け取る端末は、0台です。');
+  await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]');   // turn it on again for the rest of the test
   // "if it does not arrive": the help rows are folded away until asked for; the test notification and the diagnosis work from there
   assert.strictEqual(await d.p.locator('[data-a=ntf-test]').count(), 0); await d.p.click('[data-a=ntf-help]');
   await d.p.click('[data-a=ntf-diag]'); await see(d.p, '通知を受け取る端末：1台');

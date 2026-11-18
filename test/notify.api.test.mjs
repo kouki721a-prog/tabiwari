@@ -130,6 +130,15 @@ try {
   assert.ok(dg.data.trips.some(x => x.name === '二人目の旅' && Array.isArray(x.kinds)), JSON.stringify(dg.data.trips));
   assert.strictEqual((await run('2026-12-05T09:40:00Z')).sent, 0, 'diagnosing sent nothing and claimed nothing new');
 
+  // ---- "stop on every device": own devices only; a stale registration is gone and the other account keeps its own
+  assert.strictEqual((await j('/api/push/unsubscribe-all', { method: 'POST', body: {} })).status, 401);
+  const before1 = (await j('/api/push/diagnose', { cookie: c1, method: 'POST', body: {} })).data.devices;
+  const ua = await j('/api/push/unsubscribe-all', { cookie: c2, method: 'POST', body: {} });
+  assert.strictEqual(ua.status, 200); assert.strictEqual(ua.data.removed, 1);
+  assert.strictEqual((await j('/api/push/diagnose', { cookie: c2, method: 'POST', body: {} })).data.devices, 0);
+  assert.strictEqual((await j('/api/push/diagnose', { cookie: c1, method: 'POST', body: {} })).data.devices, before1, 'the other account is untouched');
+  assert.strictEqual((await sub(c2, d2)).status, 200, 'and the device can be registered again');
+
   // ---- turning it off / deleting the account stops everything
   assert.strictEqual((await j('/api/push/unsubscribe', { cookie: c1, method: 'POST', body: { endpoint: d2.endpoint } })).status, 200, 'cannot remove someone else\'s device');
   await j('/api/backup', { cookie: c2, method: 'PUT', body: { upsert: [local('R', 'ふたりの旅', '2026-12-06', '2026-12-07')] } });
