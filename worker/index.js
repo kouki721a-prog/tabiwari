@@ -30,7 +30,7 @@ const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prep
   .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN fixed TEXT').run().catch(() => { /* the column already exists */ }))   // exact amounts for some people of an expense (JSON, NULL = none)
   .then(() => env.DB.prepare('ALTER TABLE trips ADD COLUMN caps TEXT').run().catch(() => { /* the column already exists */ }))   // limits per category (JSON, NULL = none)
   .then(() => env.DB.prepare('ALTER TABLE users ADD COLUMN settle_notif INTEGER NOT NULL DEFAULT 1').run().catch(() => { /* the column already exists */ }))   // 精算のお知らせ on/off per account
-  .then(() => Promise.all(['over_notif INTEGER NOT NULL DEFAULT 1', 'pic_share INTEGER NOT NULL DEFAULT 1', 'friend_flag INTEGER NOT NULL DEFAULT 0', 'friend_changed INTEGER', 'friend_checked_at INTEGER'].map(c => env.DB.prepare('ALTER TABLE users ADD COLUMN ' + c).run().catch(() => { /* already there */ }))))   // official-account friend state, saved at login
+  .then(() => Promise.all(['over_notif INTEGER NOT NULL DEFAULT 1', 'pic_share INTEGER NOT NULL DEFAULT 1', 'friend_flag INTEGER NOT NULL DEFAULT 0', 'friend_changed INTEGER', 'friend_checked_at INTEGER', 'adv_notif INTEGER NOT NULL DEFAULT 0'].map(c => env.DB.prepare('ALTER TABLE users ADD COLUMN ' + c).run().catch(() => { /* already there */ }))))   // official-account friend state, saved at login
   .catch(e => { ready = null; throw e; }));
 
 const LIMITS = { members: 12, expenses: 2000, settlements: 100, adjustments: 2000, paid: 500, body: 256 * 1024, opsPerRequest: 400 };
@@ -176,7 +176,7 @@ async function applyOps(env, req, id, ctx) {
   if (del.trips) S.push(...wipe(DB, id));
   S.push(P('UPDATE trips SET rev = rev + 1, updated_at = ?2 WHERE id = ?1').bind(id, now));
   await DB.batch(S);   // one transaction: all of it or none of it
-  if (ctx && ctx.waitUntil && (ins.settlements || ins.paid)) ctx.waitUntil(notifyOps(env, id, ins).catch(e => console.error('settle notify failed', e && e.message)));   // after the reply: who owes / who is owed
+  if (ctx && ctx.waitUntil && (ins.settlements || ins.paid || ins.expenses)) ctx.waitUntil(notifyOps(env, id, ins).catch(e => console.error('settle notify failed', e && e.message)));   // after the reply: who owes / who is owed
   const after = await DB.prepare('SELECT rev FROM trips WHERE id=?').bind(id).first();
   return reply({ ok: true, rev: after ? after.rev : 0 });
 }
