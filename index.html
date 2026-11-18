@@ -748,6 +748,8 @@ function save(){ persist(); if (state.trips.some(t => t.share)) shareSoon(); if 
 let state = load();
 
 
+/* while a finger is dragging a page, render() waits (it would remove the element the finger started on; iPhone then never reports the touch's end, and the copy of the neighbouring page stays on the screen) */
+const GEST = { t: 0, pending: false, check: () => false, flush(){ if (this.pending && !this.check()){ this.pending = false; render(); } } };
 const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', quick: '', quickErr: '', inviting: null, ai: { enabled: false, login: false, remaining: null } };
 
 const CFG = window.TABIWARI || {};
@@ -1067,6 +1069,8 @@ function shareSection(t, s){
 
 /* ---- render ---- */
 function render(){
+  if (GEST.check()){ GEST.pending = true; return; }
+  GEST.pending = false; sweepPeeks();
   const app = document.getElementById('app');
   const old = document.querySelector('.sheet-body'), keep = old ? old.scrollTop : 0;
   const oldList = document.querySelector('.scroll'), keepList = oldList && !ui.resetScroll ? oldList.scrollTop : 0; ui.resetScroll = false;
@@ -1111,7 +1115,7 @@ function ghost(node){   // a still copy of what has just gone, animated out and 
   if (!node || !calm()) return;
   const g = node.cloneNode(true); g.classList.add('ghost'); inert(g);
   const sh = g.querySelector('.sheet'); if (sh && sh.style.transform) g.classList.add('dragged');   // dragged away by hand: it is already gone
-  document.body.appendChild(g); setTimeout(() => g.remove(), 320);
+  g.dataset.t = Date.now(); document.body.appendChild(g); setTimeout(() => g.remove(), 320);
 }
 function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; ui.toastNew = true; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
@@ -1786,15 +1790,15 @@ function pgPeek(want){
   const p = document.createElement('div'); p.className = (pg.kind === 'trip' ? 'scroll ' : '') + 'peek'; p.innerHTML = pg.build(pg.order[want]); inert(p);
   const cs = getComputedStyle(pg.el), r = pg.rect;
   p.style.cssText = 'position:fixed;z-index:0;overflow:hidden;pointer-events:none;margin:0;top:' + r.top + 'px;left:' + r.left + 'px;width:' + r.width + 'px;height:' + (pg.kind === 'trip' ? r.height : Math.max(r.height, innerHeight - r.top)) + 'px;padding:' + cs.padding + ';box-sizing:' + cs.boxSizing;
-  document.body.appendChild(p); pg.peek = p; pg.j = want;
+  p.dataset.t = Date.now(); document.body.appendChild(p); pg.peek = p; pg.j = want;
 }
 function pgGhostOf(el, rect, from){   // a still copy of the page that is leaving (render() has already swapped the real one)
   const g = el.cloneNode(true); inert(g); g.classList.add('pg-old');
   g.style.cssText = 'position:fixed;z-index:0;overflow:hidden;pointer-events:none;margin:0;top:' + rect.top + 'px;left:' + rect.left + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;transform:translateX(' + from + 'px)';
-  document.body.appendChild(g); g.scrollTop = el.scrollTop; return g;
+  g.dataset.t = Date.now(); document.body.appendChild(g); g.scrollTop = el.scrollTop; return g;
 }
 document.addEventListener('touchstart', e => {
-  const t = e.touches[0]; swipe = null; pg = null;
+  const t = e.touches[0]; swipe = null; if (pg) pgFinish(true); pg = null;
   if (e.touches.length !== 1 || !((ui.view === 'home' && state.trips.length) || (ui.view === 'trip' && trip())) || ui.sheet || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
   if (e.target.closest('.swp')) return;   // a swipe on an expense row belongs to the row (delete)
   swipe = { x: t.clientX, y: t.clientY };
@@ -1824,7 +1828,7 @@ function pgFinish(cancelled){
   const W = g.rect.width, v = g.raw / Math.max(1, Date.now() - g.t0), alive = document.body.contains(g.el);   // px per ms
   const go = !cancelled && alive && g.has && g.peek && (Math.abs(g.raw) > Math.min(W * 0.3, 120) || (Math.abs(v) > 0.45 && Math.abs(g.raw) > 30)) && Math.sign(g.raw) === Math.sign(g.dx);
   g.el.style.willChange = '';
-  const anim = (el, from, to, done) => { if (!calm() || !el.animate){ if (done) done(); return; } const a = el.animate([{ transform: 'translateX(' + from + 'px)' }, { transform: 'translateX(' + to + 'px)' }], { duration: 280, easing: EASE }); a.onfinish = () => { if (done) done(); }; };
+  const anim = (el, from, to, done) => { if (!calm() || !el.animate){ if (done) done(); return; } const a = el.animate([{ transform: 'translateX(' + from + 'px)' }, { transform: 'translateX(' + to + 'px)' }], { duration: 280, easing: EASE }); let fin = false; const end = () => { if (fin) return; fin = true; if (done) done(); }; a.onfinish = end; a.oncancel = end; setTimeout(end, 420); };
   if (!go){   // back to where it was
     g.el.style.transform = ''; g.el.style.transition = '';
     if (alive) anim(g.el, g.dx, 0);
@@ -1843,7 +1847,7 @@ document.addEventListener('touchcancel', () => pgFinish(true), { passive: true }
 /* the 旅行をつくる screen: swipe right to go back to the home screen. The screen follows the finger and the home screen waits behind it; let go early and it springs back. */
 let nb = null;
 document.addEventListener('touchstart', e => {
-  nb = null; const t = e.touches[0];
+  if (nb) nbFinish(true); nb = null; const t = e.touches[0];
   if (ui.view !== 'new' || ui.sheet || e.touches.length !== 1 || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
   nb = { x: t.clientX, y: t.clientY, on: false, dx: 0, t0: Date.now() };
 }, { passive: true });
@@ -1855,7 +1859,7 @@ document.addEventListener('touchmove', e => {
     nb.on = true; nb.x0 = nb.x + 8; nb.W = innerWidth; nb.bg = app.style.background;
     const p = document.createElement('div'); p.className = 'peek'; p.innerHTML = viewHome(); inert(p);
     p.style.cssText = 'position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;max-width:520px;margin:0 auto;padding:' + getComputedStyle(app).padding;
-    document.body.appendChild(p); nb.peek = p; app.style.background = 'var(--paper)'; app.style.willChange = 'transform';
+    p.dataset.t = Date.now(); document.body.appendChild(p); nb.peek = p; app.style.background = 'var(--paper)'; app.style.willChange = 'transform';
   }
   if (e.cancelable) e.preventDefault();
   nb.dx = Math.max(0, t.clientX - nb.x0);
@@ -1867,12 +1871,17 @@ function nbFinish(cancelled){
   const app = document.getElementById('app'), v = g.dx / Math.max(1, Date.now() - g.t0), go = !cancelled && (g.dx > Math.min(g.W * 0.3, 120) || (v > 0.45 && g.dx > 30));
   swipedAt = Date.now();
   const clean = () => { app.style.transform = ''; app.style.transition = ''; app.style.background = g.bg; app.style.willChange = ''; g.peek.remove(); };
-  const run = (to, done) => { if (!calm() || !app.animate){ done(); return; } const a = app.animate([{ transform: 'translateX(' + g.dx + 'px)' }, { transform: 'translateX(' + to + 'px)' }], { duration: 260, easing: EASE }); app.style.transform = 'translateX(' + to + 'px)'; a.onfinish = done; };
+  const run = (to, done) => { if (!calm() || !app.animate){ done(); return; } const a = app.animate([{ transform: 'translateX(' + g.dx + 'px)' }, { transform: 'translateX(' + to + 'px)' }], { duration: 260, easing: EASE }); app.style.transform = 'translateX(' + to + 'px)'; let fin = false; const end = () => { if (fin) return; fin = true; done(); }; a.onfinish = end; a.oncancel = end; setTimeout(end, 420); };
   if (go) run(g.W, () => { clean(); ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.swp = null; ui.noGo = true; render(); });
   else run(0, clean);
 }
 document.addEventListener('touchend', () => nbFinish(false), { passive: true });
 document.addEventListener('touchcancel', () => nbFinish(true), { passive: true });
+document.addEventListener('touchend', () => setTimeout(() => GEST.flush(), 0), { passive: true });
+document.addEventListener('touchcancel', () => setTimeout(() => GEST.flush(), 0), { passive: true });
+function sweepPeeks(){   // copies left behind (an animation that never finished): anything older than a second goes
+  document.querySelectorAll('.peek,.pg-old,.ghost').forEach(x => { if (Date.now() - Number(x.dataset.t || 0) > 1000 && !(pg && pg.peek === x) && !(nb && nb.peek === x)) x.remove(); });
+}
 /* an expense row: swipe left to show the red 削除 (a tap on it deletes; 元に戻す stays for a few seconds). Another touch, or a swipe right, closes it. */
 let rs = null;
 const SWP = 84;
@@ -1937,6 +1946,8 @@ document.addEventListener('touchend', () => {
 }, { passive: true });
 /* sheets: drag down to close (from the top of the sheet, or anywhere while its content is scrolled to the top); it closes the same way the close button does */
 let drag = null;
+GEST.check = () => Date.now() - GEST.t < 1500 && !!(pg || (nb && nb.on) || (rs && rs.on) || (pull && pull.on) || (drag && drag.on));
+document.addEventListener('touchmove', () => { GEST.t = Date.now(); }, { passive: true, capture: true });
 document.addEventListener('touchstart', e => {
   const sh = ui.sheet && e.touches.length === 1 ? e.target.closest('.sheet') : null; drag = null;
   if (!sh || !sh.querySelector('[data-a=close-sheet]') || e.target.closest('input,textarea,select')) return;
