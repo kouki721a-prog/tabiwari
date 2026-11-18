@@ -385,8 +385,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
   .alldone{animation:allDone .6s var(--ease)}@keyframes allDone{0%{transform:translateY(6px) scale(.94);opacity:0}100%{transform:none;opacity:1}}
   @keyframes fresh{0%{transform:translateY(-14px);opacity:0;background:rgba(255,200,60,.28)}45%{transform:none;opacity:1;background:rgba(255,200,60,.2)}100%{background:transparent}}
   #ptr.spin svg{animation:spinr .8s linear infinite}@keyframes spinr{to{transform:rotate(360deg)}}
-  @keyframes sheetFadeIn{from{opacity:0}to{opacity:1}}@keyframes sheetFadeOut{to{opacity:0}}
-  .sheet-bg.ghost.back{background:transparent;animation:none}.sheet-bg.ghost.back .sheet{animation:sheetFadeOut .16s ease-out forwards}
+  .sheet-bg.ghost.away,.sheet-bg.ghost.under{background:transparent;animation:none}.sheet-bg.ghost.under{z-index:19}.sheet-bg.ghost.under .sheet{animation:none}
   .toast.in{animation:toastIn .3s var(--ease)}@keyframes toastIn{from{transform:translateX(-50%) translateY(14px);opacity:0}to{transform:translateX(-50%);opacity:1}}
   .ghost{pointer-events:none}.sheet-bg.ghost{animation:bgOut .24s ease-out forwards}.sheet-bg.ghost .sheet{animation:sheetOut .26s var(--ease) forwards}.sheet-bg.ghost.dragged .sheet{animation:none}
   @keyframes bgOut{to{opacity:0}}@keyframes sheetOut{to{transform:translateY(100%)}}
@@ -1137,7 +1136,8 @@ function render(){
   const oldSheet = document.querySelector('.sheet-bg'), oldToast = document.querySelector('.toast'), oldBars = [...document.querySelectorAll('#app .t-bar i, #app .seg i')].map(e => e.style.width), oldKey = app.dataset.view;
   app.innerHTML = html; ui.toastNew = false; app.dataset.view = key + ':' + ui.tab;
   if (oldSheet && !ui.sheet) ghost(oldSheet);   // a sheet that closes slides down instead of vanishing
-  else if (oldSheet && ui.sheet && ui.sheetBack) ghost(oldSheet, 'back');   // going back to the sheet underneath (アカウント → 設定): the one that closes fades out while the other fades in, not a hard cut
+  else if (oldSheet && ui.sheet && ui.sheetBack) ghost(oldSheet, 'away');   // going back to the sheet underneath (アカウント → 設定): the settings sheet is already there, and the one that closes slides down over it
+  else if (oldSheet && ui.sheet && sheetWasOpen && sheetKind !== ui.sheet.type && ui.sheet.back && ui.sheet.back.type === sheetKind) ghost(oldSheet, 'under');   // opening アカウント from 設定: 設定 stays where it is, underneath, while the new sheet slides up over it
   if (oldToast && !ui.toast) ghost(oldToast);
   if (oldKey === app.dataset.view && calm()){   // the bars grow or shrink from where they were
     document.querySelectorAll('#app .t-bar i, #app .seg i').forEach((e, i) => { const to = e.style.width, from = oldBars[i]; if (from && to && from !== to){ e.style.width = from; e.getBoundingClientRect(); e.style.transition = 'width .55s var(--ease)'; e.style.width = to; } });
@@ -1153,7 +1153,7 @@ function render(){
     if (ui.sheet && el){
       if (!sheetWasOpen || sheetKind !== ui.sheet.type){ sheetBackMode = sheetWasOpen && !!ui.sheetBack; sheetSince = performance.now(); sheetKind = ui.sheet.type; }
       const ms = performance.now() - sheetSince;
-      if (sheetBackMode){ if (ms < 260 && calm()) el.style.animation = 'sheetFadeIn .22s cubic-bezier(.22,1,.36,1) ' + (-ms) + 'ms both'; else el.style.animation = 'none'; }   // the sheet underneath comes back with a soft fade
+      if (sheetBackMode) el.style.animation = 'none';   // the sheet underneath is simply there (the one that closed slides down over it)
       else if (ms < 320) el.style.animationDelay = (-ms) + 'ms'; else el.style.animation = 'none';
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
