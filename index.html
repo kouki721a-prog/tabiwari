@@ -1224,6 +1224,7 @@ function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo ||
 const OA_URL = 'https://line.me/R/ti/p/%40896znnha';   // official account 「たびわり」 (@896znnha)
 /* ---- trip recap image: drawn on a canvas on this device (nothing is uploaded) ---- */
 const RECAP_FONT = '-apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif';
+const RECAP_SITE = 'tabiwari.tabiwari-app.workers.dev';   // the public address printed small at the bottom of the picture
 function recapCanvas(d, icon){
   // A paper receipt on navy, 1080x1920 (9:16: a full screen for Instagram stories and the like). Same numbers as the screen (recapData).
   const W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
@@ -1238,7 +1239,7 @@ function recapCanvas(d, icon){
   const catName = k => (CAT[k.id] || CAT.other)[2];
   g.fillStyle = NAVY; g.fillRect(0, 0, W, H);
   const RX = 110, RW = W - 220, P = 60, IN = RX + P, IW = RW - P * 2, ROW = 64, cats = d.cats.slice(0, 5), lines = wrap(d.name, 700, 58, IW, 2);
-  const body = 96 + 52 + 74 + (lines.length - 1) * 68 + 54 + 44 + 62 + cats.length * ROW + 28 + 70 + 70 + ROW + ROW + 26 + 62 + ROW + 34 + ROW + 22 + 58 + 40 + 96 + 70 + 70 - 235;
+  const body = 96 + 52 + 74 + (lines.length - 1) * 68 + 54 + 44 + 62 + cats.length * ROW + 28 + 70 + 70 + ROW + ROW + 26 + 62 + ROW + 34 + ROW + 22 + 58 + 40 + 96 + 70 + 70 - 235 + 52;
   const top = Math.round((H - body) / 2), n = Math.round(RW / 22), st = RW / n, sc = Math.min(1.16, 1500 / (body + 28));   // a short receipt is enlarged a little so it fills the screen
   g.save(); g.translate(W / 2, H / 2); g.scale(sc, sc); g.translate(-W / 2, -H / 2);
   g.fillStyle = '#fffdf5'; g.beginPath(); g.moveTo(RX, top); for (let k = 0; k < n; k++){ g.lineTo(RX + k * st + st / 2, top - 14); g.lineTo(RX + (k + 1) * st, top); }
@@ -1254,6 +1255,7 @@ function recapCanvas(d, icon){
   font(700, fit(budget, 700, 36, IW, 24)); text(budget, W / 2, y, INK, 'center'); y += 40; let seed = 7; Array.from(d.name).forEach(ch => { seed = (seed * 31 + ch.charCodeAt(0)) % 9973; });
   let bx = IN + 30; while (bx < IN + IW - 40){ seed = (seed * 1103 + 12345) % 65536; const bw2 = 4 + (seed % 3) * 4; g.fillStyle = INK; g.fillRect(bx, y, bw2, 70); bx += bw2 + 6 + (seed % 4) * 2; }   // a barcode that is always the same for the same trip name
   font(400, 30); g.globalAlpha = .7; text('ありがとうございました。またいい旅を。', W / 2, y + 70 + 52, INK, 'center'); g.globalAlpha = 1;
+  font(400, 26); g.globalAlpha = .55; text(RECAP_SITE, W / 2, y + 70 + 52 + 52, INK, 'center'); g.globalAlpha = 1;   // inside the receipt, so it is never under the story app's own buttons
   g.restore();
   return c;
 }
@@ -1548,6 +1550,14 @@ function noteRow(t){   // my own 受け取り方のメモ: where to send the mon
   const mine = t.members.find(m => m.id === meId(t));
   return '<button class="item slim acc noteRow" data-a="note-edit"><div class="grow">' + (mine && mine.note ? '自分の受け取り方：' + esc(mine.note) : '自分の受け取り方を書く') + '</div>' + icon('chev', 18) + '</button>';
 }
+/* the trip is over and every round is paid: suggest the recap picture once (the person can say 「あとで」, and it stays quiet for this trip) */
+const NUDGE_KEY = 'tabiwari.recapnudge';
+function recapNudge(t){
+  const ss = t.settlements || []; if (!ss.length || !t.expenses.length || status(t)[0] !== '終了') return false;
+  if (!ss.every((st, i) => (st.transfers || []).every(x => t.paid[payKey(i + 1, x)]))) return false;
+  let seen = []; try { seen = JSON.parse(lsGet(NUDGE_KEY)) || []; } catch(e){ /* none */ }
+  return seen.indexOf(t.id) < 0;
+}
 function tabSettle(t){
   const ss = t.settlements || [];
   if (!t.expenses.length && !ss.length) return noteRow(t) + '<div class="empty"><b>精算はまだありません</b>支出を記録すると、誰が誰にいくら払えばいいかが出ます。</div>';
@@ -1558,6 +1568,7 @@ function tabSettle(t){
   let h = (off.length ? '<div class="panel" style="margin:0 0 10px"><b>まだ' + off.map(m => esc(m.name)).join('さん、') + 'さんが、お知らせを受け取れません。</b><div class="sub sm">LINEにログインして、通知をオンにすると、精算のお知らせが届きます。</div></div>' : '') + '<div class="sec"><h2>第' + n + '回の精算<span' + (ui.justPaid && has && pays.length && !left ? ' class="alldone"' : '') + '>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件・残り ' + yen(pays.reduce((a, p) => a + (t.paid[payKey(n, p)] ? 0 : p.amount), 0)) : 'すべて完了') + '</span></h2>';
   h += noteRow(t);
   if (!has) h += '<div class="panel"><b>未精算の支出はありません。</b><div class="sub">これから記録する支出は、第' + n + '回の精算になります。</div></div>';
+  if (!has && recapNudge(t)) h += '<div class="panel recapnudge" style="margin-top:10px"><b>みんなの精算が済みました。</b><div class="sub">旅のまとめを、画像にして、友だちに送れます。</div><div class="row" style="margin-top:8px"><button class="btn line sm" data-a="recap">まとめ画像をつくる</button><button class="link" data-a="recap-nudge-no" style="width:auto">あとで</button></div></div>';
   else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
   else h += xferList(t, pays, n);
   if (open.adjustments.length) h += '<div class="panel" style="margin-top:10px"><b>過去の精算の変更による差額</b>' + open.adjustments.map(a => '<div class="sub sm" style="margin-top:4px">' + esc(a.note || '支出の変更') + '：' + netLine(t, a.nets) + '</div>').join('') + '</div>';
@@ -2167,6 +2178,7 @@ document.addEventListener('click', e => {
   }
   else if (a === 'line-login'){ lineLogin(); return; }
   else if (a === 'line-cancel'){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; }
+  else if (a === 'recap-nudge-no'){ let seen = []; try { seen = JSON.parse(lsGet(NUDGE_KEY)) || []; } catch(e){ /* none */ } seen.push(t.id); lsSet(NUDGE_KEY, JSON.stringify(seen.slice(-50))); render(); return; }
   else if (a === 'recap'){
     const cur = ui.sheet = { type: 'recap', url: null, file: null, err: '' }; render();
     makeRecap(t).then(blob => { if (ui.sheet !== cur) return; if (!blob){ cur.err = 'まとめをつくれませんでした。支出を記録してから、もう一度お試しください。'; } else { cur.file = new File([blob], 'tabiwari-recap.png', { type: 'image/png' }); cur.url = URL.createObjectURL(blob); } render(); },

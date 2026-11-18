@@ -420,6 +420,21 @@ try {
     { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=終了した旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
+  // 精算がぜんぶ済んだ旅行: まとめ画像のすすめ（旅行が終わっていて、全部の送金が済みのときだけ。「あとで」で、その旅行は静かになる）
+  { const c12 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c12.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    const mk = (end, paid) => `localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: '${end}', end: '${end}', budget: 50000, paid: ${paid}, savings: {}, adjustments: [],
+      settlements: [{ id: 's1', n: 1, at: '${end}', total: 6000, transfers: [{ from: 'a', to: 'b', amount: 2000 }] }], members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }, { id: 'c', name: 'けんた', pos: 2 }],
+      expenses: [{ id: 'e1', title: '夕食', amount: 6000, payer: 'b', cat: 'food', date: '${end}', split: ['a', 'b', 'c'], settleId: 's1' }] }] }))`;
+    const open = async (end, paid) => { await q.evaluate(() => localStorage.clear()); await q.addInitScript(mk(end, paid)); await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow'); };
+    await q.goto('http://localhost:8797/'); await open('2026-01-10', "{ 'a-b-2000': true }");
+    assert.strictEqual(await q.locator('.recapnudge').count(), 1, 'ended and everything paid: the picture is suggested');
+    await q.click('[data-a=recap-nudge-no]'); await q.waitForTimeout(200); assert.strictEqual(await q.locator('.recapnudge').count(), 0, '「あとで」: quiet for this trip');
+    await q.reload(); await q.click('.trip'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow'); assert.strictEqual(await q.locator('.recapnudge').count(), 0, 'and it stays quiet after a reload');
+    await q.evaluate(() => { localStorage.removeItem('tabiwari.recapnudge'); state.trips[0].paid = {}; render(); }); await q.waitForTimeout(200); assert.strictEqual(await q.locator('.recapnudge').count(), 0, 'a transfer is still unpaid: nothing yet');
+    await q.evaluate(() => { state.trips[0].paid = { 'a-b-2000': true }; state.trips[0].start = state.trips[0].end = '2999-01-10'; render(); }); await q.waitForTimeout(200); assert.strictEqual(await q.locator('.recapnudge').count(), 0, 'the trip is not over yet: nothing');
+    await q.evaluate(() => { state.trips[0].start = state.trips[0].end = '2026-01-10'; render(); }); await q.waitForTimeout(200); await q.click('.recapnudge [data-a=recap]'); await q.waitForSelector('.recap-img');
+    const px = await q.evaluate(async () => { const im = document.querySelector('.recap-img'); await im.decode(); return [im.naturalWidth, im.naturalHeight]; }); assert.deepStrictEqual(px, [1080, 1920], 'the picture is still a full story screen');
+    assert.deepStrictEqual(qerrs, []); await c12.close(); }
   // 受け取り方のメモ: written in the settlement tab, shown under the transfer to the receiver (with a copy button), carried to the next trip, never autofocused
   { const c11 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', permissions: ['clipboard-read', 'clipboard-write'] }), q = await c11.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
