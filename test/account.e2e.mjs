@@ -16,7 +16,7 @@ const device = async () => {
   return { ctx, p };
 };
 const see = (p, t, ms = 9000) => p.waitForSelector('text=' + t, { timeout: ms });
-const newTrip = async (p, name, me = 'あおい') => { await p.click('[data-a=new]'); await p.fill('#d-name', name); await p.fill('#d-budget', '30000'); await p.fill('#d-me', me); await p.click('[data-a=save-trip]'); };
+const newTrip = async (p, name, me = 'あおい') => { await p.click('[data-a=new]'); await p.fill('#d-name', name); await p.fill('#d-budget', '30000'); if (await p.locator('[data-a=draft-me-edit]').count()) await p.click('[data-a=draft-me-edit]'); await p.fill('#d-me', me); await p.click('[data-a=save-trip]'); };   // signed in: your name is the LINE name until you change it
 const addExpense = async (p, amount, title) => { await p.click('[data-a=add-exp]'); await p.fill('#f-amount', String(amount)); await p.fill('#f-title', title); await p.click('[data-a=save-exp]'); await see(p, '記録しました'); };
 
 try {
