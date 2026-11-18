@@ -146,6 +146,8 @@ try {
   await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q3', n: 3, at: '2026-11-21', total: 100, transfers: [{ from: 'ma', to: 'md', amount: 300 }] }] }]); await wait(900);
   assert.strictEqual(line.pushes.length, 2, 'one attempt'); line.setPushStatus(200);
   assert.deepStrictEqual((await fetch(B + '/api/reach', { headers: { Authorization: 'Bearer ' + U } }).then(r => r.json())).reachable.sort(), ['mc'], 'a refused push resets the friend flag');
+  const lastDg = (await j('/api/push/diagnose', { cookie: cA, method: 'POST', body: {} })).data.notify;
+  assert.ok(lastDg.last && lastDg.last.status === 403 && lastDg.last.at > 0, 'the last answer of the official account is kept for the diagnosis: ' + JSON.stringify(lastDg.last));
   // logging in again re-reads the state (a newly added friend)
   line.setFriend('U-mb', true); await login('U-mb', 'ビー'); assert.deepStrictEqual((await fetch(B + '/api/reach', { headers: { Authorization: 'Bearer ' + U } }).then(r => r.json())).reachable.sort(), ['mb', 'mc'], 'the friend state is refreshed at login');
   console.log('official account push tests passed');

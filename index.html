@@ -1050,6 +1050,7 @@ function reachLines(r){
   L.push('共有中の旅行での登録：' + (n.links && n.links.length ? n.links.map(x => x.trip + (x.me ? '（' + x.me + '）' : '')).join('、') : 'なし'));
   L.push('通知を受け取る端末：' + r.devices + '台');
   if (n.oa === false) L.push('公式LINEからの送信：まだ準備中です');
+  else L.push('公式LINEへの最後の送信：' + (!n.last ? 'まだありません' : (n.last.status >= 200 && n.last.status < 300 ? '成功' : '失敗（' + (n.last.status || '通信エラー') + '）') + '・' + jstText(n.last.at * 1000)));
   return L;
 }
 function diagLines(r){
