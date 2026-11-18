@@ -758,7 +758,8 @@ const IC = {
   alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
   help:'<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
   send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
-  pulse:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'
+  pulse:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  'bell-off':'<path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5"/><path d="M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M2 2l20 20"/>'
 };
 const icon = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>';
 
@@ -1704,6 +1705,8 @@ function viewSheet(){
         (s.ntf === 'on' || s.ntf === 'off' ? row('coin', '精算のお知らせ', '精算ができたときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
         (s.ntf === 'on' || s.ntf === 'off' ? row('alert', '今日の使いすぎのお知らせ', '旅行中、今日の支出が1日の目安を超えたら、1日に1回お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.over !== false) + '" aria-label="今日の使いすぎのお知らせ" data-a="over-toggle"></button>') : '') +
         row('pulse', 'お知らせの届き方を調べる', s.reach ? s.reach.map(l => esc(l)).join('<br>') : '公式LINEの友だち状態や、この旅行での登録を確認します。', smallBtn('ntf-reach', '調べる', s.reaching), 'sub-row') +
+        (s.stopAsk ? '<div class="panel" style="margin:8px 14px"><b>通知を、すべて止めますか。</b><div class="sub sm" style="margin:4px 0 10px">登録されている端末の通知を消します。旅行のデータは、消えません。</div><button class="btn" data-a="ntf-stop-go"' + (s.stopping ? ' disabled' : '') + '>止める</button><button class="link" data-a="ntf-stop-no" style="margin-top:4px">やめる</button></div>'
+          : row('bell-off', '他の端末の通知を、すべて止める', s.stopMsg ? esc(s.stopMsg) : 'この端末にも、ほかの端末にも、通知が届かなくなります。使う端末で、オンにし直せます。', smallBtn('ntf-stop-ask', '止める', false), 'sub-row')) +
         (s.ntf === 'on' ? '<button class="item slim acc" data-a="ntf-help" aria-expanded="' + !!s.help + '">' + ico('help') + '<div class="grow"><div class="t">うまく届かないとき</div></div><span class="chev' + (s.help ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
           (s.help ? row('send', 'テスト通知を送る', s.testMsg ? esc(s.testMsg) : '今すぐ、この端末に1件送ります。', smallBtn('ntf-test', '送る', s.testing), 'sub-row') +
             row('pulse', 'サーバーの状態を調べる', s.diag ? s.diag.map(l => esc(l)).join('<br>') : '端末の登録や、自動の判定の記録を確認します。', smallBtn('ntf-diag', '調べる', s.diagging), 'sub-row') : '') : '') + '</div>' : '') +
@@ -2193,6 +2196,14 @@ document.addEventListener('click', e => {
   else if (a === 'ntf-reach'){
     s.reaching = true; s.reach = ['調べています…']; s.err = '';
     Line.pushDiagnose().then(r => { s.reaching = false; s.reach = reachLines(r); render(); }, er => { s.reaching = false; s.reach = null; s.err = Line.errText(er); render(); });
+  }
+  else if (a === 'ntf-stop-ask'){ s.stopAsk = true; s.stopMsg = ''; }
+  else if (a === 'ntf-stop-no'){ s.stopAsk = false; }
+  else if (a === 'ntf-stop-go'){
+    s.stopping = true; s.err = '';
+    Line.pushUnsubscribeAll().then(async r => { try { await ntfOff(); } catch(e){}
+      s.stopping = false; s.stopAsk = false; s.stopMsg = '止めました。通知を受け取る端末は、0台です。'; s.reach = null; lineAcct.ntfHome = 'off'; s.ntf = 'off'; render(); },
+      er => { s.stopping = false; s.stopAsk = false; s.err = Line.errText(er); render(); });
   }
   else if (a === 'ntf-diag'){
     s.diagging = true; s.diag = ['調べています…']; s.err = '';

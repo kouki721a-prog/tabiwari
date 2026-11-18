@@ -24,6 +24,7 @@
     pushSettings: function (settle) { return call('POST', '/api/push/settings', { settle: settle }); },
     pushSettingOver: function (over) { return call('POST', '/api/push/settings', { over: over }); },
     pushSettingPic: function (pic) { return call('POST', '/api/push/settings', { pic: pic }); },
+    pushUnsubscribeAll: function () { return call('POST', '/api/push/unsubscribe-all', {}); },
     pushUnsubscribe: function (endpoint) { return call('POST', '/api/push/unsubscribe', { endpoint: endpoint }); },
     errText: function (e) {
       var s = e && e.status;
