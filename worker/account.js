@@ -49,7 +49,7 @@ const cookieHeader = (token, req, maxAge) => 'tw_session=' + token + '; Path=/; 
 async function userFrom(req, env) {
   const m = /(?:^|;\s*)tw_session=([A-Za-z0-9_-]{20,80})/.exec(req.headers.get('Cookie') || '');
   if (!m) return null;
-  return env.DB.prepare('SELECT u.id, u.name, u.settle_notif, u.over_notif FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?1 AND s.expires_at > ?2').bind(await sha256hex(m[1]), nowSec()).first();
+  return env.DB.prepare('SELECT u.id, u.name, u.picture, u.pic_share, u.settle_notif, u.over_notif FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?1 AND s.expires_at > ?2').bind(await sha256hex(m[1]), nowSec()).first();
 }
 
 function validItem(item) {
@@ -124,7 +124,7 @@ async function lineCallback(url, env) {
     if (!ver.ok) throw new Error('verify ' + ver.status);
     const c = await ver.json();
     if (typeof c.sub !== 'string' || !c.sub || String(c.aud) !== String(env.LINE_CHANNEL_ID)) throw new Error('claims');
-    const name = typeof c.name === 'string' ? c.name.slice(0, 60) : '', picture = '', now = nowSec();   // the profile picture is not kept: the app does not use it
+    const name = typeof c.name === 'string' ? c.name.slice(0, 60) : '', picture = /^https:\/\/profile\.line-scdn\.net\/[A-Za-z0-9._~\/-]{1,240}$/.test(c.picture || '') ? c.picture : '', now = nowSec();   // the profile picture (only LINE's own picture host) is kept to show it to the friends of a shared trip
     let u = await env.DB.prepare('SELECT id FROM users WHERE line_sub = ?').bind(c.sub).first();
     if (!u) { u = { id: randomToken(16) }; await env.DB.prepare('INSERT INTO users(id,line_sub,name,picture,created_at,last_login) VALUES (?,?,?,?,?,?)').bind(u.id, c.sub, name, picture, now, now).run(); }
     else await env.DB.prepare('UPDATE users SET name=?, picture=?, last_login=? WHERE id=?').bind(name, picture, now, u.id).run();
@@ -145,7 +145,7 @@ export async function handleAccount(req, env, url) {
   const on = configured(env);
 
   if (p === '/api/ai/status' && method === 'GET') return aiStatus(env, on ? await userFrom(req, env) : null);
-  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name, settle: u.settle_notif !== 0, over: u.over_notif !== 0 } : null, push: u ? (await getVapid(env)).publicKey : null }); }
+  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name, settle: u.settle_notif !== 0, over: u.over_notif !== 0, picture: u.picture || '', pic: u.pic_share !== 0 } : null, push: u ? (await getVapid(env)).publicKey : null }); }
   if (!on) return reply({ error: 'not_configured' }, 503);
   if (p === '/api/ai/parse' && method === 'POST') return aiParse(req, env, await userFrom(req, env));
 
@@ -219,10 +219,11 @@ export async function handleAccount(req, env, url) {
   }
   if (p === '/api/push/settings' && method === 'POST') {   // 精算のお知らせ on/off for the whole account
     let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }
-    if (!b || (b.settle !== undefined && typeof b.settle !== 'boolean') || (b.over !== undefined && typeof b.over !== 'boolean') || (b.settle === undefined && b.over === undefined)) return reply({ error: 'invalid' }, 400);
+    if (!b || (b.settle !== undefined && typeof b.settle !== 'boolean') || (b.over !== undefined && typeof b.over !== 'boolean') || (b.pic !== undefined && typeof b.pic !== 'boolean') || (b.settle === undefined && b.over === undefined && b.pic === undefined)) return reply({ error: 'invalid' }, 400);
     if (b.settle !== undefined) await env.DB.prepare('UPDATE users SET settle_notif = ?2 WHERE id = ?1').bind(user.id, b.settle ? 1 : 0).run();
     if (b.over !== undefined) await env.DB.prepare('UPDATE users SET over_notif = ?2 WHERE id = ?1').bind(user.id, b.over ? 1 : 0).run();
-    return reply({ ok: true, settle: b.settle, over: b.over });
+    if (b.pic !== undefined) await env.DB.prepare('UPDATE users SET pic_share = ?2 WHERE id = ?1').bind(user.id, b.pic ? 1 : 0).run();
+    return reply({ ok: true, settle: b.settle, over: b.over, pic: b.pic });
   }
   if (p === '/api/push/link' && method === 'POST') {   // "I am this member of that shared trip": needs both the login and the trip's secret link; the first person to claim a member keeps it
     let b; try { b = await req.json(); } catch (e) { return reply({ error: 'invalid' }, 400); }

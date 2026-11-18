@@ -23,6 +23,7 @@
     pushLink: function (token, member) { return call('POST', '/api/push/link', { token: token, member: member }); },
     pushSettings: function (settle) { return call('POST', '/api/push/settings', { settle: settle }); },
     pushSettingOver: function (over) { return call('POST', '/api/push/settings', { over: over }); },
+    pushSettingPic: function (pic) { return call('POST', '/api/push/settings', { pic: pic }); },
     pushUnsubscribe: function (endpoint) { return call('POST', '/api/push/unsubscribe', { endpoint: endpoint }); },
     errText: function (e) {
       var s = e && e.status;

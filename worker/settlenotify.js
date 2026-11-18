@@ -34,6 +34,11 @@ async function recipients(env, tripId) {
   return out;
 }
 export async function reachable(env, tripId) { return [...(await recipients(env, tripId)).keys()]; }
+/* member id -> LINE profile picture URL, for the members of a shared trip who signed in with LINE and share their picture (an account setting, on by default) */
+export async function pictures(env, tripId) {
+  const rows = (await env.DB.prepare("SELECT l.member_id, u.picture FROM member_links l JOIN users u ON u.id = l.user_id WHERE l.trip_id = ?1 AND u.picture != '' AND u.pic_share != 0").bind(tripId).all()).results || [];
+  const out = {}; for (const r of rows) out[r.member_id] = r.picture; return out;
+}
 
 /* Push from the official account to a friend. 'ok' | 'not_friend' (blocked or never added: stop trying) | 'retry' */
 async function linePush(env, to, text, retryKey) {
