@@ -150,5 +150,33 @@ try {
   assert.ok(lastDg.last && lastDg.last.status === 403 && lastDg.last.at > 0, 'the last answer of the official account is kept for the diagnosis: ' + JSON.stringify(lastDg.last));
   // logging in again re-reads the state (a newly added friend)
   line.setFriend('U-mb', true); await login('U-mb', 'ビー'); assert.deepStrictEqual((await fetch(B + '/api/reach', { headers: { Authorization: 'Bearer ' + U } }).then(r => r.json())).reachable.sort(), ['mb', 'mc'], 'the friend state is refreshed at login');
+  // ---- 立て替えのお知らせ: opt-in, only the people who share the expense (not the payer), their own share in yen, LINE when no device, a daily cap, no bulk writes
+  const T3 = 'V'.repeat(40);
+  line.setFriend('U-q', true); line.setFriend('U-r', true);   // friends of the official account, no device
+  const cP = await login('U-pay', 'はらう'), cQ = await login('U-q', 'わるＱ'), cR = await login('U-r', 'わるＲ'), cS = await login('U-s', 'わるＳ');
+  const dS = newSub('adv-s'); await j('/api/push/subscribe', { cookie: cS, method: 'POST', body: { endpoint: dS.endpoint, keys: dS.keys } });
+  assert.strictEqual((await ops(T3, [{ kind: 'insert', table: 'trips', rows: [{ id: 'adv', name: '京都', start_date: '2026-11-18', end_date: '2026-11-19', budget: 50000 }] },
+    { kind: 'insert', table: 'members', rows: [{ id: 'p', name: 'はらう', position: 0 }, { id: 'q', name: 'Ｑ', position: 1 }, { id: 'r', name: 'Ｒ', position: 2 }, { id: 's', name: 'Ｓ', position: 3 }] }])).status, 200);
+  for (const [c, m] of [[cP, 'p'], [cQ, 'q'], [cR, 'r'], [cS, 's']]) assert.strictEqual((await link(c, T3, m)).status, 200);
+  const adv = (id, amount, split, extra = {}) => ({ kind: 'insert', table: 'expenses', rows: [{ id, title: '夕食', amount, payer: 'p', cat: 'food', spent_on: '2026-11-19', split, ...extra }] });
+  line.pushes.splice(0); take(dS);
+  await ops(T3, [adv('a1', 3000, ['p', 'q', 'r', 's'])]); await wait(800);
+  assert.strictEqual(line.pushes.length, 0, 'the switch is off by default: nothing goes out'); assert.strictEqual(take(dS).length, 0);
+  for (const c of [cQ, cS]) assert.strictEqual((await j('/api/push/settings', { cookie: c, method: 'POST', body: { adv: true } })).status, 200);
+  assert.strictEqual((await j('/api/push/settings', { cookie: cQ, method: 'POST', body: { adv: 'yes' } })).status, 400);
+  assert.strictEqual((await j('/api/me', { cookie: cQ })).data.user.adv, true); assert.strictEqual((await j('/api/me', { cookie: cR })).data.user.adv, false);
+  await ops(T3, [adv('a2', 3000, ['p', 'q', 'r', 's'])]); await wait(1000);
+  const gotS = await waitFor(dS); assert.strictEqual(gotS.length, 1, 'Ｓ (switch on, has a device) gets it in the app'); assert.ok(gotS[0].title.includes('立て替え') && gotS[0].body.includes('京都：はらうさんが 3,000円 を立て替えました。あなたの分は 750円 です。'), JSON.stringify(gotS));
+  assert.deepStrictEqual(line.pushes.map(x => x.to), ['U-q'], 'Ｑ (switch on, no device, a friend) gets it by LINE; Ｒ (switch off) and the payer get nothing'); assert.ok(line.pushes[0].text.startsWith('【たびわり】京都：'));
+  await ops(T3, [adv('a3', 1000, ['p', 'q'])]); await wait(700); assert.strictEqual(line.pushes.length, 2, 'only the people in the split'); assert.ok(line.pushes[1].text.includes('あなたの分は 500円'));
+  await ops(T3, [adv('a4', 1000, ['p', 'q'], { fixed: { q: 300 } })]); await wait(700); assert.ok(line.pushes[2].text.includes('あなたの分は 300円'), 'a fixed amount is respected: ' + line.pushes[2].text);
+  await ops(T3, [adv('a5', 600, ['q', 's'])]); await wait(700); assert.strictEqual(line.pushes.length, 4, 'Ｑ again (a share of 300 yen)'); const g5 = await waitFor(dS); assert.strictEqual(g5.length, 1, 'Ｓ got a5 in the app (a2 was taken above)'); assert.ok(g5[0].body.includes('あなたの分は 300円'));
+  const before = line.pushes.length;
+  await ops(T3, [{ kind: 'update', table: 'expenses', rows: [{ id: 'a4', title: '夕食', amount: 2000, payer: 'p', cat: 'food', spent_on: '2026-11-19', split: ['p', 'q'] }] }]); await wait(600); assert.strictEqual(line.pushes.length, before, 'an edit does not notify again');
+  await ops(T3, [adv('a2', 3000, ['p', 'q', 'r', 's'])]); await wait(600); assert.strictEqual(line.pushes.length, before, 'the same expense is never sent twice');
+  await ops(T3, [adv('a6', 100, ['p', 'q'], { settle_id: 'r9' })]); await wait(600); assert.strictEqual(line.pushes.length, before, 'an already settled expense is not news');
+  await ops(T3, [{ kind: 'insert', table: 'expenses', rows: Array.from({ length: 6 }, (_, i) => ({ id: 'bulk' + i, title: 'x', amount: 600, payer: 'p', cat: 'food', spent_on: '2026-11-19', split: ['p', 'q'] })) }]); await wait(800); assert.strictEqual(line.pushes.length, before, 'a bulk write (first sync, import) is not an advance');
+  for (let i = 0; i < 6; i++) { await ops(T3, [adv('cap' + i, 600, ['p', 'q'])]); await wait(500); }
+  const toQ = line.pushes.filter(x => x.to === 'U-q').length; assert.ok(toQ <= 5, 'at most 5 a day per person: ' + toQ); assert.strictEqual(toQ, 5, 'and the cap is reached');
   console.log('official account push tests passed');
 } finally { srv.stop(); line.stop(); pushSrv.close(); }

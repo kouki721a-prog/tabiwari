@@ -55,6 +55,9 @@ try {
   await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await see(d.p, 'この端末に通知する');
   try { await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]', { timeout: 4000 }); } catch (e) { console.log('DEBUG', await d.p.evaluate(async () => JSON.stringify({ state: await ntfState(), push: lineAcct.push && lineAcct.push.length, perm: Notification.permission, sw: !!(await navigator.serviceWorker.getRegistration()) })), (await d.p.locator('.sheet-body').innerText()).replace(/\n+/g, ' | ')); throw e; }
   await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]');
+  // 立て替えのお知らせ: 最初はオフ。入れると、サーバーにも残る
+  await d.p.waitForSelector('[data-a=adv-toggle][aria-checked=false]'); await d.p.click('[data-a=adv-toggle]'); await d.p.waitForSelector('[data-a=adv-toggle][aria-checked=true]');
+  assert.strictEqual(await d.p.evaluate(async () => (await Line.me()).user.adv), true);
   // 「お知らせの届き方」は、通知がオンでも、折りたたみの外から調べられる
   await d.p.click('[data-a=ntf-reach]'); await see(d.p, '公式LINEの友だち：'); await see(d.p, '共有中の旅行での登録：');
   await d.p.click('[data-a=ntf-stop-ask]'); await see(d.p, '通知を、すべて止めますか'); await d.p.click('[data-a=ntf-stop-no]');
