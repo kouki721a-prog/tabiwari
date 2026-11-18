@@ -1137,7 +1137,8 @@ function render(){
   app.innerHTML = html; ui.toastNew = false; app.dataset.view = key + ':' + ui.tab;
   if (oldSheet && !ui.sheet) ghost(oldSheet);   // a sheet that closes slides down instead of vanishing
   if (oldToast && !ui.toast) ghost(oldToast);
-  if (trans) pageSlide = { dir: trans, t0: performance.now(), old: oldSh.cloneNode(true) };
+  if (trans && !ui.noSlide) pageSlide = { dir: trans, t0: performance.now(), old: oldSh.cloneNode(true) };   // (after a swipe back the page has already slid: no second slide)
+  ui.noSlide = false;
   if (pageSlide && ui.sheet){ const ms = performance.now() - pageSlide.t0; if (ms < 320 && calm()) slidePage(pageSlide, ms); else pageSlide = null; } else pageSlide = null;   // a redraw while it slides (a backup count arrives) picks it up where it was
   if (oldKey === app.dataset.view && calm()){   // the bars grow or shrink from where they were
     document.querySelectorAll('#app .t-bar i, #app .seg i').forEach((e, i) => { const to = e.style.width, from = oldBars[i]; if (from && to && from !== to){ e.style.width = from; e.getBoundingClientRect(); e.style.transition = 'width .55s var(--ease)'; e.style.width = to; } });
@@ -1974,6 +1975,44 @@ document.addEventListener('touchcancel', () => setTimeout(() => GEST.flush(), 0)
 function sweepPeeks(){   // copies left behind (an animation that never finished): anything older than a second goes
   document.querySelectorAll('.peek,.pg-old,.ghost').forEach(x => { if (Date.now() - Number(x.dataset.t || 0) > 1000 && !(pg && pg.peek === x) && !(nb && nb.peek === x)) x.remove(); });
 }
+/* アカウント → 設定 by a swipe right (as in iPhone's settings): the page follows the finger, and the settings page waits beside it, a little to the left; let go early and it springs back */
+document.addEventListener('touchstart', e => {
+  sb = null; const t = e.touches[0], sh = ui.sheet && ui.sheet.back && !sbBusy && e.touches.length === 1 ? e.target.closest('.sheet') : null;
+  if (!sh || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
+  sb = { sh, sheet: ui.sheet, x: t.clientX, y: t.clientY, on: false, dx: 0, t0: Date.now() };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!sb) return; const t = e.touches[0], dx = t.clientX - sb.x, dy = t.clientY - sb.y;
+  if (!sb.on){
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    if (dx <= 0 || Math.abs(dx) < Math.abs(dy) * 1.5 || ui.sheet !== sb.sheet){ sb = null; return; }
+    const keep = ui.sheet; ui.sheet = keep.back; let html = ''; try { html = viewSheet(); } finally { ui.sheet = keep; }   // the page underneath, drawn as it would be
+    const tmp = document.createElement('div'); tmp.innerHTML = html; const under = tmp.querySelector('.sheet'); if (!under){ sb = null; return; }
+    inert(under); under.classList.add('sheet-ov'); under.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;width:auto;max-width:none;max-height:none;margin:0;animation:none;z-index:0;transform:translateX(-28%);opacity:.55';
+    const paper = getComputedStyle(sb.sh).backgroundColor, kids = [...sb.sh.children];
+    sb.sh.style.position = 'relative'; sb.sh.appendChild(under);
+    kids.forEach(k => { k.style.position = 'relative'; k.style.zIndex = '1'; k.style.background = paper; k.style.willChange = 'transform'; });
+    Object.assign(sb, { on: true, under, kids, W: sb.sh.getBoundingClientRect().width, x0: sb.x + 8 });
+  }
+  if (e.cancelable) e.preventDefault();
+  sb.dx = Math.max(0, t.clientX - sb.x0); const k = Math.min(1, sb.dx / sb.W);
+  sb.kids.forEach(el => { el.style.transform = 'translateX(' + sb.dx + 'px)'; });
+  sb.under.style.transform = 'translateX(' + (-28 * (1 - k)) + '%)'; sb.under.style.opacity = String(.55 + .45 * k);
+}, { passive: false });
+function sbFinish(cancelled){
+  const g = sb; sb = null; if (!g || !g.on) return; swipedAt = Date.now();
+  const v = g.dx / Math.max(1, Date.now() - g.t0), go = !cancelled && ui.sheet === g.sheet && (g.dx > Math.min(g.W * 0.3, 120) || (v > 0.45 && g.dx > 30));
+  const clean = () => { g.under.remove(); g.kids.forEach(k => { k.getAnimations().forEach(a => a.cancel()); k.style.position = ''; k.style.zIndex = ''; k.style.background = ''; k.style.willChange = ''; k.style.transform = ''; }); g.sh.style.position = ''; };
+  const done = () => { sbBusy = false; clean(); if (go && ui.sheet === g.sheet){ ui.sheet = g.sheet.back; ui.sheetBack = true; ui.noSlide = true; render(); } else GEST.flush(); };
+  sbBusy = true;
+  if (!calm() || !g.kids[0].animate){ done(); return; }
+  const toX = go ? g.W : 0, cur = Math.min(1, g.dx / g.W), opts = { duration: 260, easing: EASE, fill: 'forwards' };
+  g.kids.forEach(k => k.animate([{ transform: 'translateX(' + g.dx + 'px)' }, { transform: 'translateX(' + toX + 'px)' }], opts));
+  g.under.animate([{ transform: 'translateX(' + (-28 * (1 - cur)) + '%)', opacity: .55 + .45 * cur }, { transform: go ? 'translateX(0)' : 'translateX(-28%)', opacity: go ? 1 : .55 }], opts);
+  setTimeout(done, 280);
+}
+document.addEventListener('touchend', () => sbFinish(false), { passive: true });
+document.addEventListener('touchcancel', () => sbFinish(true), { passive: true });
 /* an expense row: swipe left to show the red 削除 (a tap on it deletes; 元に戻す stays for a few seconds). Another touch, or a swipe right, closes it. */
 let rs = null;
 const SWP = 84;
@@ -2037,8 +2076,8 @@ document.addEventListener('touchend', () => {
   })();
 }, { passive: true });
 /* sheets: drag down to close (from the top of the sheet, or anywhere while its content is scrolled to the top); it closes the same way the close button does */
-let drag = null;
-GEST.check = () => Date.now() - GEST.t < 1500 && !!(pg || (nb && nb.on) || (rs && rs.on) || (pull && pull.on) || (drag && drag.on));
+let drag = null, sb = null, sbBusy = false;
+GEST.check = () => (Date.now() - GEST.t < 1500 && !!(pg || (nb && nb.on) || (rs && rs.on) || (pull && pull.on) || (drag && drag.on) || (sb && sb.on))) || sbBusy;
 document.addEventListener('touchmove', () => { GEST.t = Date.now(); }, { passive: true, capture: true });
 document.addEventListener('touchstart', e => {
   const sh = ui.sheet && e.touches.length === 1 ? e.target.closest('.sheet') : null; drag = null;
