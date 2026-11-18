@@ -1104,12 +1104,19 @@ function memberChips(t, used){
   return '<div class="chips">' + t.members.map(m => '<span class="chip" style="cursor:default">' + av(t, m.id) + esc(m.name) + (m.id === meId(t) ? '<span class="sub sm">（あなた）</span>' : '') +
     (m.id !== meId(t) && !used(m.id) ? '<button class="x" data-a="rm-tmember" data-id="' + m.id + '" aria-label="' + esc(m.name) + 'を外す">×</button>' : '') + '</span>').join('') + '</div>';
 }
+/* the payer and the people of the last expense added in this trip (kept on this device only), if they are still in the trip */
+function lastWho(t){
+  let v = null; try { v = JSON.parse(lsGet('tabiwari.last.' + t.id) || 'null'); } catch(e){ v = null; }
+  if (!v || !Array.isArray(v.split) || !t.members.some(m => m.id === v.payer)) return null;
+  const split = v.split.filter(id => t.members.some(m => m.id === id)); if (!split.length) return null;
+  return { payer: v.payer, split, all: split.length === t.members.length };
+}
 function shareSection(t, s){
   const tip = 'LINEなどで、旅行に行く人にだけ送ってください。ホーム画面のアプリに入れている人は、リンクをコピーして、アプリのホームにある「共有リンクで参加する」に貼り付けてもらいます。';
-  if (!t.share) return '<div class="panel" style="padding:10px 12px;margin-top:12px"><div class="row" style="gap:10px"><div class="grow"><b>友だちと共有</b><div class="sub sm">リンクを送ると、友だちが自分の名前で参加して、一緒に記録できます。</div></div>' +
+  if (!t.share) return '<div class="panel" style="padding:10px 12px;margin-top:12px"><div class="row" style="gap:10px"><div class="grow"><b>友だちと共有</b><div class="sub sm">リンクを知っている人は、誰でも、一緒に記録・変更・削除ができます。旅行に行く人にだけ送ってください。</div></div>' +
     '<button class="btn line" data-a="share-start" style="width:auto;white-space:nowrap;padding:9px 14px;font-size:14px"' + (s.sharing ? ' disabled' : '') + '>' + (s.sharing ? '準備中…' : '共有する') + '</button></div></div>';
   const url = Share.linkFor(t.share.token, location);
-  return '<div class="panel" style="padding:10px 12px;margin-top:12px"><div><b>友だちと共有</b> <span class="sub sm">共有中' + (t.share.dirty ? '（同期待ち）' : '') + '・リンクを知っている人は、見て、記録できます</span></div>' +
+  return '<div class="panel" style="padding:10px 12px;margin-top:12px"><div><b>友だちと共有</b> <span class="sub sm">共有中' + (t.share.dirty ? '（同期待ち）' : '') + '・リンクを知っている人は、記録の追加・変更・削除ができます</span></div>' +
     '<div class="row" style="margin-top:6px"><input class="field" id="s-sharelink" type="text" readonly aria-label="共有リンク" value="' + esc(url) + '" style="flex:1;padding:8px 10px"><button class="btn line" data-a="share-copy" style="width:auto;white-space:nowrap;padding:9px 14px;font-size:14px">送る</button></div>' +
     '<details style="margin-top:6px"><summary class="sub sm" style="cursor:pointer">送り方のヒント</summary><div class="sub sm" style="margin-top:4px">' + tip + '</div></details>' +
     (s.confirm === 'stop' ? '<div class="sub sm" style="margin:8px 0">この端末での同期をやめます。旅行はこの端末に残り、ほかの人は、そのまま使えます。</div><button class="btn bad" data-a="share-stop-go">この端末の共有をやめる</button>' :
@@ -2288,8 +2295,9 @@ document.addEventListener('click', e => {
 
   else if (a === 'add-exp'){
     const today = todayStr();
-    ui.sheet = { type: 'exp', err: '', editId: null, data: { amount: '', title: '', cat: 'food', payer: meId(t), all: true, parts: {}, fixed: {},
-      split: t.members.map(m => m.id), date: (today < t.start || today > t.end) ? t.start : today } };
+    const last = lastWho(t);   // the payer and the people last chosen for this trip come first
+    ui.sheet = { type: 'exp', err: '', editId: null, data: { amount: '', title: '', cat: 'food', payer: last ? last.payer : meId(t), all: last ? last.all : true, parts: {}, fixed: {},
+      split: last ? last.split : t.members.map(m => m.id), date: (today < t.start || today > t.end) ? t.start : today } };
   }
   else if (a === 'edit-exp'){
     const x = t.expenses.filter(q => q.id === id)[0];
@@ -2331,7 +2339,7 @@ document.addEventListener('click', e => {
         const adj = expenseAdjustment(t, old, x, uid(), '「' + (rec.title || (CAT[rec.cat] || CAT.other)[2]) + '」の変更', todayStr());
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }
-      else { const ne = Object.assign({ id: uid() }, rec); t.expenses.push(ne); ui.fresh = { [ne.id]: 1 }; }
+      else { const ne = Object.assign({ id: uid() }, rec); t.expenses.push(ne); ui.fresh = { [ne.id]: 1 }; lsSet('tabiwari.last.' + t.id, JSON.stringify({ payer: ne.payer, split: ne.split })); }
       const wasEdit = !!s.editId; save(); ui.sheet = null; render(); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
     }
   }
