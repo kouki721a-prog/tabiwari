@@ -1145,6 +1145,8 @@ function render(){
   const nl = document.querySelector('.scroll'); if (nl) nl.scrollTop = keepList;
   const sh = document.querySelector('.sheet-body');
   if (sh) sh.scrollTop = keep;
+  { const el = document.querySelector('.sheet');   // a redraw while the sheet is sliding up (the version arrives, a backup count arrives) must not restart the slide: it picks up where it was, or stays still once it has finished
+    if (ui.sheet && el){ if (!sheetWasOpen || sheetKind !== ui.sheet.type){ sheetSince = performance.now(); sheetKind = ui.sheet.type; } else { const ms = performance.now() - sheetSince; if (ms < 320) el.style.animationDelay = (-ms) + 'ms'; else el.style.animation = 'none'; } } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet;
   fitHome0();
@@ -1156,7 +1158,7 @@ function fitHome0(){
   for (const c of ['t1', 't2', 't3', 't4', 't5']){ if (h.scrollHeight <= h.clientHeight + 1) break; h.classList.add(c); }
 }
 window.addEventListener('resize', fitHome0);
-let sheetWasOpen = false, toastN = 0, lastView = null;
+let sheetWasOpen = false, sheetSince = 0, sheetKind = '', toastN = 0, lastView = null;
 const calm = () => !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 function inert(root){   // a copy that only looks like the page: nothing in it can be found, focused or pressed
   root.setAttribute('aria-hidden', 'true');
