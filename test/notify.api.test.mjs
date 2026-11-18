@@ -125,6 +125,7 @@ try {
   const dg = await j('/api/push/diagnose', { cookie: c2, method: 'POST', body: {} });
   assert.strictEqual(dg.status, 200); assert.strictEqual(dg.data.devices, 1); assert.ok(Array.isArray(dg.data.trips) && Array.isArray(dg.data.sent) && dg.data.jst.today);
   assert.ok(dg.data.trips.every(x => x.name !== undefined || x.unreadable), JSON.stringify(dg.data.trips));
+  assert.ok(dg.data.notify && dg.data.notify.friend === false && dg.data.notify.settle === true && Array.isArray(dg.data.notify.links), 'own notice state: ' + JSON.stringify(dg.data.notify));
   assert.ok(!dg.data.trips.some(x => /那須|日光|軽井沢/.test(x.name || '')), 'no trips of other accounts');
   assert.ok(dg.data.trips.some(x => x.name === '二人目の旅' && Array.isArray(x.kinds)), JSON.stringify(dg.data.trips));
   assert.strictEqual((await run('2026-12-05T09:40:00Z')).sent, 0, 'diagnosing sent nothing and claimed nothing new');

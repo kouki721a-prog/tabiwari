@@ -40,6 +40,13 @@ export async function pictures(env, tripId) {
   const out = {}; for (const r of rows) out[r.member_id] = r.picture; return out;
 }
 
+/* What this person's own account looks like to the settlement notices: friend state, the switch, the members they are linked to, and whether the official account can send at all. Own data only. */
+export async function notifyReport(env, userId) {
+  const u = await env.DB.prepare('SELECT friend_flag, settle_notif FROM users WHERE id = ?1').bind(userId).first();
+  const links = (await env.DB.prepare('SELECT t.name AS trip, m.name AS me FROM member_links l JOIN trips t ON t.id = l.trip_id LEFT JOIN members m ON m.trip_id = l.trip_id AND m.id = l.member_id WHERE l.user_id = ?1 ORDER BY t.name LIMIT 8').bind(userId).all()).results || [];
+  return { friend: !!u && u.friend_flag === 1, settle: !u || u.settle_notif !== 0, oa: !!env.LINE_OA_ACCESS_TOKEN, links: links.map(x => ({ trip: x.trip, me: x.me || '' })) };
+}
+
 /* Push from the official account to a friend. 'ok' | 'not_friend' (blocked or never added: stop trying) | 'retry' */
 async function linePush(env, to, text, retryKey) {
   try {
