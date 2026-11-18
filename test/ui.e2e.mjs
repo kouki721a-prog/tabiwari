@@ -174,6 +174,13 @@ try {
   await p.click('.trip'); await see(p, '夕食');
 
   // LINE login button follows LINE's colour rules: base #06C755 (no tint), white text, divider black 8%, black 30% only while pressed (under the text and logo, no hover shade)
+  { // the 旅行をつくる screen: a long swipe right goes back to the home screen (following the finger); a short one springs back
+    const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c.newPage(); await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); });
+    await q.goto('http://localhost:8797/'); await q.click('.home0 [data-a=new]'); await q.waitForSelector('#d-name'); await q.waitForTimeout(450);
+    const drag = (to, end) => q.evaluate(async ([to, end]) => { const el = document.querySelector('.top h1'), mk = x => new Touch({ identifier: 11, target: el, clientX: x, clientY: 300 }), fire = (type, x) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(x)], changedTouches: [mk(x)] })), nap = ms => new Promise(r => setTimeout(r, ms)); fire('touchstart', 100); fire('touchmove', 120); await nap(100); fire('touchmove', (100 + to) / 2); await nap(100); fire('touchmove', to); const r = { tr: document.getElementById('app').style.transform, peek: !!document.querySelector('.peek') }; if (end) fire('touchend', to); return r; }, [to, end]);
+    const mid = await drag(180, true); assert.ok(mid.peek && /translateX\(/.test(mid.tr), 'the screen follows the finger, the home screen is behind it: ' + JSON.stringify(mid));
+    await q.waitForFunction(() => !document.querySelector('.peek'), null, { timeout: 2000 }); assert.strictEqual(await q.locator('#d-name').count(), 1, 'a short drag springs back'); await q.waitForTimeout(450);
+    await drag(330, true); await q.waitForFunction(() => !document.querySelector('#d-name') && document.querySelector('#app .home0'), null, { timeout: 3000 }); assert.strictEqual(await q.locator('#d-name').count(), 0, 'a long swipe goes back to the home screen'); await c.close(); }
   { // the first screen fits on one page with the "add to the home screen" banner above it too, whatever the height (it gives things up in turn)
     for (const [w, h] of [[390, 844], [390, 730], [390, 664], [375, 667], [360, 640], [320, 568]]){
       const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: w, height: h } }), q = await c.newPage(); await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');

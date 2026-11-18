@@ -1074,9 +1074,10 @@ function render(){
   if (ui.sheet) html += viewSheet();
   if (ui.toast) html += '<div class="toast' + (ui.toastNew ? ' in' : '') + '" role="status">' + esc(ui.toast) + (ui.undo ? '<button data-a="undo">元に戻す</button>' : '') + '</div>';
   const depth = { home: 0, new: 1, trip: 1 }, key = ui.view === 'trip' && !trip() ? 'home' : ui.view, dv = lastView === null ? 0 : (depth[key] - depth[lastView]) || (key !== lastView ? 1 : 0);   // forward (+) / back (-) between screens
+  const skipGo = ui.noGo; ui.noGo = false;   // a swipe back has already slid the screen away
   lastView = key;
   app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : (ui.view === 'home' && !state.trips.length) ? 'fit nonav' : '';
-  if (dv) app.className += (app.className ? ' ' : '') + (dv > 0 ? 'go-f' : 'go-b');
+  if (dv && !skipGo) app.className += (app.className ? ' ' : '') + (dv > 0 ? 'go-f' : 'go-b');
   const oldSheet = document.querySelector('.sheet-bg'), oldToast = document.querySelector('.toast'), oldBars = [...document.querySelectorAll('#app .t-bar i, #app .seg i')].map(e => e.style.width), oldKey = app.dataset.view;
   app.innerHTML = html; ui.toastNew = false; app.dataset.view = key + ':' + ui.tab;
   if (oldSheet && !ui.sheet) ghost(oldSheet);   // a sheet that closes slides down instead of vanishing
@@ -1839,6 +1840,39 @@ function pgFinish(cancelled){
 }
 document.addEventListener('touchend', () => pgFinish(false), { passive: true });
 document.addEventListener('touchcancel', () => pgFinish(true), { passive: true });
+/* the 旅行をつくる screen: swipe right to go back to the home screen. The screen follows the finger and the home screen waits behind it; let go early and it springs back. */
+let nb = null;
+document.addEventListener('touchstart', e => {
+  nb = null; const t = e.touches[0];
+  if (ui.view !== 'new' || ui.sheet || e.touches.length !== 1 || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
+  nb = { x: t.clientX, y: t.clientY, on: false, dx: 0, t0: Date.now() };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!nb) return; const t = e.touches[0], dx = t.clientX - nb.x, dy = t.clientY - nb.y, app = document.getElementById('app');
+  if (!nb.on){
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    if (dx <= 0 || Math.abs(dx) < Math.abs(dy) * 1.5){ nb = null; return; }
+    nb.on = true; nb.x0 = nb.x + 8; nb.W = innerWidth; nb.bg = app.style.background;
+    const p = document.createElement('div'); p.className = 'peek'; p.innerHTML = viewHome(); inert(p);
+    p.style.cssText = 'position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;max-width:520px;margin:0 auto;padding:' + getComputedStyle(app).padding;
+    document.body.appendChild(p); nb.peek = p; app.style.background = 'var(--paper)'; app.style.willChange = 'transform';
+  }
+  if (e.cancelable) e.preventDefault();
+  nb.dx = Math.max(0, t.clientX - nb.x0);
+  app.style.transition = 'none'; app.style.transform = 'translateX(' + nb.dx + 'px)';
+  nb.peek.style.transform = 'translateX(' + (-(1 - Math.min(1, nb.dx / nb.W)) * 80) + 'px)';
+}, { passive: false });
+function nbFinish(cancelled){
+  const g = nb; nb = null; if (!g || !g.on) return;
+  const app = document.getElementById('app'), v = g.dx / Math.max(1, Date.now() - g.t0), go = !cancelled && (g.dx > Math.min(g.W * 0.3, 120) || (v > 0.45 && g.dx > 30));
+  swipedAt = Date.now();
+  const clean = () => { app.style.transform = ''; app.style.transition = ''; app.style.background = g.bg; app.style.willChange = ''; g.peek.remove(); };
+  const run = (to, done) => { if (!calm() || !app.animate){ done(); return; } const a = app.animate([{ transform: 'translateX(' + g.dx + 'px)' }, { transform: 'translateX(' + to + 'px)' }], { duration: 260, easing: EASE }); app.style.transform = 'translateX(' + to + 'px)'; a.onfinish = done; };
+  if (go) run(g.W, () => { clean(); ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.swp = null; ui.noGo = true; render(); });
+  else run(0, clean);
+}
+document.addEventListener('touchend', () => nbFinish(false), { passive: true });
+document.addEventListener('touchcancel', () => nbFinish(true), { passive: true });
 /* an expense row: swipe left to show the red 削除 (a tap on it deletes; 元に戻す stays for a few seconds). Another touch, or a swipe right, closes it. */
 let rs = null;
 const SWP = 84;
