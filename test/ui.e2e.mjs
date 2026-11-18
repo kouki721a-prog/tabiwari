@@ -371,7 +371,7 @@ try {
         members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1, note: '現金でOK' }],
         expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'b', cat: 'food', date: t, split: ['a', 'b'] }] }] })); });
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow');
-    assert.ok((await q.textContent('.noteRow')).includes('書いておくと'), 'asks to write one'); assert.ok((await q.textContent('.xnote')).includes('あおいさんの受け取り方：現金でOK'), "the receiver's memo is under the transfer");
+    assert.ok((await q.textContent('.noteRow')).includes('受け取り方を書く'), 'asks to write one'); assert.ok((await q.textContent('.xnote')).includes('あおいさんの受け取り方：現金でOK'), "the receiver's memo is under the transfer");
     await q.click('[data-a=copy-note]'); assert.strictEqual(await q.evaluate(() => navigator.clipboard.readText()), '現金でOK', 'the copy button copies only the memo');
     await q.click('.noteRow'); await q.waitForSelector('#f-note'); assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.id === 'f-note'), false, 'the keyboard does not open by itself');
     await q.click('[data-a=note-chip][data-v="PayPay："]'); assert.strictEqual(await q.inputValue('#f-note'), 'PayPay：'); await q.fill('#f-note', 'PayPay：kouki-0101'); await q.click('[data-a=note-save]');

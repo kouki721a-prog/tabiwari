@@ -250,6 +250,8 @@ html,body{overscroll-behavior-x:none}
 .xhead span:first-child{color:var(--ink);font-weight:700}
 .xgroup .xfer .avs .av{width:28px;height:28px;font-size:13px}
 .xfer+.xfer{border-top:1px solid var(--line)}
+.noteRow{padding:4px 12px!important;font-size:13px;color:var(--sub)}.noteRow .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list.xl{margin-top:8px}.xfer{padding:10px 12px}
 .xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:13px;color:var(--sub)}.xnote .link{width:auto;flex:none;padding:6px 8px;font-size:13px;font-weight:700;color:var(--ink)}.noteRow{margin-bottom:10px}
 .paidbtn{flex:none;display:inline-flex;align-items:center;gap:3px;min-height:34px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:13px;font-weight:500;white-space:nowrap}
 .paidbtn.on{background:var(--good);border-color:var(--good);color:#fff}
@@ -1416,16 +1418,16 @@ function xferList(t, pays, n){
   const order = [], by = {};   // grouped by who receives; a receiver with two or more payers gets a header with the total
   pays.forEach(p => { if (!by[p.to]){ by[p.to] = []; order.push(p.to); } by[p.to].push(p); });
   const row = (p, grouped) => { const k = payKey(n, p), on = !!t.paid[k];
-    return '<div class="xfer ' + (on ? 'done' : '') + '"><span class="avs">' + (grouped ? av(t, p.from) : av(t, p.from) + av(t, p.to)) + '</span>' +
+    return '<div class="xfer ' + (on ? 'done' : '') + '"><span class="avs">' + av(t, p.from) + '</span>' +
       '<div class="names"><span class="nm">' + (grouped ? esc(nameOf(t, p.from)) : esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to))) + '</span></div><div class="amt">' + yen(p.amount) + '</div>' +
       '<button class="paidbtn ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="支払い済みにする" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? icon('check', 14) + '済み' : '支払い済み') + '</button></div>'; };
   return order.map(to => { const g = by[to];
     return (g.length > 1 ? '<div class="xgroup"><div class="xhead"><span>' + esc(nameOf(t, to)) + 'さんへ</span><span>合計 ' + yen(g.reduce((a, p) => a + p.amount, 0)) + '</span></div><div class="list">' + g.map(p => row(p, true)).join('') + '</div></div>'
-      : '<div class="list">' + row(g[0], false) + '</div>') + noteLine(t, to); }).join('');
+      : '<div class="list xl">' + row(g[0], false) + '</div>') + noteLine(t, to); }).join('');
 }
 function noteRow(t){   // my own 受け取り方のメモ: where to send the money
   const mine = t.members.find(m => m.id === meId(t));
-  return '<button class="item slim acc noteRow" data-a="note-edit"><div class="grow"><div class="t">自分の受け取り方</div><div class="sub sm">' + (mine && mine.note ? esc(mine.note) : '書いておくと、払う人に伝わります') + '</div></div>' + icon('chev', 18) + '</button>';
+  return '<button class="item slim acc noteRow" data-a="note-edit"><div class="grow">' + (mine && mine.note ? '自分の受け取り方：' + esc(mine.note) : '自分の受け取り方を書く') + '</div>' + icon('chev', 18) + '</button>';
 }
 function tabSettle(t){
   const ss = t.settlements || [];
