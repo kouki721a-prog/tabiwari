@@ -44,7 +44,13 @@ export async function pictures(env, tripId) {
 export async function notifyReport(env, userId) {
   const u = await env.DB.prepare('SELECT friend_flag, settle_notif FROM users WHERE id = ?1').bind(userId).first();
   const links = (await env.DB.prepare('SELECT t.name AS trip, m.name AS me FROM member_links l JOIN trips t ON t.id = l.trip_id LEFT JOIN members m ON m.trip_id = l.trip_id AND m.id = l.member_id WHERE l.user_id = ?1 ORDER BY t.name LIMIT 8').bind(userId).all()).results || [];
-  return { friend: !!u && u.friend_flag === 1, settle: !u || u.settle_notif !== 0, oa: !!env.LINE_OA_ACCESS_TOKEN, links: links.map(x => ({ trip: x.trip, me: x.me || '' })) };
+  const lp = await env.DB.prepare("SELECT v FROM meta WHERE k = 'last_line_push'").first(); let last = null; try { last = lp ? JSON.parse(lp.v) : null; } catch (e) { /* ignore */ }
+  return { last, friend: !!u && u.friend_flag === 1, settle: !u || u.settle_notif !== 0, oa: !!env.LINE_OA_ACCESS_TOKEN, links: links.map(x => ({ trip: x.trip, me: x.me || '' })) };
+}
+
+/* The last answer of the official account's push API (the status number and the time only), so "why did no LINE message arrive" can be answered from the app. */
+async function noteLinePush(env, status) {
+  try { await env.DB.prepare("INSERT OR REPLACE INTO meta(k, v) VALUES ('last_line_push', ?1)").bind(JSON.stringify({ at: Math.floor(Date.now() / 1000), status })).run(); } catch (e) { /* diagnostics only */ }
 }
 
 /* Push from the official account to a friend. 'ok' | 'not_friend' (blocked or never added: stop trying) | 'retry' */
@@ -52,9 +58,10 @@ async function linePush(env, to, text, retryKey) {
   try {
     const r = await fetch(lineApi(env) + '/v2/bot/message/push', { method: 'POST', headers: { Authorization: 'Bearer ' + env.LINE_OA_ACCESS_TOKEN, 'Content-Type': 'application/json', 'X-Line-Retry-Key': retryKey },
       body: JSON.stringify({ to, messages: [{ type: 'text', text }] }) });
+    await noteLinePush(env, r.status);
     if (r.ok || r.status === 409) return 'ok';   // 409: this retry key was already accepted
     return r.status === 400 || r.status === 403 ? 'not_friend' : 'retry';
-  } catch (e) { return 'retry'; }
+  } catch (e) { await noteLinePush(env, 0); return 'retry'; }
 }
 const uuidFrom = async s => { const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join(''); return h.slice(0, 8) + '-' + h.slice(8, 12) + '-4' + h.slice(13, 16) + '-a' + h.slice(17, 20) + '-' + h.slice(20, 32); };
 
