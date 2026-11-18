@@ -55,6 +55,8 @@ try {
   await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await see(d.p, 'この端末に通知する');
   try { await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]', { timeout: 4000 }); } catch (e) { console.log('DEBUG', await d.p.evaluate(async () => JSON.stringify({ state: await ntfState(), push: lineAcct.push && lineAcct.push.length, perm: Notification.permission, sw: !!(await navigator.serviceWorker.getRegistration()) })), (await d.p.locator('.sheet-body').innerText()).replace(/\n+/g, ' | ')); throw e; }
   await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]');
+  // 「お知らせの届き方」は、通知がオンでも、折りたたみの外から調べられる
+  await d.p.click('[data-a=ntf-reach]'); await see(d.p, '公式LINEの友だち：'); await see(d.p, '共有中の旅行での登録：');
   // "if it does not arrive": the help rows are folded away until asked for; the test notification and the diagnosis work from there
   assert.strictEqual(await d.p.locator('[data-a=ntf-test]').count(), 0); await d.p.click('[data-a=ntf-help]');
   await d.p.click('[data-a=ntf-diag]'); await see(d.p, '通知を受け取る端末：1台');
