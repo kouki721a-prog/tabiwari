@@ -1614,7 +1614,7 @@ function viewSheet(){
     const saved = lineAcct.count == null ? '確認しています…' : lineAcct.count + '件' + (lineAcct.last ? '・' + new Date(lineAcct.last).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) + ' に保存' : '');
     const ntfSub = { 'on': '旅行の前日の夜、旅行中の記録のし忘れ、翌朝の精算を、お知らせします。', 'off': '旅行の前日の夜、旅行中の記録のし忘れ、翌朝の精算を、お知らせできます。', 'needs-install': 'ホーム画面に追加すると、通知を使えます。', 'blocked': '端末の設定で、通知を許可してください。', 'unsupported': 'この端末・ブラウザでは、通知を使えません。' }[s.ntf] || '確認しています…';
     const sw = s.ntf === 'on' || s.ntf === 'off' ? '<button class="sw" role="switch" aria-checked="' + (s.ntf === 'on') + '" aria-label="この端末に通知する" data-a="ntf-toggle"></button>' : '';
-    body = '<div class="acc-me"><span class="av" aria-hidden="true" style="--h:150">' + esc(Array.from(nm)[0] || 'L') + '</span><div class="grow"><div class="t">' + esc(nm) + '</div><div class="sub sm">LINEでログイン中</div></div></div>' +
+    body = '<div class="acc-me"><span class="av" aria-hidden="true" style="--h:150">' + esc(Array.from(nm)[0] || 'L') + (lineAcct.user.picture ? '<img class="avimg" src="' + esc(lineAcct.user.picture) + '" alt="" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '</span><div class="grow"><div class="t">' + esc(nm) + '</div><div class="sub sm">LINEでログイン中</div></div></div>' +
       '<div class="sechd">バックアップ</div><div class="list">' +
         row('自動でバックアップ', esc(saved) + (lineAcct.bkErr ? '<br><span class="bad-t">' + esc(lineAcct.bkErr) + '</span>' : ''), smallBtn('bk-now', '今すぐ')) +
         '<button class="item slim acc" data-a="bk-restore"><div class="grow"><div class="t">バックアップから戻す</div><div class="sub sm">別の端末に移すときや、消した旅行を戻すとき</div></div>' + icon('chev', 18) + '</button></div>' +
