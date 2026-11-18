@@ -190,6 +190,13 @@ try {
     await p.fill('#d-name', 'LINE名の旅'); await p.fill('#d-budget', '10000'); await p.click('[data-a=save-trip]'); await p.waitForSelector('[data-a=add-exp]');
     assert.strictEqual(await p.evaluate(() => state.trips[state.trips.length - 1].members[0].name), 'テスト太郎ですよろしくお願いします長い名', 'the trip is made with the LINE name as your name');
     await c.close(); }
+  { // (own page) the date heading of a long list stays at the top while that day's expenses scroll under it
+    const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await c.newPage();
+    await p.addInitScript(() => { const x = new Date(), d = n => { const y = new Date(x.getTime() - n * 864e5); return y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0'); }; const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }];
+      localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '長い旅', start: d(3), end: d(-1), budget: 90000, members: ms, paid: {}, savings: {}, expenses: Array.from({ length: 16 }, (_, i) => ({ id: 'e' + i, title: '支出' + i, amount: 1000 + i, payer: 'a', cat: 'food', date: i < 8 ? d(0) : d(1), split: ['a', 'b'] })) }] })); });
+    await p.goto('http://localhost:8797/'); await p.click('.trip'); await p.waitForSelector('#exp-list .sec h2');
+    const r = await p.evaluate(async () => { const sc = document.querySelector('#app.fit>.scroll'), hs = [...document.querySelectorAll('#exp-list .sec>h2')]; sc.scrollTop = 520; await new Promise(r => setTimeout(r, 150)); return { top: sc.getBoundingClientRect().top, hs: hs.map(h => Math.round(h.getBoundingClientRect().top - sc.getBoundingClientRect().top)), st: sc.scrollTop }; });
+    assert.ok(r.st > 300 && r.hs.some(v => v >= -1 && v <= 2), 'a date heading sits at the top of the scrolling list: ' + JSON.stringify(r)); await c.close(); }
   { // the first screen fits on one page with the "add to the home screen" banner above it too, whatever the height (it gives things up in turn)
     for (const [w, h] of [[390, 844], [390, 730], [390, 664], [375, 667], [360, 640], [320, 568]]){
       const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: w, height: h } }), q = await c.newPage(); await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');

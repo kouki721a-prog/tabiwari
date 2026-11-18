@@ -221,6 +221,7 @@ html,body{overscroll-behavior-x:none}
 .sec{margin-top:16px}
 .sec>h2{font-size:15px;font-weight:700;margin:0 0 6px;display:flex;justify-content:space-between;align-items:baseline}
 .sec>h2 span{font-size:13px;font-weight:500;color:var(--sub)}
+#exp-list .sec>h2{position:sticky;top:0;z-index:2;background:var(--paper);margin:0;padding:8px 2px 6px}   /* the date heading stays at the top while its day's expenses scroll under it */
 .list{background:var(--card);border:1px solid var(--line);border-radius:20px;overflow:hidden}
 .item{display:flex;align-items:center;gap:12px;padding:10px 14px;width:100%;border-top:1px solid var(--line)}
 .item:first-child{border-top:0}
