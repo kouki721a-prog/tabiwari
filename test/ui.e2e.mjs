@@ -17,7 +17,7 @@ try {
   const ctx = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await ctx.newPage();
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   await p.setViewportSize({ width: 390, height: 780 });
-  await p.goto('http://localhost:8797/'); await see(p, '友だちと行く旅行の、割り勘アプリ');
+  await p.goto('http://localhost:8797/'); await see(p, '旅行のお金の不安を、なくす');
   // the splash is plain HTML that is there before any script runs, and it is gone once the first screen is drawn
   assert.ok((await (await fetch('http://localhost:8797/')).text()).includes('<div id="splash"'), 'the splash is in the page itself'); await p.waitForFunction(() => !document.getElementById('splash'), null, { timeout: 3000 });
   // the first screen: one screen without scrolling; main button right under the intro, then "join by link", the 3 steps, and the legal links at the very bottom
@@ -26,7 +26,7 @@ try {
     assert.ok(m.s <= m.c + 1, 'the first screen needs no scrolling: ' + JSON.stringify(m));
     const [intro, make, join, steps, legal] = [await y('.home0-intro'), await y('.home0 [data-a=new]'), await y('.home0 [data-a=join-paste]'), await y('.home0-steps'), await y('.home0 .legal')];
     assert.ok(intro < make && make < join && join < steps && steps < legal, JSON.stringify({ intro, make, join, steps, legal }));
-    assert.ok(await p.$eval('.home0-intro', e => e.textContent.includes('予算を決めて記録するだけ。割り勘は自動で計算します。') && e.scrollWidth <= e.clientWidth), 'the intro sentence fits on one line');
+    assert.ok(await p.$eval('.home0-intro', e => e.textContent.includes('貯める、使いすぎない、払う。1つのアプリで。') && e.scrollWidth <= e.clientWidth), 'the intro sentence fits on one line');
     assert.strictEqual(await p.$$eval('.home0-intro', els => { const r = document.createRange(), n = els[0].lastChild; r.selectNodeContents(n); return r.getClientRects().length; }), 1, 'one line of text');
     assert.strictEqual(await p.locator('.home0-steps li').count(), 3); assert.strictEqual(await p.locator('.fab').count(), 0, 'no floating button on the first screen');
     assert.ok(await p.$eval('.home0-line', () => false).catch(() => true), 'no LINE login row without the server'); }
@@ -168,7 +168,7 @@ try {
 
   // undo after deleting a whole trip
   await p.click('[data-a=settings]'); await p.click('[data-a=ask-del-trip]'); await p.click('[data-a=del-trip]');
-  await see(p, '旅行を削除しました'); await see(p, '友だちと行く旅行の、割り勘アプリ');
+  await see(p, '旅行を削除しました'); await see(p, '旅行のお金の不安を、なくす');
   await p.click('[data-a=undo]'); await see(p, '元に戻しました'); await see(p, '箱根');
   assert.strictEqual(await p.locator('h1').count(), 1, 'the home page has one level-1 heading'); assert.ok(/箱根/.test(await p.textContent('.trip .sr') + await p.textContent('.trip')) && /メンバー：あおい/.test(await p.textContent('.trip .sr')));
   await p.click('.trip'); await see(p, '夕食');

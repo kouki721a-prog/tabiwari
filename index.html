@@ -1264,12 +1264,12 @@ async function makeRecap(t){
 }
 const brandRow = () => '<div class="brandrow"><h1 class="brand">たびわり</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 function viewHomeEmpty(){
-  const steps = [['日程と予算を決める', '友だちはリンクで参加。アプリもログインも不要。'], ['支出を記録する', '「夕食 2000円」で記録。レシートの写真も可。'], ['精算する', '誰が誰にいくら払うかが、自動で出ます。']];
+  const steps = [['出発前は、積立', 'ひとりずつ、あといくらかが見えます。'], ['旅行中は、1日の目安', '今日あといくら使えるかが分かります。'], ['旅行後は、通知つきの精算', '割り勘は自動。払う人にお知らせが届きます。']];
   let line = '';
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line">' + (isStandalone() ? '<div class="sub sm">LINEでログインすると、通知とバックアップを使えます。</div>' : '') + '<button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + '<div class="home0-mid">' + remoteCard() + installBanner() +
-    '<div class="home0-intro"><b>友だちと行く旅行の、割り勘アプリ</b><span class="home0-lead">予算を決めて記録するだけ。割り勘は自動で計算します。</span></div><div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div>' +
+    '<div class="home0-intro"><b>旅行のお金の不安を、なくす</b><span class="home0-lead">貯める、使いすぎない、払う。1つのアプリで。</span></div><div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div>' +
     '<button class="btn" data-a="new">旅行をつくる</button>' +
     '<button class="btn line" data-a="join-paste" style="margin-top:10px">友だちに招待された方は、こちら</button>' +
     '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol></div>' +
