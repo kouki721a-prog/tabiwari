@@ -284,6 +284,12 @@ try {
       localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }], paid: {}, savings: {}, expenses: [] }] })); });
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('#q-quick');
     await q.fill('#q-quick', '夕食'); await q.press('#q-quick', 'Enter'); await see(q, '金額が見つかりませんでした'); assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 0, 'nothing recorded');
+    { // the usual contents are chips under the box: a tap puts the content in and opens the keyboard; the most used of this trip come first
+      assert.ok(await q.locator('.qchips [data-a=quick-chip]').count() >= 5, 'usual contents are offered'); assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.id === 'q-quick'), false, 'the keyboard does not open by itself');
+      await q.click('.qchips [data-a=quick-chip][data-v="タクシー"]'); assert.strictEqual(await q.inputValue('#q-quick'), 'タクシー ', 'the content is in the box'); assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.id === 'q-quick' && document.activeElement.getAttribute('inputmode') === 'numeric'), true, 'tapping a chip opens the number keyboard');
+      await q.keyboard.type('1500'); await q.press('#q-quick', 'Enter'); await see(q, 'タクシー 1,500円を記録しました'); await q.waitForTimeout(300);
+      assert.strictEqual(await q.locator('.qchips .qchip').first().getAttribute('data-v'), 'タクシー', 'what was just used moves to the front');
+      await q.click('[data-a=undo]').catch(() => {}); await q.waitForTimeout(200); }
     await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 2,000円を記録しました');
     assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 1); assert.strictEqual(await q.inputValue('#q-quick'), '', 'the field is emptied');
     assert.ok((await q.textContent('.item[data-a=edit-exp]')).includes('あおいが払った・全員で割り勘') && (await q.textContent('.item[data-a=edit-exp]')).includes('2,000円'));
