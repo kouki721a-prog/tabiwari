@@ -201,19 +201,36 @@ html,body{overscroll-behavior-x:none}
 .ticket.c{border-radius:16px;padding:9px 16px 11px}.ticket.c .t-amount{font-size:22px;line-height:1.2}.ticket.c .t-bar{height:5px;margin-top:6px}
 
 /* lists */
-/* LINE account sheet */
-.sechd{font-size:13px;font-weight:700;color:var(--sub);margin:18px 4px 6px}
-.acc-me{display:flex;align-items:center;gap:12px;margin-top:12px;padding:4px 4px}
-.acc-me .av{width:44px;height:44px;font-size:18px}
-.acc-me .t{font-size:17px;font-weight:700}
-.item.acc{padding:12px 14px}
+/* settings + LINE account sheets: one calm, roomy list style (icon tile, 16px title, 13px note) */
+.sheet-body.pref{margin-right:-10px;padding:0 10px 16px 0;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 14px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 14px),transparent 100%)}   /* the scroll bar sits in the sheet's side gutter, not on the cards; content fades out under the title instead of being cut */
+.sheet:has(.pref) h2{font-size:20px;letter-spacing:.01em}
+.sheet:has(.pref)>.row{padding-bottom:6px}
+.sechd{font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--sub);margin:26px 6px 8px}
+.pref>.sechd:first-child{margin-top:14px}
+.acc-me{display:flex;align-items:center;gap:14px;margin-top:10px;padding:6px 6px 2px}
+.acc-me .av{width:56px;height:56px;font-size:22px}
+.av.s34{width:34px;height:34px;font-size:15px}
+.acc-me .t{font-size:19px;font-weight:700;line-height:1.3}
+.acc-me .sub{margin-top:1px}
+.item.acc{padding:14px 16px;gap:14px;align-items:center;min-height:60px}
+.item.acc .t{font-size:16px;line-height:1.4;overflow-wrap:break-word;line-break:strict;word-break:auto-phrase;text-wrap:balance}   /* no single character left alone on a line */
+.item.acc .sub{font-size:13px;line-height:1.55;margin-top:3px;line-break:strict;word-break:auto-phrase;text-wrap:pretty}
+.item.acc .btn.sm{width:84px;padding-left:0;padding-right:0;text-align:center}
 .item.acc>svg,.item.acc .chev{flex:none;color:var(--sub)}
 .chev{display:grid;place-items:center;transition:transform .15s}.chev.open{transform:rotate(90deg)}
-.btn.sm{width:auto;flex:none;padding:7px 14px;font-size:14px;border-radius:12px}
-.acc-note{margin:8px 4px 0}
+.ico{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--soft);color:var(--ink)}
+.ico img{width:34px;height:34px;border-radius:10px;display:block}
+.ico.bad{background:rgba(194,51,45,.12);color:var(--bad)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .ico.bad{background:rgba(255,122,115,.16)}}
+:root[data-theme="dark"] .ico.bad{background:rgba(255,122,115,.16)}
+.btn.sm{width:auto;flex:none;padding:8px 16px;font-size:14px;border-radius:12px}
+.acc-note{margin:10px 8px 0;line-height:1.6;line-break:strict;word-break:auto-phrase;text-wrap:pretty}
 .item.acc .bad-t{color:var(--bad)}
-.acc-del{margin-top:10px;border-color:var(--bad)}
+.acc-del{margin-top:12px;border-color:var(--bad)}
 .item.acc{text-align:left;color:inherit;text-decoration:none}
+.item.acc.sub-row{padding-left:30px;background:var(--soft)}   /* the 「うまく届かないとき」 helpers: a step in, on a tinted ground */
+.item.acc.sub-row .ico{background:var(--card)}
+.ver-foot{text-align:center;color:var(--sub);font-size:12px;margin:22px 0 0}
 .sw{position:relative;flex:none;width:51px;height:31px;border-radius:99px;background:#b4bfcc;transition:background .15s}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
 .sw[aria-checked=true]{background:var(--good)}.sw[aria-checked=true]::after{transform:translateX(20px)}
@@ -728,7 +745,18 @@ const IC = {
   image:'<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
   trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
   camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
-  share:'<path d="M12 15V3M8 7l4-4 4 4M7 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>'
+  share:'<path d="M12 15V3M8 7l4-4 4 4M7 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>',
+  bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  cloud:'<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+  restore:'<path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/>',
+  userplus:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
+  alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+  help:'<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+  send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
+  pulse:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'
 };
 const icon = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>';
 
@@ -1603,38 +1631,40 @@ function viewSheet(){
   }
   if (s.type === 'app-settings'){
     ttl = '設定';
-    const chev = icon('chev', 18), sec = x => '<div class="sechd">' + x + '</div>';
+    const chev = icon('chev', 18), sec = x => '<div class="sechd">' + x + '</div>', ico = (n, c) => '<span class="ico' + (c ? ' ' + c : '') + '" aria-hidden="true">' + icon(n, 18) + '</span>';
+    const nm0 = lineAcct.user ? lineAcct.user.name || 'LINE' : '', meAv = lineAcct.user ? '<span class="av s34" aria-hidden="true" style="--h:150">' + esc(Array.from(nm0)[0] || 'L') + (lineAcct.user.picture ? '<img class="avimg" src="' + esc(lineAcct.user.picture) + '" alt="" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '</span>' : '';
     body = (lineAcct.login ? sec('LINEアカウント') + '<div class="list">' + (lineAcct.user
-        ? '<button class="item slim acc" data-a="line-account"><div class="grow"><div class="t">' + esc(lineAcct.user.name || 'LINE') + '</div><div class="sub sm">バックアップ、通知、ログアウト</div></div>' + chev + '</button>'
-        : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 14px 12px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
-      (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener"><div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「たびわり」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
-      (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html"><div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html"><div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
-      sec('このアプリについて') + '<div class="list"><div class="item slim acc"><div class="grow"><div class="t">たびわり</div><div class="sub sm">' + (s.ver ? '版 ' + esc(s.ver) : '旅行の予算管理と割り勘') + '</div></div></div></div>';
+        ? '<button class="item slim acc" data-a="line-account">' + meAv + '<div class="grow"><div class="t">' + esc(nm0) + '</div><div class="sub sm">バックアップ、通知、ログアウト</div></div>' + chev + '</button>'
+        : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 16px 16px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
+      (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener">' + ico('userplus') + '<div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「たびわり」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
+      (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html">' + ico('doc') + '<div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
+      sec('このアプリについて') + '<div class="list"><div class="item slim acc"><span class="ico" aria-hidden="true"><img src="icons/icon-192.png" alt=""></span><div class="grow"><div class="t">たびわり</div><div class="sub sm">' + (s.ver ? '版 ' + esc(s.ver) : '旅行の予算管理と割り勘') + '</div></div></div></div>';
     foot = '';
   }
   if (s.type === 'line-account'){
     const nm = lineAcct.user ? lineAcct.user.name : ''; ttl = 'LINEアカウント';
-    const row = (main, sub, right) => '<div class="item slim acc"><div class="grow"><div class="t">' + main + '</div>' + (sub ? '<div class="sub sm">' + sub + '</div>' : '') + '</div>' + (right || '') + '</div>';
+    const ico = (n, c) => '<span class="ico' + (c ? ' ' + c : '') + '" aria-hidden="true">' + icon(n, 18) + '</span>';
+    const row = (ic, main, sub, right, cls) => '<div class="item slim acc' + (cls ? ' ' + cls : '') + '">' + ico(ic) + '<div class="grow"><div class="t">' + main + '</div>' + (sub ? '<div class="sub sm">' + sub + '</div>' : '') + '</div>' + (right || '') + '</div>';
     const smallBtn = (a2, label, dis) => '<button class="btn line sm" data-a="' + a2 + '"' + (dis ? ' disabled' : '') + '>' + label + '</button>';
     const saved = lineAcct.count == null ? '確認しています…' : lineAcct.count + '件' + (lineAcct.last ? '・' + new Date(lineAcct.last).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) + ' に保存' : '');
     const ntfSub = { 'on': '旅行の前日の夜、旅行中の記録のし忘れ、翌朝の精算を、お知らせします。', 'off': '旅行の前日の夜、旅行中の記録のし忘れ、翌朝の精算を、お知らせできます。', 'needs-install': 'ホーム画面に追加すると、通知を使えます。', 'blocked': '端末の設定で、通知を許可してください。', 'unsupported': 'この端末・ブラウザでは、通知を使えません。' }[s.ntf] || '確認しています…';
     const sw = s.ntf === 'on' || s.ntf === 'off' ? '<button class="sw" role="switch" aria-checked="' + (s.ntf === 'on') + '" aria-label="この端末に通知する" data-a="ntf-toggle"></button>' : '';
     body = '<div class="acc-me"><span class="av" aria-hidden="true" style="--h:150">' + esc(Array.from(nm)[0] || 'L') + (lineAcct.user.picture ? '<img class="avimg" src="' + esc(lineAcct.user.picture) + '" alt="" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '</span><div class="grow"><div class="t">' + esc(nm) + '</div><div class="sub sm">LINEでログイン中</div></div></div>' +
       '<div class="sechd">バックアップ</div><div class="list">' +
-        row('自動でバックアップ', esc(saved) + (lineAcct.bkErr ? '<br><span class="bad-t">' + esc(lineAcct.bkErr) + '</span>' : ''), smallBtn('bk-now', '今すぐ')) +
-        '<button class="item slim acc" data-a="bk-restore"><div class="grow"><div class="t">バックアップから戻す</div><div class="sub sm">別の端末に移すときや、消した旅行を戻すとき</div></div>' + icon('chev', 18) + '</button></div>' +
+        row('cloud', '自動でバックアップ', esc(saved) + (lineAcct.bkErr ? '<br><span class="bad-t">' + esc(lineAcct.bkErr) + '</span>' : ''), smallBtn('bk-now', '今すぐ')) +
+        '<button class="item slim acc" data-a="bk-restore">' + ico('restore') + '<div class="grow"><div class="t">バックアップから戻す</div><div class="sub sm">別の端末に移すときや、消した旅行を戻すとき</div></div>' + icon('chev', 18) + '</button></div>' +
       '<div class="sub sm acc-note">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを暗号化して控えます。</div>' +
-      '<div class="sechd">写真</div><div class="list">' + row('LINEの写真を、友だちに見せる', '同じ旅行の友だちの画面に、あなたのLINEの写真が出ます。止めると、頭文字のアイコンになります。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.pic !== false) + '" aria-label="LINEの写真を、友だちに見せる" data-a="pic-toggle"></button>') + '</div>' +
-      (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('この端末に通知する', ntfSub, sw) +
-        (s.ntf === 'on' || s.ntf === 'off' ? row('精算のお知らせ', '精算ができたときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
-        (s.ntf === 'on' || s.ntf === 'off' ? row('今日の使いすぎのお知らせ', '旅行中、今日の支出が1日の目安を超えたら、1日に1回お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.over !== false) + '" aria-label="今日の使いすぎのお知らせ" data-a="over-toggle"></button>') : '') +
-        (s.ntf === 'on' ? '<button class="item slim acc" data-a="ntf-help" aria-expanded="' + !!s.help + '"><div class="grow"><div class="t">うまく届かないとき</div></div><span class="chev' + (s.help ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
-          (s.help ? row('テスト通知を送る', s.testMsg ? esc(s.testMsg) : '今すぐ、この端末に1件送ります。', smallBtn('ntf-test', '送る', s.testing)) +
-            row('サーバーの状態を調べる', s.diag ? s.diag.map(l => esc(l)).join('<br>') : '端末の登録や、自動の判定の記録を確認します。', smallBtn('ntf-diag', '調べる', s.diagging)) : '') : '') + '</div>' : '') +
+      '<div class="sechd">写真</div><div class="list">' + row('image', 'LINEの写真を、友だちに見せる', '同じ旅行の友だちの画面に、あなたのLINEの写真が出ます。止めると、頭文字のアイコンになります。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.pic !== false) + '" aria-label="LINEの写真を、友だちに見せる" data-a="pic-toggle"></button>') + '</div>' +
+      (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('bell', 'この端末に通知する', ntfSub, sw) +
+        (s.ntf === 'on' || s.ntf === 'off' ? row('coin', '精算のお知らせ', '精算ができたときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
+        (s.ntf === 'on' || s.ntf === 'off' ? row('alert', '今日の使いすぎのお知らせ', '旅行中、今日の支出が1日の目安を超えたら、1日に1回お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.over !== false) + '" aria-label="今日の使いすぎのお知らせ" data-a="over-toggle"></button>') : '') +
+        (s.ntf === 'on' ? '<button class="item slim acc" data-a="ntf-help" aria-expanded="' + !!s.help + '">' + ico('help') + '<div class="grow"><div class="t">うまく届かないとき</div></div><span class="chev' + (s.help ? ' open' : '') + '">' + icon('chev', 18) + '</span></button>' +
+          (s.help ? row('send', 'テスト通知を送る', s.testMsg ? esc(s.testMsg) : '今すぐ、この端末に1件送ります。', smallBtn('ntf-test', '送る', s.testing), 'sub-row') +
+            row('pulse', 'サーバーの状態を調べる', s.diag ? s.diag.map(l => esc(l)).join('<br>') : '端末の登録や、自動の判定の記録を確認します。', smallBtn('ntf-diag', '調べる', s.diagging), 'sub-row') : '') : '') + '</div>' : '') +
       '<div class="sechd">アカウント</div><div class="list">' +
-        (CFG.legalReady ? '<a class="item slim acc" href="privacy.html"><div class="grow"><div class="t">プライバシーポリシー</div></div>' + icon('chev', 18) + '</a>' : '') +
-        '<button class="item slim acc" data-a="line-logout"><div class="grow"><div class="t">ログアウト</div><div class="sub sm">この端末の通知は、止まります。旅行は、端末に残ります。</div></div>' + icon('chev', 18) + '</button>' +
-        (s.confirm ? '' : '<button class="item slim acc" data-a="line-del-ask"><div class="grow"><div class="t bad-t">アカウントを削除</div></div>' + icon('chev', 18) + '</button>') + '</div>' +
+        (CFG.legalReady ? '<a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + icon('chev', 18) + '</a>' : '') +
+        '<button class="item slim acc" data-a="line-logout">' + ico('logout') + '<div class="grow"><div class="t">ログアウト</div><div class="sub sm">この端末の通知は、止まります。旅行は、端末に残ります。</div></div>' + icon('chev', 18) + '</button></div>' +
+      (s.confirm ? '' : '<div class="list" style="margin-top:28px"><button class="item slim acc" data-a="line-del-ask">' + ico('trash', 'bad') + '<div class="grow"><div class="t bad-t">アカウントを削除</div></div>' + icon('chev', 18) + '</button></div>') +
       (s.confirm ? '<div class="panel acc-del"><b>アカウントを削除しますか？</b><div class="sub" style="margin:6px 0 12px">LINEのログイン情報と、バックアップを、サーバーから削除します。この端末の旅行は、そのまま残ります。元に戻せません。</div>' +
         '<button class="btn bad" data-a="line-del-go">本当に削除する</button><button class="link" data-a="line-del-no" style="margin-top:4px">やめる</button></div>' : '');
     foot = err;
@@ -1679,7 +1709,7 @@ function viewSheet(){
     foot = err + '<button class="btn" data-a="join-paste-go"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '確認しています…' : '確認する') + '</button>';
   }
   return '<div class="sheet-bg" data-a="bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1"><div class="row between"><h2 id="sheet-title">' + ttl + '</h2><button class="iconbtn" data-a="close-sheet" aria-label="閉じる">' + icon('close') + '</button></div>' +
-    '<div class="sheet-body">' + body + '</div><div class="sheet-foot">' + foot + '</div></div></div>';
+    '<div class="sheet-body' + (s.type === 'app-settings' || s.type === 'line-account' ? ' pref' : '') + '">' + body + '</div><div class="sheet-foot">' + foot + '</div></div></div>';
 }
 /* "割合・金額を変える": a weight per person (0.5x to 3x, in steps of 0.5), or an exact amount for a person (金額の指定); the amounts below follow */
 const partLabel = n => (n / 2) + '倍';
