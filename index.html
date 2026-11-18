@@ -167,6 +167,7 @@ html,body{overscroll-behavior-x:none}
 @media (max-height:700px){.home0-tags{margin:-2px 0 8px}.home0-note{font-size:12px;padding:7px 10px;line-height:1.45;margin-bottom:6px}}
 @media (max-height:660px){.home0-steps{gap:8px;padding:4px 4px}.home0-intro{padding:4px 0 6px}.home0-tags{margin:-2px 0 6px}}
 @media (max-height:600px){.home0-steps{display:none}}
+.home0.t1 .install .howto{display:none}.home0.t1 .home0-intro{padding:6px 0 8px}.home0.t2 .home0-steps span:not(.n){display:none}.home0.t2 .home0-steps{gap:8px;padding:6px 4px}.home0.t3 .home0-steps{display:none}.home0.t4 .home0-tags{display:none}
 .home0.sa .home0-intro{padding-top:6px}
 .home0-line{display:flex;flex-direction:column;gap:6px;padding:0 2px}
 .home0-line .sub{text-align:center}
@@ -797,8 +798,8 @@ function installBanner(){
   const x = '<button class="x" data-a="dismiss-install" aria-label="案内を閉じる">' + icon('close', 18) + '</button>';
   const head = '<b>' + BENEFIT + '</b>';
   if (deferredInstall) return '<div class="install"><div class="grow">' + head + '</div><button class="btn" data-a="install">追加する</button>' + x + '</div>';
-  if (isIOS()) return '<div class="install"><div class="grow">' + head + '<div class="sub sm" style="margin-top:2px">画面の下（または上）の共有ボタン <span class="ic-inline" aria-hidden="true">' + icon('share', 16) + '</span> →「ホーム画面に追加」</div></div>' + x + '</div>';
-  return '<div class="install"><div class="grow">' + head + '<div class="sub sm" style="margin-top:2px">ブラウザのメニューから、「ホーム画面に追加」または「アプリをインストール」を選びます。</div></div>' + x + '</div>';
+  if (isIOS()) return '<div class="install"><div class="grow">' + head + '<div class="sub sm howto" style="margin-top:2px">画面の下（または上）の共有ボタン <span class="ic-inline" aria-hidden="true">' + icon('share', 16) + '</span> →「ホーム画面に追加」</div></div>' + x + '</div>';
+  return '<div class="install"><div class="grow">' + head + '<div class="sub sm howto" style="margin-top:2px">ブラウザのメニューから、「ホーム画面に追加」または「アプリをインストール」を選びます。</div></div>' + x + '</div>';
 }
 async function refreshNtfHome(){
   if (!isStandalone() || !lineAcct.user || !lineAcct.push) return;
@@ -1088,7 +1089,15 @@ function render(){
   if (sh) sh.scrollTop = keep;
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet;
+  fitHome0();
 }
+/* The first screen must fit on one page, whatever the phone, the browser's toolbars or the banner above it: while it does not, it gives up the least important things in turn. */
+function fitHome0(){
+  const h = document.querySelector('.home0'); if (!h) return;
+  h.classList.remove('t1', 't2', 't3', 't4');
+  for (const c of ['t1', 't2', 't3', 't4']){ if (h.scrollHeight <= h.clientHeight + 1) break; h.classList.add(c); }
+}
+window.addEventListener('resize', fitHome0);
 let sheetWasOpen = false, toastN = 0, lastView = null;
 const calm = () => !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 function inert(root){   // a copy that only looks like the page: nothing in it can be found, focused or pressed
