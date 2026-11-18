@@ -234,8 +234,11 @@ html,body{overscroll-behavior-x:none}
 .legend em{margin-left:auto;font-style:normal;font-weight:500}
 .usage{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
 .usage .seg{margin:0 0 8px;height:10px}
-.legend2{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--sub)}
-.legend2 span{display:inline-flex;align-items:center;gap:5px}
+.legend2{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--sub)}
+.segbtn{display:block;width:100%;padding:6px 0;margin:-6px 0 -2px}
+.lc{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:99px;border:1.5px solid var(--line);font:inherit;font-size:12px;color:var(--sub);background:transparent}.lc[aria-pressed=true]{border-color:var(--sun);background:var(--soft);color:var(--ink)}
+.usage.in .lc{border-color:rgba(255,255,255,.28);color:rgba(255,255,255,.85)}.usage.in .lc[aria-pressed=true]{border-color:var(--sun);background:rgba(255,255,255,.18);color:#fff}.usage.in .lc b{color:#fff}
+.fline{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 2px 0;font-size:13px;color:var(--sub)}.fline .link{color:var(--ink);font-weight:600}
 .usage{display:block;width:100%;text-align:left;font:inherit;color:inherit}.usage.thin{padding:8px 14px;font-size:13px;color:var(--sub);text-align:center}.legend2 .over{color:var(--bad);font-weight:700}
 .subrow{display:flex;align-items:center;justify-content:space-between;gap:8px}.subrow .mem-row{margin:0;flex:none}.subrow .mem-row .btn.sm{padding:5px 12px;font-size:13px}
 .usage.in{background:none;border:0;border-radius:0;padding:0 18px 12px;color:#fff}.usage.in .seg{background:rgba(255,255,255,.18);height:8px;margin:0 0 7px}.usage.in .legend2{color:rgba(255,255,255,.78)}.usage.in .legend2 .over{color:#ff9a92}.usage.in.thin{padding:8px 18px 12px;color:rgba(255,255,255,.7);text-align:left;border-top:2px dashed rgba(255,255,255,.28);margin:0 18px;width:auto}
@@ -905,7 +908,7 @@ function openFromUrl(href){
   const id = u.searchParams.get('trip'); if (!id) return false;
   try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
   if (!state.trips.some(x => x.id === id)) return false;
-  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : 'exp'; ui.q = ''; ui.qOpen = false; ui.swp = null; ui.resetScroll = true; render(); return true;
+  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : 'exp'; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; ui.resetScroll = true; render(); return true;
 }
 function bootShare(){
   if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open) openFromUrl(e.data.open); });
@@ -1323,10 +1326,10 @@ function usageBar(t, inCard){   // the share of each category (a tap opens the l
   const caps = t.caps || {}, hasCaps = Object.keys(caps).length > 0, sp = total(t), by = catSums(t);
   if (!t.expenses.length && !hasCaps) return '<button class="usage thin' + (inCard ? ' in' : '') + '" data-a="caps-edit">カテゴリごとの上限を決める ›</button>';
   const cs = CATS.filter(c => by[c[0]]).sort((x, y) => by[y[0]] - by[x[0]]), shown = CATS.filter(c => by[c[0]] || caps[c[0]]).sort((x, y) => (by[y[0]] || 0) - (by[x[0]] || 0));
-  return '<button class="usage' + (inCard ? ' in' : '') + '" data-a="caps-edit" aria-label="カテゴリごとの上限を決める"><div class="seg">' + cs.map(c => '<i style="--h:' + c[3] + ';width:' + (by[c[0]] / sp * 100) + '%"></i>').join('') + '</div><div class="legend2">' +
-    shown.map(c => { const v = by[c[0]] || 0, cap = caps[c[0]], over = cap && v > cap;
-      return '<span' + (over ? ' class="over"' : '') + '><span class="dot" style="--h:' + c[3] + '"></span>' + c[2] + ' <b>' + v.toLocaleString('ja-JP') + (cap ? '／' + cap.toLocaleString('ja-JP') : '') + '</b>' + (over ? '（' + (v - cap).toLocaleString('ja-JP') + '円超え）' : '') + '</span>'; }).join('') + '</div>' +
-    (hasCaps || inCard ? '' : '<div class="sub sm" style="margin-top:6px">タップして、カテゴリごとの上限を決める ›</div>') + '</button>';
+  return '<div class="usage' + (inCard ? ' in' : '') + '"><button class="segbtn" data-a="caps-edit" aria-label="カテゴリごとの上限を決める"><div class="seg">' + cs.map(c => '<i style="--h:' + c[3] + ';width:' + (by[c[0]] / sp * 100) + '%"></i>').join('') + '</div></button><div class="legend2" role="group" aria-label="カテゴリで絞り込む">' +
+    shown.map(c => { const v = by[c[0]] || 0, cap = caps[c[0]], over = cap && v > cap, on = ui.catF === c[0];
+      return '<button type="button" class="lc' + (over ? ' over' : '') + '" data-a="cat-filter" data-v="' + c[0] + '" aria-pressed="' + on + '"><span class="dot" style="--h:' + c[3] + '"></span>' + c[2] + ' <b>' + v.toLocaleString('ja-JP') + (cap ? '／' + cap.toLocaleString('ja-JP') : '') + '</b>' + (over ? '（' + (v - cap).toLocaleString('ja-JP') + '円超え）' : '') + '</button>'; }).join('') + '</div>' +
+    (hasCaps || inCard ? '' : '<button class="sub sm caphint" data-a="caps-edit" style="margin-top:6px;text-align:left">バーを押して、カテゴリごとの上限を決める ›</button>') + '</div>';
 }
 function expLabel(t, e){ return { cat: (CAT[e.cat] || CAT.other)[2], payer: nameOf(t, e.payer), split: e.split.map(id => nameOf(t, id)) }; }
 function delExpense(did){   // delete one expense (the difference of a closed round goes to the current round), with 元に戻す
@@ -1349,11 +1352,12 @@ function expRow(t, e, inRound){
   return swp ? '<div class="swp' + (ui.swp === e.id ? ' open' : '') + '" data-swp="' + e.id + '">' + row + '<button class="swp-del" data-a="swipe-del" data-id="' + e.id + '" aria-label="「' + esc(e.title || c[2]) + '」を削除">削除</button></div>' : row;
 }
 function expList(t, q){
-  const searching = !!q.trim(), list = searching ? t.expenses.filter(e => matchExpense(e, q, expLabel(t, e))) : t.expenses.filter(e => !isSettled(t, e));   // without a search, the settled ones are folded by round
-  const rounds = {}; if (!searching) t.expenses.forEach(e => { if (isSettled(t, e)) { const n = roundNo(t, e.settleId); (rounds[n] = rounds[n] || []).push(e); } });
+  const base = ui.catF ? t.expenses.filter(e => e.cat === ui.catF) : t.expenses, searching = !!q.trim(), showAll = searching || !!ui.catF;   // a search or a category filter lists everything it finds, settled rounds included
+  const list = searching ? base.filter(e => matchExpense(e, q, expLabel(t, e))) : showAll ? base : base.filter(e => !isSettled(t, e));   // otherwise the settled ones are folded by round
+  const rounds = {}; if (!showAll) t.expenses.forEach(e => { if (isSettled(t, e)) { const n = roundNo(t, e.settleId); (rounds[n] = rounds[n] || []).push(e); } });
   const rn = Object.keys(rounds).map(Number).sort((a, b) => b - a);
   if (!list.length && !rn.length) return '<div class="empty"><b>見つかりませんでした</b>別の言葉で、探してみてください。</div>';
-  let h = searching ? '<div class="sub sm" style="margin-top:8px">' + list.length + '件・合計 ' + yen(list.reduce((n, e) => n + e.amount, 0)) + '</div>' : '';
+  let h = showAll ? '<div class="fline"><span>' + (ui.catF ? esc((CAT[ui.catF] || CAT.other)[2]) + 'だけ・' : '') + list.length + '件・合計 ' + yen(list.reduce((n, e) => n + e.amount, 0)) + '</span>' + (ui.catF ? '<button class="link" data-a="cat-filter" data-v="" style="width:auto;padding:4px 0">すべて表示</button>' : '') + '</div>' : '';
   const days = {};
   list.forEach(e => { (days[e.date] = days[e.date] || []).push(e); });
   Object.keys(days).sort().reverse().forEach(d => {
@@ -1812,7 +1816,7 @@ function pageCtx(){
     return { kind: 'home', el, order: ['now', 'past'], cur: cur.getAttribute('data-v'), build: k => homeListHtml(k), commit: k => { ui.homeTab = k; } };
   }
   const t = ui.view === 'trip' ? trip() : null, el = t && document.querySelector('#app.fit>.scroll');
-  if (t && el) return { kind: 'trip', el, order: ['exp', 'settle', 'save'], cur: ui.tab, build: k => tabHtml(t, k), commit: k => { ui.tab = k; ui.q = ''; ui.qOpen = false; ui.swp = null; } };
+  if (t && el) return { kind: 'trip', el, order: ['exp', 'settle', 'save'], cur: ui.tab, build: k => tabHtml(t, k), commit: k => { ui.tab = k; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; } };
   return null;
 }
 function pgPeek(want){
@@ -1903,7 +1907,7 @@ function nbFinish(cancelled){
   swipedAt = Date.now();
   const clean = () => { app.style.transform = ''; app.style.transition = ''; app.style.background = g.bg; app.style.willChange = ''; g.peek.remove(); };
   const run = (to, done) => { if (!calm() || !app.animate){ done(); return; } const a = app.animate([{ transform: 'translateX(' + g.dx + 'px)' }, { transform: 'translateX(' + to + 'px)' }], { duration: 260, easing: EASE }); app.style.transform = 'translateX(' + to + 'px)'; let fin = false; const end = () => { if (fin) return; fin = true; done(); }; a.onfinish = end; a.oncancel = end; setTimeout(end, 420); };
-  if (go) run(g.W, () => { clean(); ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.swp = null; ui.noGo = true; render(); });
+  if (go) run(g.W, () => { clean(); ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; ui.noGo = true; render(); });
   else run(0, clean);
 }
 document.addEventListener('touchend', () => nbFinish(false), { passive: true });
@@ -2004,9 +2008,9 @@ document.addEventListener('click', e => {
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
   if (a === 'bg'){ if (e.target !== el) return; ui.sheet = null; render(); return; }
 
-  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.swp = null; }   // the tab you were on stays (ui.homeTab)
+  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }   // the tab you were on stays (ui.homeTab)
   else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; }
-  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; ui.qOpen = false; ui.swp = null; }
+  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
     readSheet();   // keep what is typed in an open sheet
@@ -2184,7 +2188,7 @@ document.addEventListener('click', e => {
       expenses: [ex('夕食', 9000, 0, 'food', [0, 1, 2]), ex('宿', 12000, 1, 'stay', [0, 1, 2]), ex('電車', 3000, 2, 'transport', [1, 2])] };
     state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'settle'; ui.draft = null;
   }
-  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.qOpen = false; ui.swp = null; ui.resetScroll = true; }
+  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; ui.resetScroll = true; }
 
   else if (a === 'add-exp'){
     const today = todayStr();
@@ -2288,7 +2292,8 @@ document.addEventListener('click', e => {
       return;
     }
   }
-  else if (a === 'find-toggle'){ if (ui.qOpen || ui.q){ ui.q = ''; ui.qOpen = false; ui.swp = null; } else ui.qOpen = true; }
+  else if (a === 'cat-filter'){ const v = el.getAttribute('data-v'); ui.catF = (!v || ui.catF === v) ? null : v; }
+  else if (a === 'find-toggle'){ if (ui.qOpen || ui.q){ ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; } else ui.qOpen = true; }
   else if (a === 'toggle-round'){ const n = el.getAttribute('data-v'); ui.rounds = ui.rounds || {}; ui.rounds[n] = !ui.rounds[n]; }
   else if (a === 'welcome-ok'){ lsSet('tabiwari.welcome.' + t.id, null); }
   else if (a === 'caps-edit'){ ui.sheet = { type: 'caps', err: '' }; }
