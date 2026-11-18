@@ -449,15 +449,20 @@ try {
       localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }], paid: {}, savings: {}, expenses: [] }] })); });
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('#q-quick');
     assert.ok((await q.textContent('.usage.thin')).includes('カテゴリごとの上限を決める'), 'a thin row before anything is recorded');
-    await q.click('.usage'); await q.waitForSelector('[data-cap]'); assert.strictEqual(await q.locator('[data-cap]').count(), 6); assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-cap')), false, 'the keyboard does not open by itself');
+    await q.click('[data-a=caps-edit]'); await q.waitForSelector('[data-cap]'); assert.strictEqual(await q.locator('[data-cap]').count(), 6); assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-cap')), false, 'the keyboard does not open by itself');
     await q.fill('[data-cap=food]', '1x'); await q.click('[data-a=caps-save]'); await see(q, '上限は、1以上の数字で入力してください'); assert.strictEqual(await q.evaluate(() => state.trips[0].caps), undefined);
     await q.fill('[data-cap=food]', '5,000'); await q.fill('[data-cap=gift]', '3000'); await q.click('[data-a=caps-save]'); await see(q, '上限を保存しました'); assert.deepStrictEqual(await q.evaluate(() => state.trips[0].caps), { food: 5000, gift: 3000 });
     assert.ok((await q.textContent('.legend2')).includes('食事 0／5,000') && (await q.textContent('.legend2')).includes('お土産 0／3,000'), 'the categories with a limit show even when unused');
     await q.fill('#q-quick', '夕食 4000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 4,000円を記録しました'); assert.ok(!(await q.textContent('.toast, [role=status]').catch(() => '')).includes('超えました'));
     await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '食事が、上限を 1,000円 超えました。');
     assert.ok((await q.textContent('.legend2 .over')).includes('食事 6,000／5,000（1,000円超え）'), await q.textContent('.legend2')); assert.strictEqual(await q.evaluate(() => getComputedStyle(document.querySelector('.legend2 .over')).color), 'rgb(255, 154, 146)');
+    { // tap a category in the card: only its expenses are listed (settled rounds too); the bar still opens the limits; all shown again by the link or the same chip
+      await q.click('.lc[data-v=food]'); await q.waitForFunction(() => document.querySelector('.fline')); assert.ok((await q.textContent('.fline')).includes('食事だけ'), 'the filter line says what is shown'); assert.strictEqual(await q.getAttribute('.lc[data-v=food]', 'aria-pressed'), 'true');
+      assert.ok(await q.locator('.item[data-a=edit-exp], .swp .item').count() >= 1, 'the filtered expenses are listed');
+      await q.click('.fline [data-a=cat-filter]'); await q.waitForFunction(() => !document.querySelector('.fline')); assert.strictEqual(await q.getAttribute('.lc[data-v=food]', 'aria-pressed'), 'false', 'すべて表示 clears it');
+      await q.click('.lc[data-v=food]'); await q.click('.lc[data-v=food]'); await q.waitForFunction(() => !document.querySelector('.fline')); }
     await q.fill('#q-quick', '夕食 500円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 500円を記録しました'); assert.ok(!(await q.innerText('body')).includes('上限を 1,500円 超えました'), 'only the crossing is announced, not every expense after it');
-    await q.click('.usage'); await q.waitForSelector('[data-cap]'); await q.fill('[data-cap=food]', ''); await q.fill('[data-cap=gift]', ''); await q.click('[data-a=caps-save]'); await see(q, '上限を外しました'); assert.strictEqual(await q.evaluate(() => state.trips[0].caps), undefined);
+    await q.click('[data-a=caps-edit]'); await q.waitForSelector('[data-cap]'); await q.fill('[data-cap=food]', ''); await q.fill('[data-cap=gift]', ''); await q.click('[data-a=caps-save]'); await see(q, '上限を外しました'); assert.strictEqual(await q.evaluate(() => state.trips[0].caps), undefined);
     assert.deepStrictEqual(qerrs, []); await c14.close(); }
 
   // たびまる: one entrance (the box). Simple sentences are recorded at once (no AI); what the quick record cannot read (who paid, who shares, several expenses) goes to たびまる by itself;
