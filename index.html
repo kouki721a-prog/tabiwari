@@ -347,7 +347,6 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:14px;border-radi
   .item.fresh{animation:fresh .6s var(--ease)}
   @keyframes fresh{0%{transform:translateY(-14px);opacity:0;background:rgba(255,200,60,.28)}45%{transform:none;opacity:1;background:rgba(255,200,60,.2)}100%{background:transparent}}
   #ptr.spin svg{animation:spinr .8s linear infinite}@keyframes spinr{to{transform:rotate(360deg)}}
-  .sl-l{animation:slL .26s var(--ease)}.sl-r{animation:slR .26s var(--ease)}
   .toast.in{animation:toastIn .3s var(--ease)}@keyframes toastIn{from{transform:translateX(-50%) translateY(14px);opacity:0}to{transform:translateX(-50%);opacity:1}}
   .ghost{pointer-events:none}.sheet-bg.ghost{animation:bgOut .24s ease-out forwards}.sheet-bg.ghost .sheet{animation:sheetOut .26s var(--ease) forwards}.sheet-bg.ghost.dragged .sheet{animation:none}
   @keyframes bgOut{to{opacity:0}}@keyframes sheetOut{to{transform:translateY(100%)}}
@@ -1087,9 +1086,13 @@ function render(){
 }
 let sheetWasOpen = false, toastN = 0, lastView = null;
 const calm = () => !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+function inert(root){   // a copy that only looks like the page: nothing in it can be found, focused or pressed
+  root.setAttribute('aria-hidden', 'true');
+  [root, ...root.querySelectorAll('[data-a],[id],[data-id],[data-swp],button,input,textarea,a')].forEach(x => { x.removeAttribute('data-a'); x.removeAttribute('id'); x.removeAttribute('data-id'); x.removeAttribute('data-swp'); if (/^(BUTTON|INPUT|TEXTAREA|A)$/.test(x.tagName)) x.tabIndex = -1; });
+}
 function ghost(node){   // a still copy of what has just gone, animated out and then removed
   if (!node || !calm()) return;
-  const g = node.cloneNode(true); g.classList.add('ghost'); g.setAttribute('aria-hidden', 'true'); [g, ...g.querySelectorAll('[data-a],[id],[data-id],button,input')].forEach(x => { x.removeAttribute('data-a'); x.removeAttribute('id'); x.removeAttribute('data-id'); if (x.tagName === 'BUTTON' || x.tagName === 'INPUT') x.tabIndex = -1; });
+  const g = node.cloneNode(true); g.classList.add('ghost'); inert(g);
   const sh = g.querySelector('.sheet'); if (sh && sh.style.transform) g.classList.add('dragged');   // dragged away by hand: it is already gone
   document.body.appendChild(g); setTimeout(() => g.remove(), 320);
 }
@@ -1185,18 +1188,24 @@ function homeTabs(nNow, nPast, tab){
   const t = (k, lab, n) => '<button class="' + (tab === k ? 'on' : '') + '" role="tab" aria-selected="' + (tab === k) + '" data-a="home-tab" data-v="' + k + '">' + lab + ' <span class="n">' + n + '</span></button>';
   return '<div class="ut" role="tablist" aria-label="旅行の一覧">' + t('now', 'これから・旅行中', nNow) + t('past', '終了した旅行', nPast) + '</div>';
 }
-function viewHome(){
-  if (!state.trips.length) return viewHomeEmpty();
+function homeSets(){
   const now = state.trips.filter(t => !isPast(t)).sort(tripOrder), past = state.trips.filter(isPast).sort((a, b) => a.start < b.start ? 1 : -1);
-  const tab = ui.homeTab === 'past' || (ui.homeTab !== 'now' && !now.length && past.length) ? 'past' : 'now';
-  let h = brandRow() + homeTabs(now.length, past.length, tab) + remoteCard() + installBanner() + lineCard();
+  return { now, past, tab: ui.homeTab === 'past' || (ui.homeTab !== 'now' && !now.length && past.length) ? 'past' : 'now' };
+}
+function homeListHtml(tab){   // the list under the tabs (also built for the tab a finger is dragging toward)
+  const { now, past } = homeSets(); let h = '';
   if (tab === 'now'){
     now.forEach(t => { h += tripCard(t); });
     if (!now.length) h += '<div class="empty" style="padding:28px 8px"><b>これから・旅行中の旅行は、ありません</b>下の［旅行をつくる］から、つくれます。</div>';
     h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
   } else h += past.length ? past.map(tripCard).join('') : '<div class="empty" style="padding:28px 8px"><b>終了した旅行は、まだありません</b>旅行が終わって、精算が済むと、ここに並びます。</div>';
-  const sl = ui.slide || ''; ui.slide = '';   // a swipe between the two tabs slides the list in from that side
-  return '<div class="home1"><div' + (sl ? ' class="sl-' + sl + '"' : '') + '>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
+  return h;
+}
+function viewHome(){
+  if (!state.trips.length) return viewHomeEmpty();
+  const { now, past, tab } = homeSets();
+  const h = brandRow() + homeTabs(now.length, past.length, tab) + remoteCard() + installBanner() + lineCard() + '<div class="hlist">' + homeListHtml(tab) + '</div>';
+  return '<div class="home1"><div>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
 function legalLinks(){
@@ -1254,8 +1263,7 @@ function viewTrip(){
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   if (ui.tab !== 'exp') h += memRow(t);   // on the record tab the members sit on the date line
   if (ui.tab === 'exp' && st[0] === '準備中') h += '<i class="sp"></i>' + usageBar(t);   // otherwise the categories sit inside the budget card
-  const sl = ui.slide || ''; ui.slide = '';   // a swipe between the tabs slides the list in
-  h += '<i class="sp"></i><div class="scroll' + (sl ? ' sl-' + sl : '') + '">' + (ui.tab === 'exp' ? tabExp(t) : ui.tab === 'settle' ? tabSettle(t) : tabSave(t)) + '</div>';
+  h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
   return h + '<nav class="nav"><div class="nav-in">' + tb('exp', 'list', '記録') + tb('settle', 'swap', '精算') +
     '<button class="plus" data-a="add-exp" aria-label="支出を追加">' + icon('plus', 28) + '</button>' + tb('save', 'coin', '積立') +
@@ -1374,6 +1382,7 @@ function quickForm(){
   return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとこと：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button>' + aiButtons() + (ui.canFind ? '<button class="btn line aibtn" type="button" data-a="find-toggle" aria-label="支出を探す" aria-pressed="' + !!(ui.qOpen || ui.q) + '">' + icon('find', 22) + '</button>' : '') + '</form>' +
     (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '');
 }
+const tabHtml = (t, k) => k === 'exp' ? tabExp(t) : k === 'settle' ? tabSettle(t) : tabSave(t);
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
   if (!t.expenses.length) return quickForm() + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
@@ -1740,29 +1749,76 @@ document.addEventListener('change', e => {
   }, () => flash('ファイルを読み込めませんでした。'));
 });
 
-/* swipe left / right: on the home screen between 「これから・旅行中」 and 「終了した旅行」, inside a trip between 記録 / 精算 / 積立 (a horizontal move only; not from the screen's edges, where iPhone's own swipe lives) */
-let swipe = null, swipedAt = 0;
+/* paging that follows the finger: on the home screen between 「これから・旅行中」 and 「終了した旅行」, inside a trip between 記録 / 精算 / 積立.
+   While the finger moves, the page and its neighbour move with it; on release the page is chosen by distance or flick, and the rest slides in.
+   (Horizontal moves only; not from the screen's edges, where iPhone's own swipe lives; an expense row's swipe belongs to the row.) */
+let swipe = null, swipedAt = 0, pg = null;
+const EASE = 'cubic-bezier(.22,1,.36,1)';
+function pageCtx(){
+  if (ui.view === 'home' && state.trips.length){
+    const el = document.querySelector('.hlist'), cur = document.querySelector('.ut button.on'); if (!el || !cur) return null;
+    return { kind: 'home', el, order: ['now', 'past'], cur: cur.getAttribute('data-v'), build: k => homeListHtml(k), commit: k => { ui.homeTab = k; } };
+  }
+  const t = ui.view === 'trip' ? trip() : null, el = t && document.querySelector('#app.fit>.scroll');
+  if (t && el) return { kind: 'trip', el, order: ['exp', 'settle', 'save'], cur: ui.tab, build: k => tabHtml(t, k), commit: k => { ui.tab = k; ui.q = ''; ui.qOpen = false; ui.swp = null; } };
+  return null;
+}
+function pgPeek(want){
+  if (pg.peek) pg.peek.remove();
+  const p = document.createElement('div'); p.className = (pg.kind === 'trip' ? 'scroll ' : '') + 'peek'; p.innerHTML = pg.build(pg.order[want]); inert(p);
+  const cs = getComputedStyle(pg.el), r = pg.rect;
+  p.style.cssText = 'position:fixed;z-index:0;overflow:hidden;pointer-events:none;margin:0;top:' + r.top + 'px;left:' + r.left + 'px;width:' + r.width + 'px;height:' + (pg.kind === 'trip' ? r.height : Math.max(r.height, innerHeight - r.top)) + 'px;padding:' + cs.padding + ';box-sizing:' + cs.boxSizing;
+  document.body.appendChild(p); pg.peek = p; pg.j = want;
+}
+function pgGhostOf(el, rect, from){   // a still copy of the page that is leaving (render() has already swapped the real one)
+  const g = el.cloneNode(true); inert(g); g.classList.add('pg-old');
+  g.style.cssText = 'position:fixed;z-index:0;overflow:hidden;pointer-events:none;margin:0;top:' + rect.top + 'px;left:' + rect.left + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;transform:translateX(' + from + 'px)';
+  document.body.appendChild(g); g.scrollTop = el.scrollTop; return g;
+}
 document.addEventListener('touchstart', e => {
-  const t = e.touches[0]; swipe = null;
+  const t = e.touches[0]; swipe = null; pg = null;
   if (e.touches.length !== 1 || !((ui.view === 'home' && state.trips.length) || (ui.view === 'trip' && trip())) || ui.sheet || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select')) return;
   if (e.target.closest('.swp')) return;   // a swipe on an expense row belongs to the row (delete)
   swipe = { x: t.clientX, y: t.clientY };
 }, { passive: true });
-document.addEventListener('touchend', e => {
-  const s = swipe; swipe = null; if (!s || ui.sheet || (ui.view !== 'home' && ui.view !== 'trip')) return;
-  const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
-  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-  if (ui.view === 'trip'){   // inside a trip: 記録 / 精算 / 積立
-    const order = ['exp', 'settle', 'save'], j = order.indexOf(ui.tab) + (dx < 0 ? 1 : -1);
-    if (j < 0 || j >= order.length) return;
-    ui.tab = order[j]; ui.q = ''; ui.qOpen = false; ui.swp = null; ui.slide = dx < 0 ? 'l' : 'r';
-  } else {
-    const cur = document.querySelector('.ut button.on'), tab = cur && cur.getAttribute('data-v');
-    if (dx < 0 && tab === 'now') ui.homeTab = 'past', ui.slide = 'l';
-    else if (dx > 0 && tab === 'past') ui.homeTab = 'now', ui.slide = 'r';
-    else return;
+document.addEventListener('touchmove', e => {
+  if (!swipe) return;
+  const t = e.touches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+  if (!pg){
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.5 || ui.sheet){ swipe = null; return; }   // mostly vertical: scrolling
+    const ctx = pageCtx(), i = ctx ? ctx.order.indexOf(ctx.cur) : -1; if (i < 0){ swipe = null; return; }
+    pg = Object.assign(ctx, { i, rect: ctx.el.getBoundingClientRect(), peek: null, j: -1, t0: Date.now(), x0: swipe.x + (dx > 0 ? 10 : -10), dx: 0, raw: 0, has: false });
+    document.documentElement.style.overflowX = 'hidden'; pg.el.style.willChange = 'transform';
   }
-  swipedAt = Date.now(); ui.resetScroll = true; render();
+  e.preventDefault();
+  const raw = t.clientX - pg.x0, want = raw < 0 ? pg.i + 1 : pg.i - 1, has = want >= 0 && want < pg.order.length;
+  if (has && pg.j !== want) pgPeek(want);
+  if (!has && pg.peek){ pg.peek.remove(); pg.peek = null; pg.j = -1; }
+  pg.has = has; pg.raw = raw; pg.dx = has ? raw : raw * 0.3;   // no neighbour: a soft stop
+  pg.el.style.transition = 'none'; pg.el.style.transform = 'translateX(' + pg.dx + 'px)';
+  if (pg.peek) pg.peek.style.transform = 'translateX(' + (pg.dx + (raw < 0 ? pg.rect.width : -pg.rect.width)) + 'px)';
+}, { passive: false });
+document.addEventListener('touchend', () => {
+  const g = pg; pg = null; swipe = null; document.documentElement.style.overflowX = '';
+  if (!g) return;
+  swipedAt = Date.now();
+  const W = g.rect.width, v = g.raw / Math.max(1, Date.now() - g.t0), alive = document.body.contains(g.el);   // px per ms
+  const go = alive && g.has && g.peek && (Math.abs(g.raw) > Math.min(W * 0.3, 120) || (Math.abs(v) > 0.45 && Math.abs(g.raw) > 30)) && Math.sign(g.raw) === Math.sign(g.dx);
+  g.el.style.willChange = '';
+  const anim = (el, from, to, done) => { if (!calm() || !el.animate){ if (done) done(); return; } const a = el.animate([{ transform: 'translateX(' + from + 'px)' }, { transform: 'translateX(' + to + 'px)' }], { duration: 280, easing: EASE }); a.onfinish = () => { if (done) done(); }; };
+  if (!go){   // back to where it was
+    g.el.style.transform = ''; g.el.style.transition = '';
+    if (alive) anim(g.el, g.dx, 0);
+    if (g.peek){ const p = g.peek, side = g.raw < 0 ? W : -W; anim(p, g.dx + side, side, () => p.remove()); if (!calm()) p.remove(); }
+    return;
+  }
+  const dir = g.raw < 0 ? -1 : 1, key = g.order[g.j], peekX = g.dx - dir * W;
+  const old = calm() ? pgGhostOf(g.el, g.rect, g.dx) : null; g.peek.remove();
+  g.commit(key); ui.resetScroll = true; render();
+  const el = g.kind === 'home' ? document.querySelector('.hlist') : document.querySelector('#app.fit>.scroll');
+  if (el) anim(el, peekX, 0);
+  if (old) anim(old, g.dx, dir * W, () => old.remove());
 }, { passive: true });
 /* an expense row: swipe left to show the red 削除 (a tap on it deletes; 元に戻す stays for a few seconds). Another touch, or a swipe right, closes it. */
 let rs = null;
