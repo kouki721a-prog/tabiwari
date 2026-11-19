@@ -363,6 +363,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) * .5 + 14px);width:calc(100% - 32px);max-width:488px;box-shadow:0 8px 20px rgba(0,0,0,.22);z-index:10}
 .toast button{margin-left:14px;color:#fff;text-decoration:underline;font-weight:700;font-size:14px}
 .toast{display:flex;align-items:center;white-space:nowrap;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 100px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:99px;font-size:14px;font-weight:500;z-index:40}
+.hint{margin:6px 4px 8px;font-size:12.5px;line-height:1.55;color:var(--sub);display:flex;justify-content:space-between;align-items:center;gap:8px}.hint .link{width:auto;flex:none;padding:6px 8px;font-size:12.5px;font-weight:700;color:var(--ink)}
 .swp{position:relative;overflow:hidden;border-top:1px solid var(--line)}.swp:first-child{border-top:0}.swp .item{border-top:0;background:var(--card);position:relative;z-index:1;transition:transform .18s ease-out}.swp.open .item{transform:translateX(-84px)}
 .swp-del{position:absolute;right:0;top:0;bottom:0;width:84px;background:#d4372f;color:#fff;font-weight:700;font-size:15px;display:grid;place-items:center;padding:0}
 .list>.item+.swp,.list>.swp+.item{border-top:1px solid var(--line)}
@@ -1520,12 +1521,16 @@ function quickForm(){
 }
 const welcomeCard = t => lsGet('tabiwari.welcome.' + t.id) ? '<div class="install" style="margin:0 0 8px"><div class="grow"><b>参加しました。</b><div class="sub sm">支出は、下の［＋］か、ひとことで記録できます。割り勘は、自動で計算されます。</div></div><button class="btn line" data-a="welcome-ok" style="font-size:14px;padding:8px 14px;width:auto">わかった</button></div>' : '';
 const tabHtml = (t, k) => k === 'exp' ? tabExp(t) : k === 'settle' ? tabSettle(t) : tabSave(t);
+/* two small first-time lines (they go away by themselves): how to write the one-line entry, and that a row can be swiped left to delete */
+const HINT_SWIPE = 'tabiwari.hint.swipe';
+const quickHint = t => t.expenses.length < 3 ? '<div class="hint"><span>「夕食 2000円」のように書いて［記録］。レシートは、カメラの写真から。</span></div>' : '';
+const swipeHint = t => !lsGet(HINT_SWIPE) && t.expenses.some(e => !isSettled(t, e)) ? '<div class="hint swiphint"><span>左にスワイプすると、支出を削除できます。</span><button class="link" data-a="hint-swipe-no">わかった</button></div>' : '';
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
-  if (!t.expenses.length) return welcomeCard(t) + quickForm() + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
+  if (!t.expenses.length) return welcomeCard(t) + quickForm() + quickHint(t) + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:14px;padding:8px 14px">まとめ画像</button></div>' : '';
   const box = done + (ui.canFind && (ui.qOpen || ui.q) ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
-  return welcomeCard(t) + quickForm() + box + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
+  return welcomeCard(t) + quickForm() + quickHint(t) + box + swipeHint(t) + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
 }
 
 const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
@@ -2079,7 +2084,7 @@ document.addEventListener('touchend', () => {
   const it = r.w.querySelector('.item'), open = (r.open ? -SWP : 0) + r.dx < -SWP / 2; swipedAt = Date.now();
   it.style.transition = ''; it.style.transform = '';
   document.querySelectorAll('.swp.open').forEach(x => { if (x !== r.w) x.classList.remove('open'); });
-  r.w.classList.toggle('open', open); ui.swp = open ? r.w.getAttribute('data-swp') : null;
+  r.w.classList.toggle('open', open); ui.swp = open ? r.w.getAttribute('data-swp') : null; if (open) lsSet(HINT_SWIPE, '1');   // they found it themselves: the hint is not needed
 }, { passive: true });
 document.addEventListener('click', e => {   // a tap elsewhere closes an open row; a tap on the open row itself only closes it (it does not open the editor)
   if (!ui.swp || e.target.closest('.swp-del')) return;
@@ -2434,6 +2439,7 @@ document.addEventListener('click', e => {
     if (mine){ if (v) mine.note = v; else delete mine.note; state.payNote = v || undefined; save(); }   // kept on this device too: it starts the memo of the next trip
     ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
   }
+  else if (a === 'hint-swipe-no'){ lsSet(HINT_SWIPE, '1'); render(); return; }
   else if (a === 'copy-note'){ const m = t.members.find(x => x.id === id), v = m && m.note; if (!v) return; try { navigator.clipboard.writeText(v).then(() => flash('コピーしました'), () => flash(v)); } catch(err){ flash(v); } return; }
   else if (a === 'quick-chip'){   // the content goes into the box; the number keyboard opens for the amount (a tap on a chip is the one time the box takes focus by itself)
     const inp = document.getElementById('q-quick'), v = el.getAttribute('data-v'); if (!inp) return;
