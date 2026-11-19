@@ -919,7 +919,7 @@ async function shareSync(t){
     linkMe(t); refreshPics(t);
   } catch(e){
     if (e && e.status === 404){ result = 'gone'; unshare(t); flash('共有が終了しました。この端末には残っています。'); render(); }
-    else { result = 'offline'; const code = e && e.status ? e.status : 0, changed = syncErr[t.id] !== code; syncErr[t.id] = code; if (!sh.dirty){ sh.dirty = true; render(); } else if (changed) render(); }   // the number of the server's answer (0 = no answer at all) is kept, so a stuck 「同期待ち」 can say why
+    else { result = 'offline'; const code = e && e.status ? e.status : String((e && e.message) || e || 'エラー').slice(0, 40), changed = syncErr[t.id] !== code; syncErr[t.id] = code; if (!sh.dirty){ sh.dirty = true; render(); } else if (changed) render(); }   // the number of the server's answer (or, when none came, the error's own words: 'Load failed', a TypeError ...) is kept, so a stuck 「同期待ち」 can say why
   } finally {
     shareBusy[t.id] = false;
     if (shareAgain[t.id]){ shareAgain[t.id] = false; shareSoon(); }
@@ -2189,7 +2189,7 @@ document.addEventListener('touchend', () => {
     const t0 = Date.now(); let r = 'ok';
     try { r = t ? await shareSync(t) : 'ok'; } catch (e) { r = 'offline'; }
     await new Promise(res => setTimeout(res, Math.max(0, 600 - (Date.now() - t0))));
-    ptrHide(n); if (r === 'offline') flash(t && syncErr[t.id] ? 'サーバーが、うまく応答しませんでした（' + syncErr[t.id] + '）。しばらくして、もう一度、引いてください。' : 'つながりませんでした。あとで、もう一度、引いてください。');
+    ptrHide(n); if (r === 'offline') flash(t && syncErr[t.id] ? (typeof syncErr[t.id] === 'number' ? 'サーバーが、うまく応答しませんでした（' + syncErr[t.id] + '）。' : 'つながりませんでした（' + syncErr[t.id] + '）。') + 'しばらくして、もう一度、引いてください。' : 'つながりませんでした。あとで、もう一度、引いてください。');
   })();
 }, { passive: true });
 /* sheets: drag down to close (from the top of the sheet, or anywhere while its content is scrolled to the top); it closes the same way the close button does */

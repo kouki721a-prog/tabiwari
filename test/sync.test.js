@@ -137,3 +137,13 @@ console.log('received sync tests passed');
   rows[0].expenses[0].author = null; rows[0].expenses[0].made_at = null; rows[0].expenses[0].editor = null; rows[0].expenses[0].edited_at = null; rows[0].expenses[0].prev = null;
   assert.strictEqual(Object.prototype.hasOwnProperty.call(S.assemble(rows)[0].expenses[0], 'author'), false, 'a server answer without a history gives an expense without one'); }
 console.log('expense log sync tests passed');
+
+// 古いアプリが残した「前回の同期の記録」には、あとから足した表（received など）が無い。それでも、同期は止まらない（v137 の不具合の再発防止）
+{ const trip = { id: 't', name: 'n', start: '2026-11-09', end: '2026-11-10', budget: 1, paid: { 'b-a-100': true }, received: { 'b-a-100': true }, savings: { a: 5 }, members: [{ id: 'a', name: 'あ' }, { id: 'b', name: 'い' }], expenses: [] };
+  const old = S.flatten([{ ...trip, received: {} }]); delete old.received;   // what an app from before 受け取った saved
+  let ops; assert.doesNotThrow(() => { ops = S.diff(old, S.flatten([trip])); }, 'an old record without the table does not throw');
+  assert.deepStrictEqual(ops.map(o => o.table + ':' + o.kind), ['received:insert'], 'only the new confirmation goes out');
+  const older = { trips: old.trips, members: old.members, expenses: old.expenses };   // even fewer tables
+  assert.doesNotThrow(() => S.diff(older, S.flatten([trip])), 'and a record with only a few tables');
+  assert.doesNotThrow(() => S.diff({}, S.flatten([trip])), 'and an empty object'); }
+console.log('old sync record tests passed');
