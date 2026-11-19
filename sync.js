@@ -51,6 +51,7 @@
   /* ordered operations that turn `prev` into `next`: inserts (parents first), updates, deletes (children first) */
   function diff(prev, next) {
     prev = prev || empty();
+    ORDER.forEach(function (tb) { if (!prev[tb]) prev[tb] = {}; });   // a record saved by an older app has no table that was added later (e.g. received): treat it as empty, never stop the sync
     var ins = [], upd = [], del = [], gone = {};
     Object.keys(prev.trips).forEach(function (id) { if (!next.trips[id]) gone[id] = true; });
     ORDER.forEach(function (tb) {

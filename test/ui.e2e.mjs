@@ -448,12 +448,14 @@ try {
   { const c19 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c19.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); let mode = 500;
     await q.route('**/api/**', r => mode === 0 ? r.abort() : mode === 200 ? r.fulfill({ status: 200, json: { unchanged: true, rev: 1 } }) : r.fulfill({ status: mode, json: { error: 'x' } }));
     await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
-      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 'h'.repeat(64), name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [], share: { token: 'T'.repeat(40), me: 'a', rev: 0, snap: { trips: {}, members: {}, expenses: {}, settlements: {}, adjustments: {}, paid: {}, received: {}, savings: {} }, dirty: false },
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 'h'.repeat(64), name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [], share: { token: 'T'.repeat(40), me: 'a', rev: 0, snap: { trips: {}, members: {}, expenses: {}, settlements: {}, adjustments: {}, paid: {}, savings: {} }, dirty: false },   // a record from before 受け取った: it has no `received` table
         members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', date: t, split: ['a', 'b'] }] }] })); });
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]');
-    await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => document.body.innerText.includes('同期待ち（500）'), null, { timeout: 8000 });
+    mode = 200; assert.strictEqual(await q.evaluate(() => shareSync(trip())), 'ok', 'a record saved by an older app does not stop the sync'); mode = 500; await q.evaluate(() => shareSync(trip()));
+    await q.waitForFunction(() => document.body.innerText.includes('同期待ち（500）'), null, { timeout: 8000 });
     mode = 503; await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => document.body.innerText.includes('同期待ち（503）'), null, { timeout: 8000 });
-    mode = 0; await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => document.body.innerText.includes('同期待ち') && !/同期待ち（/.test(document.body.innerText), null, { timeout: 8000 });
+    mode = 0; await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => /同期待ち（[^0-9）][^）]*）/.test(document.body.innerText), null, { timeout: 8000 });   // no answer at all: the error's own words (Chromium: Failed to fetch, Safari: Load failed)
+    assert.ok(await q.evaluate(() => /(Failed to fetch|Load failed|NetworkError|aborted)/i.test(document.querySelector('.subrow').innerText)), 'the words of the failure are shown');
     mode = 200; await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => !document.body.innerText.includes('同期待ち'), null, { timeout: 8000 });
     assert.deepStrictEqual(qerrs, []); await c19.close(); }
   // 記録タブの予算カード: 主役は1つ（旅行中=今日の目安／準備中=積立／終了=使った合計）、バーは1本、カテゴリの内訳は1行にたたむ（押すとバーとチップが開く。絞り込み中は開いたまま）
