@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -333,3 +333,35 @@ assert.strictEqual(L.noteUrl('x'.repeat(10) + 'https://a.example/' + 'y'.repeat(
   assert.deepStrictEqual(L.prevOf({ ...a, title: 'x', parts: { a: 3 } }), { amount: 3000, payer: 'a', split: ['a', 'b'] }, 'only the money side');
   const sp = a.split; const p = L.prevOf(a); sp.push('c'); assert.deepStrictEqual(p.split, ['a', 'b'], 'a copy, not a reference'); }
 console.log('expense log logic tests passed');
+
+// ---- stamps (v146): worked out from the trip's own data
+{
+  const mem = [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'けんた' }, { id: 'c', name: 'みく' }];
+  const T = (o = {}) => ({ id: 't', name: '箱根', start: '2026-11-18', end: '2026-11-19', budget: 30000, members: mem, paid: {}, savings: {}, expenses: [], ...o });
+  const E = (id, cat, date, split, o = {}) => ({ id, title: 'x', amount: 3000, payer: 'a', cat, date, split, ...o });
+  const on = t => L.stampsOf(t).filter(x => x.on).map(x => x.id);
+  assert.strictEqual(L.stampsOf(T()).length, 10, 'ten stamps, always in the same order');
+  assert.deepStrictEqual(L.stampsOf(T()).map(x => x.id), ['food', 'transport', 'stay', 'sight', 'gift', 'first', 'all', 'save', 'settle', 'paid']);
+  assert.deepStrictEqual(on(T()), [], 'nothing recorded: no stamp');
+  let t = T({ expenses: [E('1', 'food', '2026-11-19', ['a', 'b', 'c']), E('2', 'food', '2026-11-18', ['a', 'b']), E('3', 'other', '2026-11-18', ['a', 'b'])] });
+  assert.deepStrictEqual(on(t), ['food', 'first', 'all'], 'a category, the first record, and a split with everyone');
+  assert.strictEqual(L.stampsOf(t).find(x => x.id === 'food').date, '2026-11-18', 'the date is the earliest record of that category');
+  assert.strictEqual(L.stampsOf(t).find(x => x.id === 'all').date, '2026-11-19', 'the date of the first split with everyone');
+  assert.ok(!on(T({ expenses: [E('1', 'stay', '2026-11-18', ['a', 'b'])] })).includes('all'), 'a split between two of three is not "everyone"');
+  assert.ok(on(T({ expenses: [E('1', 'stay', '2026-11-18', [])] })).includes('all'), 'no list of people means everyone (as the rest of the app reads it)');
+  assert.ok(!on(T({ members: [mem[0]], expenses: [E('1', 'stay', '2026-11-18', ['a'])] })).includes('all'), 'alone: nobody to split with');
+  assert.ok(!on(T({ savings: { a: 10000, b: 10000, c: 9999 } })).includes('save') && on(T({ savings: { a: 10000, b: 10000, c: 10000 } })).includes('save'), 'savings reach the budget');
+  assert.ok(!on(T({ budget: 0, savings: { a: 5 } })).includes('save'), 'no budget: no savings stamp');
+  const tr = { from: 'b', to: 'a', amount: 1000 };
+  const st1 = { id: 's1', n: 1, at: '2026-11-20', total: 3000, transfers: [tr] };
+  t = T({ expenses: [E('1', 'food', '2026-11-18', ['a', 'b'], { settleId: 's1' })], settlements: [st1] });
+  assert.deepStrictEqual(on(t).filter(x => x === 'settle' || x === 'paid'), ['settle'], 'settled but not paid yet');
+  assert.strictEqual(L.stampsOf(t).find(x => x.id === 'settle').date, '2026-11-20');
+  t.paid = { [L.payKey(1, tr)]: true };
+  assert.ok(on(t).includes('paid'), 'everyone paid');
+  assert.ok(!on({ ...t, settlements: [st1, { id: 's2', n: 2, at: '2026-11-21', total: 500, transfers: [{ from: 'c', to: 'a', amount: 500 }] }] }).includes('paid'), 'a later round is not paid yet');
+  // old or odd data does not throw
+  assert.doesNotThrow(() => L.stampsOf({ id: 'x', members: [], expenses: [] }) && L.stampsOf({ expenses: [{ cat: 'food', date: '2026-01-01' }] }), 'missing fields are fine');
+  assert.strictEqual(L.recapData(T({ expenses: [E('1', 'food', '2026-11-18', ['a', 'b'])] })).stamps.length, 2, 'the recap carries the earned stamps');
+  console.log('stamp logic tests passed');
+}

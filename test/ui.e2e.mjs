@@ -220,6 +220,42 @@ try {
     await p.goto('http://localhost:8797/'); await p.click('.trip'); await p.waitForSelector('#exp-list .sec h2');
     const r = await p.evaluate(async () => { const sc = document.querySelector('#app.fit>.scroll'), hs = [...document.querySelectorAll('#exp-list .sec>h2')]; sc.scrollTop = 520; await new Promise(r => setTimeout(r, 150)); return { top: sc.getBoundingClientRect().top, hs: hs.map(h => Math.round(h.getBoundingClientRect().top - sc.getBoundingClientRect().top)), st: sc.scrollTop }; });
     assert.ok(r.st > 300 && r.hs.some(v => v >= -1 && v <= 2), 'a date heading sits at the top of the scrolling list: ' + JSON.stringify(r)); await c.close(); }
+  { // stamps (v146): the row on the record tab, the stamp book, the "pressed" moment (once per stamp), reduce motion, the recap
+    const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }];
+    const seed = { id: 'st', name: '箱根', start: '2026-11-18', end: '2026-11-19', budget: 80000, members: ms, paid: {}, savings: { a: 26667, b: 26667, c: 26667 }, expenses: [
+      { id: 'e1', title: '新幹線', amount: 9800, payer: 'a', cat: 'transport', date: '2026-11-18', split: ['a', 'b', 'c'] }, { id: 'e2', title: 'ランチ', amount: 4200, payer: 'b', cat: 'food', date: '2026-11-18', split: ['a', 'b', 'c'] }, { id: 'e3', title: '旅館', amount: 36000, payer: 'c', cat: 'stay', date: '2026-11-18', split: ['a', 'b', 'c'] }] };
+    const open = async (opts = {}, store = null) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 }, ...opts }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
+      await q.addInitScript(([tr, st]) => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [tr] })); if (st != null) localStorage.setItem('tabiwari.stampseen', st); }, [seed, store]);
+      await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.stbar'); return q; };
+    let q = await open();
+    assert.ok((await q.innerText('.stbar')).replace(/\s+/g, ' ').includes('スタンプ 6/10'), 'transport, stay, food, the first record, "everyone" and the savings = 6: ' + await q.innerText('.stbar'));
+    await q.waitForTimeout(400); assert.strictEqual(await q.locator('.stpop').count(), 0, 'stamps that were already there do not pop when the trip is first opened');
+    await q.click('[data-a=stamps-open]'); await q.waitForSelector('.stgrid');
+    assert.strictEqual(await q.locator('.stgrid > div').count(), 10); assert.strictEqual(await q.locator('.stgrid .stp.off').count(), 4, 'four are still to come');
+    const book = await q.innerText('.sheet'); assert.ok(book.includes('旅のスタンプ') && book.includes('食事') && book.includes('お土産') && book.includes('まだ') && book.includes('11/18'), book);
+    await q.click('[data-a=close-sheet]'); await q.waitForFunction(() => !document.querySelector('.sheet'));
+    // recording a new kind of spending presses a stamp: it pops, goes away by itself, and the row counts it; the same kind again does not pop
+    await q.fill('#q-quick', 'お土産 3000円'); await q.press('#q-quick', 'Enter'); await q.waitForSelector('.stpop', { timeout: 2000 });
+    assert.ok((await q.innerText('.stpop')).includes('お土産のスタンプ'), 'the popped stamp is named'); assert.strictEqual(await q.getAttribute('.stpop', 'aria-hidden'), 'true');
+    assert.ok(await q.locator('.stbar').innerText().then(t => /スタンプ 7\/10/.test(t.replace(/\s+/g, ' '))), 'the row counts it');
+    await q.waitForFunction(() => !document.querySelector('.stpop'), null, { timeout: 3000 });
+    await q.fill('#q-quick', 'お土産 500円'); await q.press('#q-quick', 'Enter'); await q.waitForTimeout(700); assert.strictEqual(await q.locator('.stpop').count(), 0, 'the same stamp does not pop twice');
+    // "undo" and recording again does not pop it a second time either (the memory only grows)
+    assert.ok(await q.evaluate(() => JSON.parse(localStorage.getItem('tabiwari.stampseen')).st.includes('gift')), 'remembered on this device');
+    // the recap carries the stamps and still comes out as a picture
+    assert.ok(await q.evaluate(async () => { const blob = await makeRecap(trip()); return blob && blob.size > 5000 && recapData(trip()).stamps.length >= 7; }), 'the recap with stamps');
+    await q.context().close();
+    // a broken memory on the device is ignored; and a stamp that is new since the last visit pops
+    q = await open({}, '{not json'); await q.waitForTimeout(300); assert.strictEqual(await q.locator('.stpop').count(), 0, 'a broken memory does not break anything, and does not pop');
+    await q.context().close();
+    q = await open({}, JSON.stringify({ st: ['transport', 'stay', 'first', 'all', 'save'] })); await q.waitForSelector('.stpop', { timeout: 2000 }); assert.ok((await q.innerText('.stpop')).includes('食事のスタンプ'), 'a stamp not yet shown pops'); await q.context().close();
+    // "reduce motion": no pop (the count on the row still changes)
+    q = await open({ reducedMotion: 'reduce' }); await q.fill('#q-quick', '観光 1000円'); await q.press('#q-quick', 'Enter'); await q.waitForTimeout(800);
+    assert.strictEqual(await q.locator('.stpop').count(), 0, 'reduce motion: no pop'); assert.ok(/スタンプ 7\/10/.test((await q.innerText('.stbar')).replace(/\s+/g, ' ')), 'but the count changed'); await q.context().close();
+    // a trip with nothing recorded shows the row too, with none pressed
+    { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 } }), z = await c.newPage(); await z.addInitScript(t => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [t] })); }, { ...seed, expenses: [], savings: {} });
+      await z.goto('http://localhost:8797/'); await z.click('.trip'); await z.waitForSelector('.stbar'); assert.ok(/スタンプ 0\/10/.test((await z.innerText('.stbar')).replace(/\s+/g, ' ')), 'none yet'); assert.strictEqual(await z.locator('.stbar .stp:not(.off)').count(), 0); await c.close(); }
+  }
   { // the first page with the "add to the home screen" banner above it: it scrolls, nothing runs sideways, the banner and both buttons are there, on every phone size
     for (const [w, h] of [[390, 844], [390, 664], [375, 667], [320, 568]]){
       const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: w, height: h } }), q = await c.newPage(); await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
@@ -516,6 +552,7 @@ try {
     const f3 = await q.$eval('.ut button', e => parseFloat(getComputedStyle(e).fontSize)); assert.ok(Math.abs(f3 - 14 * 1.25) < 0.1, 'the text is 25% larger: ' + f3);
     await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow'); await q.click('[data-a=tab][data-t=exp]'); await q.waitForSelector('.swp');
     assert.ok(await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll when enlarged');
+    await q.evaluate(() => { document.querySelector('#app.fit>.scroll').scrollTop = 200; }); await q.waitForTimeout(200);   // the stamp row pushes the list down: bring the first row above the bottom bar
     { const cdp = await c15.newCDPSession(q), box = await q.locator('.swp .item').first().boundingBox(), y = box.y + box.height / 2, x0 = box.x + box.width - 40, shift = () => q.locator('.swp .item').first().boundingBox().then(r => r.x - box.x);
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
       for (let i = 1; i <= 6; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 - i * 15, y }] });
