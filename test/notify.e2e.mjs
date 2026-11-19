@@ -55,6 +55,9 @@ try {
   await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await see(d.p, 'この端末に通知する');
   try { await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]', { timeout: 4000 }); } catch (e) { console.log('DEBUG', await d.p.evaluate(async () => JSON.stringify({ state: await ntfState(), push: lineAcct.push && lineAcct.push.length, perm: Notification.permission, sw: !!(await navigator.serviceWorker.getRegistration()) })), (await d.p.locator('.sheet-body').innerText()).replace(/\n+/g, ' | ')); throw e; }
   await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]');
+  // 積立のお知らせ: 最初はオン。切ると、サーバーにも残る
+  await d.p.waitForSelector('[data-a=sv-toggle][aria-checked=true]'); await d.p.click('[data-a=sv-toggle]'); await d.p.waitForSelector('[data-a=sv-toggle][aria-checked=false]');
+  assert.strictEqual(await d.p.evaluate(async () => (await Line.me()).user.sv), false); await d.p.click('[data-a=sv-toggle]'); await d.p.waitForSelector('[data-a=sv-toggle][aria-checked=true]');
   // 立て替えのお知らせ: 最初はオフ。入れると、サーバーにも残る
   await d.p.waitForSelector('[data-a=adv-toggle][aria-checked=false]'); await d.p.click('[data-a=adv-toggle]'); await d.p.waitForSelector('[data-a=adv-toggle][aria-checked=true]');
   assert.strictEqual(await d.p.evaluate(async () => (await Line.me()).user.adv), true);

@@ -178,5 +178,30 @@ try {
   await ops(T3, [{ kind: 'insert', table: 'expenses', rows: Array.from({ length: 6 }, (_, i) => ({ id: 'bulk' + i, title: 'x', amount: 600, payer: 'p', cat: 'food', spent_on: '2026-11-19', split: ['p', 'q'] })) }]); await wait(800); assert.strictEqual(line.pushes.length, before, 'a bulk write (first sync, import) is not an advance');
   for (let i = 0; i < 6; i++) { await ops(T3, [adv('cap' + i, 600, ['p', 'q'])]); await wait(500); }
   const toQ = line.pushes.filter(x => x.to === 'U-q').length; assert.ok(toQ <= 5, 'at most 5 a day per person: ' + toQ); assert.strictEqual(toQ, 5, 'and the cap is reached');
+  // ---- 積立のお知らせ: 出発の1週間前(10時〜)と前日(12時〜)、共有の旅行で本人だと分かるときだけ、本人の分の「あと何円」だけ
+  const T4 = 'U'.repeat(40), cV = await login('U-sv', 'ためる'), cW = await login('U-sw', 'よそ');
+  const dV = newSub('sv-v'), dW = newSub('sv-w'); for (const [c, d] of [[cV, dV], [cW, dW]]) await j('/api/push/subscribe', { cookie: c, method: 'POST', body: { endpoint: d.endpoint, keys: d.keys } });
+  assert.strictEqual((await ops(T4, [{ kind: 'insert', table: 'trips', rows: [{ id: 'sv', name: '箱根', start_date: '2026-12-08', end_date: '2026-12-09', budget: 60000 }] },
+    { kind: 'insert', table: 'members', rows: [{ id: 'v', name: 'ためる', position: 0 }, { id: 'w', name: 'よそ', position: 1 }, { id: 'x', name: 'まだ', position: 2 }] },
+    { kind: 'insert', table: 'savings', rows: [{ member_id: 'v', amount: 7500 }, { member_id: 'w', amount: 20000 }] }])).status, 200);   // the goal is 60000 / 3 = 20000 each
+  assert.strictEqual((await link(cV, T4, 'v')).status, 200); assert.strictEqual((await link(cW, T4, 'w')).status, 200);
+  const backupShared = (c, token, name, start, end) => j('/api/backup', { cookie: c, method: 'PUT', body: { upsert: [{ id: 'h-' + token.slice(0, 8), item: { kind: 'shared', token, me: 'v', name, start, end } }] } });
+  assert.strictEqual((await backupShared(cV, T4, '箱根', '2026-12-08', '2026-12-09')).status, 200); assert.strictEqual((await backupShared(cW, T4, '箱根', '2026-12-08', '2026-12-09')).status, 200);
+  take(dV); take(dW);
+  await run('2026-12-01T09:30:00+09:00'); assert.strictEqual(take(dV).filter(m => m.title === '積立のお知らせ').length, 0, 'not before 10:00');
+  await run('2026-12-01T10:30:00+09:00'); const m7 = take(dV).filter(m => m.title === '積立のお知らせ');
+  assert.strictEqual(m7.length, 1); assert.strictEqual(m7[0].body, '箱根まで、あと7日です。あなたの積立は、あと 12,500円 で目標です。');
+  assert.strictEqual(take(dW).filter(m => m.title === '積立のお知らせ').length, 0, 'よそ already reached the goal: nothing');
+  await run('2026-12-01T11:30:00+09:00'); assert.strictEqual(take(dV).filter(m => m.title === '積立のお知らせ').length, 0, 'once a day per trip');
+  await run('2026-12-07T11:30:00+09:00'); assert.strictEqual(take(dV).filter(m => m.title === '積立のお知らせ').length, 0, 'the day before: not before 12:00');
+  await run('2026-12-07T12:30:00+09:00'); const m1 = take(dV).filter(m => m.title === '積立のお知らせ'); assert.strictEqual(m1.length, 1); assert.strictEqual(m1[0].body, '明日から「箱根」です。あなたの積立は、あと 12,500円 で目標です。');
+  assert.ok(!JSON.stringify(m7.concat(m1)).includes('20,000') && !JSON.stringify(m7.concat(m1)).includes('7,500'), 'nobody else\'s amount and not the saved amount itself');
+  // the switch, and the people it must not reach: an account that is not linked to a member
+  assert.strictEqual((await j('/api/push/settings', { cookie: cV, method: 'POST', body: { sv: 'no' } })).status, 400); assert.strictEqual((await j('/api/me', { cookie: cV })).data.user.sv, true, 'on by default');
+  assert.strictEqual((await j('/api/push/settings', { cookie: cV, method: 'POST', body: { sv: false } })).status, 200); assert.strictEqual((await j('/api/me', { cookie: cV })).data.user.sv, false);
+  await ops(T4, [{ kind: 'update', table: 'savings', rows: [{ member_id: 'w', amount: 5000 }] }]);
+  await run('2026-12-01T12:30:00+09:00'); assert.strictEqual(take(dV).filter(m => m.title === '積立のお知らせ').length, 0, 'switched off: nothing');
+  const cU = await login('U-su', 'つながない'), dU = newSub('sv-u'); await j('/api/push/subscribe', { cookie: cU, method: 'POST', body: { endpoint: dU.endpoint, keys: dU.keys } }); await backupShared(cU, T4, '箱根', '2026-12-08', '2026-12-09');
+  await run('2026-12-01T13:30:00+09:00'); assert.strictEqual(take(dU).filter(m => m.title === '積立のお知らせ').length, 0, 'not linked to a member: we do not know whose saving it is');
   console.log('official account push tests passed');
 } finally { srv.stop(); line.stop(); pushSrv.close(); }

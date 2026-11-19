@@ -54,8 +54,8 @@ assert.strictEqual(reminderMessage('nope', 'x'), null); assert.match(reminderMes
 // ---- when each reminder is due (Japan time)
 {
   const at = iso => jstParts(Date.parse(iso));
-  assert.deepStrictEqual(at('2026-12-01T09:30:00Z'), { today: '2026-12-01', tomorrow: '2026-12-02', yesterday: '2026-11-30', hour: 18 }, '09:30Z is 18:30 in Japan');
-  assert.deepStrictEqual(at('2026-12-31T15:30:00Z'), { today: '2027-01-01', tomorrow: '2027-01-02', yesterday: '2026-12-31', hour: 0 }, 'the day rolls over at 15:00Z');
+  assert.deepStrictEqual(at('2026-12-01T09:30:00Z'), { today: '2026-12-01', tomorrow: '2026-12-02', in7: '2026-12-08', yesterday: '2026-11-30', hour: 18 }, '09:30Z is 18:30 in Japan');
+  assert.deepStrictEqual(at('2026-12-31T15:30:00Z'), { today: '2027-01-01', tomorrow: '2027-01-02', in7: '2027-01-08', yesterday: '2026-12-31', hour: 0 }, 'the day rolls over at 15:00Z');
   const none = { total: 0, onToday: 0 }, some = { total: 3, onToday: 0 }, today = { total: 3, onToday: 1 };
   const T = (iso) => at(iso), trip = (start, end) => ({ start, end });
   assert.deepStrictEqual(dueKinds(trip('2026-12-02', '2026-12-04'), T('2026-12-01T09:00:00Z'), none), ['eve'], 'the evening before, from 18:00');
