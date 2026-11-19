@@ -109,7 +109,7 @@ try {
     for (let i = 0; i < 40 && !inbox.length; i++) await d.p.waitForTimeout(250);
     assert.strictEqual(inbox.length, 1, 'the one who owes is told as soon as the round is confirmed');
     const note = decrypt(await d.p.evaluate(() => window.__jwk), await d.p.evaluate(() => window.__auth), inbox.splice(0)[0].body);
-    assert.strictEqual(note.body, '通知テスト旅行の精算ができました。みくさんに 1,000円 を送ってください。'); assert.ok(note.url.includes('trip=' + info.id) && note.url.endsWith('tab=settle'), note.url);
+    assert.strictEqual(note.body, '通知テスト旅行の精算が確定しました。みくさんに 1,000円 を送ってください。'); assert.ok(note.url.includes('trip=' + info.id) && note.url.endsWith('tab=settle'), note.url);
     await d.p.evaluate(() => { ui.view = 'home'; ui.tripId = null; render(); });
     await d.p.evaluate(u => openFromUrl(u), note.url); await see(d.p, '第2回の精算'); assert.strictEqual(await d.p.evaluate(() => ui.view + '/' + ui.tab), 'trip/settle', 'tapping the notice opens that trip\'s settlement tab');
     await d.p.evaluate(() => { ui.sheet = { type: 'line-account', err: '', confirm: false, ntf: 'on' }; render(); });
