@@ -109,3 +109,15 @@ console.log('sync tests passed');
   const t2 = JSON.parse(JSON.stringify(t0)); t2.caps = {}; assert.strictEqual(S.diff(f0, S.flatten([t2])).length, 0, 'an empty object is the same as none');
   assert.deepStrictEqual(S.assemble([{ id: 't', name: 'n', start_date: '2026-11-09', end_date: '2026-11-10', budget: 1, caps: { food: 20000 }, trip_members: [{ id: 'a', name: 'あ', position: 0, user_id: null, status: 'joined' }] }])[0].caps, { food: 20000 });
   console.log('sync caps tests passed'); }
+
+// 受け取った（received）: the receiver's confirmation travels like paid; an app that never heard of it keeps working
+{ const t0 = { id: 't', name: 'n', start: '2026-11-09', end: '2026-11-10', budget: 1, paid: { 'b-a-100': true }, savings: {}, members: [{ id: 'a', name: 'あ' }, { id: 'b', name: 'い' }], expenses: [] };
+  const t1 = { ...t0, received: { 'b-a-100': true } }, snap0 = S.flatten([t0]);
+  assert.deepStrictEqual(S.diff(snap0, S.flatten([t1])).map(o => o.table + ':' + o.kind), ['received:insert'], 'a new confirmation is one insert');
+  assert.deepStrictEqual(S.diff(S.flatten([t1]), snap0).map(o => o.table + ':' + o.kind), ['received:delete'], 'and taking it back is one delete');
+  assert.strictEqual(S.diff(snap0, S.flatten([{ ...t0, received: {} }])).length, 0, 'no confirmation = the same as an older app that has none');
+  const back = S.assemble([{ id: 't', name: 'n', start_date: '2026-11-09', end_date: '2026-11-10', budget: 1, owner: null, trip_members: [{ id: 'a', name: 'あ', position: 0, user_id: null, status: 'joined' }], expenses: [], paid: [{ trip_id: 't', key: 'b-a-100' }], received: [{ trip_id: 't', key: 'b-a-100' }], savings: [] }]);
+  assert.deepStrictEqual(back[0].received, { 'b-a-100': true }); assert.strictEqual(S.diff(S.flatten(back), S.flatten([{ ...back[0] }])).length, 0, 'no phantom diff after a refresh');
+  const old = S.assemble([{ id: 't', name: 'n', start_date: '2026-11-09', end_date: '2026-11-10', budget: 1, owner: null, trip_members: [], expenses: [], paid: [], savings: [] }]); assert.deepStrictEqual(old[0].received, {}, 'a server answer without it is fine');
+}
+console.log('received sync tests passed');

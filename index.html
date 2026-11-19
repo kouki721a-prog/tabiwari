@@ -275,6 +275,7 @@ html,body{overscroll-behavior-x:none}
 .xhead span:first-child{color:var(--ink);font-weight:700}
 .xgroup .xfer .avs .av{width:28px;height:28px;font-size:calc(13px*var(--ts))}
 .xfer+.xfer{border-top:1px solid var(--line)}
+.xfer{flex-wrap:wrap}.rline{flex-basis:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:30px;padding:0 0 0 36px;font-size:calc(12px*var(--ts));color:var(--sub)}.rline .link{width:auto;flex:none;padding:4px 6px;font-size:calc(12px*var(--ts));font-weight:700;color:var(--ink)}.rbtn{flex:none;min-height:30px;padding:0 12px;border-radius:99px;background:var(--sun);color:var(--sun-ink);font:inherit;font-size:calc(13px*var(--ts));font-weight:700}
 .noteRow{padding:4px 12px!important;font-size:calc(13px*var(--ts));color:var(--sub)}.noteRow .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .list.xl{margin-top:8px}.xfer{padding:10px 12px}
 .xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:calc(13px*var(--ts));color:var(--sub)}.xnote .link{width:auto;flex:none;padding:6px 8px;font-size:calc(13px*var(--ts));font-weight:700;color:var(--ink)}.xnote>span:first-child{min-width:0;flex:1 1 auto;overflow-wrap:anywhere}.xnote .xact{display:flex;align-items:center;flex:none}.xnote a.link{text-decoration:underline;text-underline-offset:3px}.noteRow{margin-bottom:10px}
@@ -657,10 +658,11 @@ function sanitizeTrip(raw, newId){
     if (!a || !ID(a.id) || !D(a.at) || !a.nets || typeof a.nets !== 'object') return null;
     var nets = {}, ok = true; Object.keys(a.nets).slice(0, 12).forEach(function(k){ if (ids[k] && INT(a.nets[k], -1e9, 1e9)) nets[k] = a.nets[k]; else ok = false; });
     return ok ? { id: a.id, settleId: typeof a.settleId === 'string' && sids[a.settleId] ? a.settleId : null, nets: nets, note: S(a.note, 100), at: a.at } : null; }).filter(Boolean);
-  var paid = {}, savings = {};
+  var paid = {}, received = {}, savings = {};
   if (raw.paid && typeof raw.paid === 'object') Object.keys(raw.paid).slice(0, 500).forEach(function(k){ if (raw.paid[k] === true && k.length <= 200) paid[k] = true; });
+  if (raw.received && typeof raw.received === 'object') Object.keys(raw.received).slice(0, 500).forEach(function(k){ if (raw.received[k] === true && k.length <= 200) received[k] = true; });
   if (raw.savings && typeof raw.savings === 'object') members.forEach(function(m){ if (INT(raw.savings[m.id], 0, 1e9)) savings[m.id] = raw.savings[m.id]; });
-  var out = { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
+  var out = { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, received: received, savings: savings };
   if (nc) out.caps = caps;
   return out;
 }
@@ -789,7 +791,7 @@ function load(){
   try { const raw = localStorage.getItem(KEY); if (raw) s = JSON.parse(raw); } catch(e){}
   s = s || memories[KEY] || { trips: [] };
   s.trips = s.trips.filter(t => !isUntouchedSample(t));
-  s.trips.forEach(t => { t.paid = t.paid || {}; t.savings = t.savings || {}; t.settlements = t.settlements || []; t.adjustments = t.adjustments || []; });
+  s.trips.forEach(t => { t.paid = t.paid || {}; t.received = t.received || {}; t.savings = t.savings || {}; t.settlements = t.settlements || []; t.adjustments = t.adjustments || []; });
   return s;
 }
 function persist(){ memories[KEY] = state; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
@@ -883,7 +885,7 @@ const shareBusy = {}, shareAgain = {};
 function shareSoon(){ clearTimeout(shareSoon.t); shareSoon.t = setTimeout(() => shared().forEach(t => shareSync(t)), 80); }
 function unshare(t){ delete t.share; persist(); if (lineAcct.user) bkSoon(); }
 function applyRemote(t, r, rev){
-  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; if (r.caps) t.caps = r.caps; else delete t.caps; t.expenses = r.expenses; t.settlements = r.settlements || []; t.adjustments = r.adjustments || []; t.paid = r.paid; t.savings = r.savings;
+  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; if (r.caps) t.caps = r.caps; else delete t.caps; t.expenses = r.expenses; t.settlements = r.settlements || []; t.adjustments = r.adjustments || []; t.paid = r.paid; t.received = r.received || {}; t.savings = r.savings;
   t.share.rev = rev; t.share.snap = Sync.flatten([t]); persist();
 }
 /* push local changes (diff against what the server last had), then pull if somebody else changed it. Resolves 'ok' | 'offline' | 'gone'. */
@@ -1547,13 +1549,21 @@ function noteLine(t, id){   // how the receiver wants to be paid (the memo they 
   const url = noteUrl(m.note);
   return '<div class="xnote"><span>' + esc(m.name) + 'さんの受け取り方：' + esc(m.note) + '</span><span class="xact">' + (url ? '<a class="link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(m.name) + 'さんの受け取りリンクを開く">開く</a>' : '') + '<button class="link" data-a="copy-note" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'さんの受け取り方をコピー">コピー</button></span></div>';
 }
+/* 受け取りの確認（任意）: 「払った」が付いた送金に、受け取る人が「受け取った」を押せる。数え方（あと◯件・精算が済んだ）は、「払った」のまま */
+function recvLine(t, p, k){
+  if (!t.paid[k]) return '';
+  const mine = meId(t) === p.to, got = !!(t.received && t.received[k]);
+  if (got) return '<div class="rline"><span>受け取り確認済み</span>' + (mine ? '<button class="link" data-a="toggle-recv" data-k="' + esc(k) + '">取り消す</button>' : '') + '</div>';
+  return mine ? '<div class="rline"><span>' + esc(nameOf(t, p.from)) + 'さんが払ったと言っています</span><button class="rbtn" data-a="toggle-recv" data-k="' + esc(k) + '">受け取った</button></div>'
+    : '<div class="rline"><span>払った・受け取り待ち</span></div>';
+}
 function xferList(t, pays, n){
   const order = [], by = {};   // grouped by who receives; a receiver with two or more payers gets a header with the total
   pays.forEach(p => { if (!by[p.to]){ by[p.to] = []; order.push(p.to); } by[p.to].push(p); });
   const row = (p, grouped) => { const k = payKey(n, p), on = !!t.paid[k];
     return '<div class="xfer ' + (on ? 'done' : '') + (on && ui.justPaid === k ? ' pop' : '') + '"><span class="avs">' + av(t, p.from) + '</span>' +
       '<div class="names"><span class="nm">' + (grouped ? esc(nameOf(t, p.from)) : esc(nameOf(t, p.from)) + ' → ' + esc(nameOf(t, p.to))) + '</span></div><div class="amt">' + yen(p.amount) + '</div>' +
-      '<button class="paidbtn ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="' + (on ? '済みを取り消す' : '済みにする') + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? icon('check', 14) + '済み' : '<span class="ring" aria-hidden="true"></span>済み') + '</button></div>'; };
+      '<button class="paidbtn ' + (on ? 'on' : '') + '" data-a="toggle-paid" data-k="' + esc(k) + '" aria-label="' + (on ? '済みを取り消す' : '済みにする') + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? icon('check', 14) + '済み' : '<span class="ring" aria-hidden="true"></span>済み') + '</button>' + recvLine(t, p, k) + '</div>'; };
   return order.map(to => { const g = by[to];
     return (g.length > 1 ? '<div class="xgroup"><div class="xhead"><span>' + esc(nameOf(t, to)) + 'さんへ</span><span>合計 ' + yen(g.reduce((a, p) => a + p.amount, 0)) + '</span></div><div class="list">' + g.map(p => row(p, true)).join('') + '</div></div>'
       : '<div class="list xl">' + row(g[0], false) + '</div>') + noteLine(t, to); }).join('');
@@ -2353,7 +2363,7 @@ document.addEventListener('click', e => {
     else if (!d.me.trim() && !lineName()) d.err = 'あなたの名前を入力してください。メンバーの一覧に、この名前で表示されます。';
     else {
       const me = d.me.trim() || lineName(); state.me = me;
-      const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, savings: {}, settlements: [], adjustments: [],
+      const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, received: {}, savings: {}, settlements: [], adjustments: [],
         members: [Object.assign({ id: uid(), name: me, pos: 0 }, state.payNote ? { note: state.payNote } : {})], expenses: [] };
       const next = !!d.from;
       state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
@@ -2363,7 +2373,7 @@ document.addEventListener('click', e => {
   else if (a === 'make-demo'){   // a 3-person trip with a few receipts, to try settlement and payment requests alone
     const me = (ui.draft && ui.draft.me.trim()) || lineName() || state.me || 'あなた', today = todayStr(), ids = [uid(), uid(), uid()];
     const ex = (title, amount, payer, cat, split) => ({ id: uid(), title: title, amount: amount, payer: ids[payer], cat: cat, date: today, split: split.map(i => ids[i]) });
-    const nt = { id: uid(), name: 'テスト旅行', start: today, end: addDays(today, 1), budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
+    const nt = { id: uid(), name: 'テスト旅行', start: today, end: addDays(today, 1), budget: 50000, paid: {}, received: {}, savings: {}, settlements: [], adjustments: [],
       members: [{ id: ids[0], name: me, pos: 0 }, { id: ids[1], name: 'あおい', pos: 1 }, { id: ids[2], name: 'けんた', pos: 2 }],
       expenses: [ex('夕食', 9000, 0, 'food', [0, 1, 2]), ex('宿', 12000, 1, 'stay', [0, 1, 2]), ex('電車', 3000, 2, 'transport', [1, 2])] };
     state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'settle'; ui.draft = null;
@@ -2433,7 +2443,8 @@ document.addEventListener('click', e => {
   }
   else if (a === 'undo'){ const f = ui.undo; ui.toast = null; ui.undo = null; toastN++; if (f) f(); else render(); return; }
 
-  else if (a === 'toggle-paid'){ const k = el.getAttribute('data-k'); if (t.paid[k]){ delete t.paid[k]; ui.justPaid = null; } else { t.paid[k] = true; ui.justPaid = k; } save(); }
+  else if (a === 'toggle-paid'){ const k = el.getAttribute('data-k'); if (t.paid[k]){ delete t.paid[k]; if (t.received) delete t.received[k]; ui.justPaid = null; } else { t.paid[k] = true; ui.justPaid = k; } save(); }
+  else if (a === 'toggle-recv'){ const k = el.getAttribute('data-k'); t.received = t.received || {}; if (!t.paid[k]) return; if (t.received[k]) delete t.received[k]; else t.received[k] = true; save(); }
   else if (a === 'settle-ask'){ if (openItems(t).expenses.length || openItems(t).adjustments.length) ui.sheet = { type: 'settle-confirm', err: '' }; }
   else if (a === 'settle-go'){
     const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; save(); render(); flash('第' + n + '回の精算を確定しました'); return;

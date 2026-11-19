@@ -420,6 +420,23 @@ try {
     { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=終了した旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
+  // 受け取りの確認（任意）: 「払った」のあとに、受け取る人だけが「受け取った」を押せる。数え方（あと◯件）は、「払った」のまま
+  { const c16 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c16.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
+        members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'a', cat: 'food', date: t, split: ['a', 'b'] }] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('[data-a=toggle-paid]');   // あおい owes こうき (me) 2,000
+    assert.strictEqual(await q.locator('.rline').count(), 0, 'not paid yet: no confirmation line');
+    await q.click('[data-a=toggle-paid]'); await q.waitForSelector('.rline'); assert.ok((await q.innerText('.rline')).includes('あおいさんが払ったと言っています'), 'the receiver (me) is told who says they paid'); assert.strictEqual(await q.locator('.rline [data-a=toggle-recv]').count(), 1, 'and can confirm');
+    await q.click('.rline [data-a=toggle-recv]'); await q.waitForSelector('.rline .link');
+    assert.ok((await q.innerText('.rline')).includes('受け取り確認済み')); assert.deepStrictEqual(await q.evaluate(() => Object.keys(state.trips[0].received)), ['b-a-2000'], 'the confirmation is kept with the trip');
+    assert.deepStrictEqual(await q.evaluate(() => Object.keys(sanitizeTrip(JSON.parse(JSON.stringify(state.trips[0])), 'n').received)), ['b-a-2000'], 'a backup / restore keeps it');
+    await q.click('.rline .link'); await q.waitForSelector('.rline .rbtn'); assert.deepStrictEqual(await q.evaluate(() => Object.keys(state.trips[0].received)), [], 'taken back');
+    await q.click('.rline .rbtn'); await q.waitForSelector('.rline .link'); await q.click('[data-a=toggle-paid]'); await q.waitForTimeout(150); assert.deepStrictEqual(await q.evaluate(() => [Object.keys(state.trips[0].paid), Object.keys(state.trips[0].received)]), [[], []], 'un-checking 済み also clears the confirmation');
+    // the payer's own view: waiting, and no button
+    await q.evaluate(() => { const t = state.trips[0]; t.expenses = [{ id: 'e2', title: '宿', amount: 6000, payer: 'b', cat: 'stay', date: t.start, split: ['a', 'b'] }]; render(); }); await q.waitForSelector('[data-a=toggle-paid]'); await q.click('[data-a=toggle-paid]'); await q.waitForSelector('.rline');
+    assert.ok((await q.innerText('.rline')).includes('払った・受け取り待ち')); assert.strictEqual(await q.locator('[data-a=toggle-recv]').count(), 0, 'the payer has no confirm button');
+    assert.ok(await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll'); assert.deepStrictEqual(qerrs, []); await c16.close(); }
   // 文字の大きさ（設定）: 標準／少し大きく／大きく。選んだ大きさは残り、文字だけが大きくなって、画面は横にあふれず、指に付いてくる動きは、そのまま（指と同じだけ動く）
   { const c15 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', hasTouch: true }), q = await c15.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');

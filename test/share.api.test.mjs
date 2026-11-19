@@ -65,6 +65,12 @@ try {
   assert.strictEqual(r.status, 200);
   g = await call(A, 'GET', '/api/trip');
   assert.deepStrictEqual([g.body.trip.expenses.length, g.body.trip.trip_members.length, g.body.trip.paid.length, g.body.trip.savings[0].amount], [1, 1, 0, 7000]);
+  // 受け取った（received）: stored like paid, returned, taken back; an older app that never sends it changes nothing
+  r = await ops(A, [{ kind: 'insert', table: 'received', rows: [{ key: 'm2-m1-1800' }, { key: 'm2-m1-1800' }] }]); assert.strictEqual(r.status, 200);
+  g = await call(A, 'GET', '/api/trip'); assert.deepStrictEqual(g.body.trip.received.map(x => x.key), ['m2-m1-1800'], 'returned once (a repeated insert is harmless)');
+  assert.strictEqual((await ops(A, [{ kind: 'insert', table: 'received', rows: [{ key: '' }] }])).status, 400, 'an empty key is refused');
+  assert.strictEqual((await ops(A, [{ kind: 'update', table: 'savings', row: { member_id: 'm1', amount: 7000 } }])).status, 200); g = await call(A, 'GET', '/api/trip'); assert.strictEqual(g.body.trip.received.length, 1, 'an op that does not know about it leaves it alone');
+  assert.strictEqual((await ops(A, [{ kind: 'delete', table: 'received', row: { key: 'm2-m1-1800' } }])).status, 200); g = await call(A, 'GET', '/api/trip'); assert.strictEqual(g.body.trip.received.length, 0, 'taken back');
 
   // --- validation: one bad row rejects the whole request, nothing is applied
   const before = (await call(A, 'GET', '/api/trip')).body;
