@@ -420,13 +420,28 @@ try {
     { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=終了した旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
+  // はじめての人への小さな案内: ひとこと（支出が3件になるまで）と、左スワイプ（［わかった］・スワイプで見つけたら消える・精算済みだけなら出ない）
+  { const c14 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c14.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
+      if (!localStorage.getItem('tabiwari.v1')) localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
+        members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'b', cat: 'food', date: t, split: ['a', 'b'] }, { id: 'e2', title: '電車', amount: 1200, payer: 'a', cat: 'transport', date: t, split: ['a', 'b'] }] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]');
+    assert.ok((await q.innerText('body')).includes('「夕食 2000円」のように書いて［記録］'), 'the one-line entry is explained while there are few expenses'); assert.strictEqual(await q.locator('.swiphint').count(), 1, 'and the swipe is explained once');
+    assert.ok(await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll');
+    await q.click('[data-a=hint-swipe-no]'); await q.waitForTimeout(150); assert.strictEqual(await q.locator('.swiphint').count(), 0, '［わかった］ closes it'); assert.strictEqual(await q.evaluate(() => localStorage.getItem('tabiwari.hint.swipe')), '1');
+    await q.reload(); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); assert.strictEqual(await q.locator('.swiphint').count(), 0, 'and it stays closed');
+    await q.evaluate(() => { localStorage.removeItem('tabiwari.hint.swipe'); state.trips[0].expenses.push({ id: 'e3', title: '昼食', amount: 900, payer: 'a', cat: 'food', date: state.trips[0].start, split: ['a', 'b'] }); render(); }); await q.waitForTimeout(150);
+    assert.ok(!(await q.innerText('body')).includes('「夕食 2000円」のように書いて［記録］'), 'three expenses: the one-line entry hint is gone'); assert.strictEqual(await q.locator('.swiphint').count(), 1);
+    await q.evaluate(() => { state.trips[0].expenses.forEach(e => { e.settleId = 's1'; }); state.trips[0].settlements = [{ id: 's1', n: 1, at: '2026-01-01', total: 6100, transfers: [] }]; render(); }); await q.waitForTimeout(150);
+    assert.strictEqual(await q.locator('.swiphint').count(), 0, 'only settled expenses: nothing to swipe, no hint');
+    assert.deepStrictEqual(qerrs, []); await c14.close(); }
   // 共有していない旅行の精算タブ: 「共有すると、精算のお知らせが、LINEに届きます」の1行（共有していて・2人以上で・終わっていない旅行だけ）
   { const c13 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c13.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
       localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
         members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'b', cat: 'food', date: t, split: ['a', 'b'] }] }] })); });
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow');
-    assert.ok((await q.textContent('main, body')).includes('共有すると、精算のお知らせが、LINEに届きます'), 'an unshared trip with friends is told how to get the notices');
+    assert.ok((await q.innerText('body')).includes('共有すると、精算のお知らせが、LINEに届きます'), 'an unshared trip with friends is told how to get the notices');
     // (the share server is not there in this test, so a "shared" trip would be dropped by a render: ask the function directly)
     const hint = patch => q.evaluate(p => shareHint({ ...JSON.parse(JSON.stringify(state.trips[0])), ...p }), patch);
     assert.ok((await hint({})).includes('共有すると、精算のお知らせ'), 'the function gives the line for an unshared trip');
