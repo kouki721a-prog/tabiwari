@@ -404,6 +404,13 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .stpop{position:fixed;left:50%;top:38%;z-index:60;pointer-events:none;text-align:center;transform:translate(-50%,-50%) rotate(-8deg)}
 .stpop .stp{width:128px;height:128px;font-size:50px;border-width:4px;transform:none;margin:0 auto}.stpop .stp:after{inset:-12px;border-width:2px}
 .stpop-t{display:inline-block;margin-top:24px;background:var(--ink);color:var(--paper);border-radius:99px;padding:6px 16px;font-weight:600;font-size:15px;transform:rotate(8deg)}
+/* お問い合わせ (v147) */
+.ct-note{font-size:calc(12px*var(--ts));color:var(--sub);line-height:1.6;margin-top:6px}
+.ct-check{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 12px;margin-top:14px;font-size:calc(13px*var(--ts));line-height:1.5;color:var(--ink)}
+.ct-check i{flex:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);display:grid;place-items:center;font-style:normal;font-weight:700;color:var(--sun-ink);background:var(--card)}.ct-check[aria-checked=true] i{background:var(--sun);border-color:var(--sun)}
+.ct-item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 13px;margin-bottom:8px}.ct-item .bd{font-size:calc(14px*var(--ts));line-height:1.6;white-space:pre-wrap;word-break:break-word;margin-top:4px}.ct-item small{color:var(--sub);font-size:calc(12px*var(--ts));display:block;margin-top:4px;word-break:break-all}
+.ct-tag{display:inline-block;font-size:calc(11px*var(--ts));border-radius:99px;padding:1px 8px;background:var(--soft);margin-right:6px;font-weight:600}
+.ct-done{text-align:center;padding:36px 8px 20px}.ct-done .ok{margin:0 auto 18px;width:64px;height:64px;border-radius:50%;background:var(--sun);display:grid;place-items:center;font-size:28px;font-weight:700;color:var(--sun-ink)}
 @media (prefers-reduced-motion: no-preference){
   .sheet{animation:up .3s var(--ease)}
   .btn,.trip,.item,.chip,.cat,.tile,.iconbtn,.tab,.plus,.usage,.delrow,.link{transition:transform .12s ease-out}   /* pressed: a small sink, as in other apps */
@@ -826,6 +833,7 @@ const IC = {
   alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
   help:'<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
   send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
   pulse:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
   'bell-off':'<path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5"/><path d="M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M2 2l20 20"/>'
 };
@@ -1074,6 +1082,7 @@ async function lineInit(){
     if (m.user){ try { lineAcct.count = (await Line.backupGet()).items.length; } catch(e){} bkRun(); }
   } catch(e){ /* offline or no server: login simply is not offered */ }
   if (lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); else { lineAcct.waiting = false; }
+  if (location.hash === '#admin'){ try { history.replaceState(null, '', location.pathname + location.search); } catch(e){} ui.sheet = { type: 'admin-claim', err: '', busy: false, done: false }; }   // the operator's door: open the page with #admin on the end of the address
   render(); refreshNtfHome(); checkRemote(true); refreshAi();
 }
 async function lineLogin(){
@@ -1637,6 +1646,26 @@ function quickChips(t){
   const all = mine.concat(USUAL.filter(u => mine.indexOf(u) < 0)).slice(0, 8);
   return '<div class="qchips" role="group" aria-label="よく使う内容">' + all.map(k => '<button type="button" class="chip plain qchip" data-a="quick-chip" data-v="' + esc(k) + '">' + esc(k) + '</button>').join('') + '</div>';
 }
+/* ---- お問い合わせ (v147) ---- */
+const CT_KINDS = [['howto', '使い方'], ['bug', '不具合'], ['idea', 'ご要望'], ['other', 'その他']], CT_MAX = 1000, CT_MAIL = /^[^\s@]{1,64}@[^\s@.]+(\.[^\s@.]+)+$/;
+const deviceKind = () => /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : 'PC';
+const appVerP = () => new Promise(res => { try { caches.keys().then(ks => { const k = ks.filter(x => /^tabiwari-v\d+$/.test(x)).sort().pop(); res(k ? k.replace('tabiwari-', '') : ''); }, () => res('')); } catch(e){ res(''); } });
+async function ctCall(path, body){
+  try { const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); let d = null; try { d = await r.json(); } catch(e){} return { ok: r.ok, status: r.status, data: d }; }
+  catch(e){ return { ok: false, status: 0, data: null }; }
+}
+const ctCan = s => { const n = Array.from((s.body || '').trim()).length; return n > 0 && n <= CT_MAX && (s.reply !== 'mail' || CT_MAIL.test((s.contact || '').trim())); };
+const ctErr = r => r.status === 429 ? 'きょうは、これ以上送れません。あした、もう一度お試しください。' : r.status === 401 ? 'LINEでログインしてから、もう一度お試しください。' : r.status === 400 && r.data && r.data.error === 'bad_contact' ? 'メールアドレスを、確かめてください。' : r.status === 400 ? '内容を、確かめてください。' : '送れませんでした。通信を確かめて、もう一度お試しください。';
+async function ctSend(){
+  const s = ui.sheet; if (!s || s.type !== 'contact' || s.busy || !ctCan(s)) return;
+  s.busy = true; s.err = ''; render();
+  const r = await ctCall('/api/contact', { kind: s.kind, body: s.body.trim(), reply: s.reply, contact: s.reply === 'mail' ? s.contact.trim() : '', ver: s.info ? s.ver : '', device: s.info ? deviceKind() : '' });
+  if (ui.sheet !== s) return; s.busy = false; if (r.ok) s.done = true; else s.err = ctErr(r); render();
+}
+async function ctLoadInbox(){
+  const s = ui.sheet; const r = await ctCall('/api/contact/list'); if (ui.sheet !== s) return;
+  if (r.ok){ s.items = r.data.items || []; s.err = ''; } else { s.items = s.items || []; s.err = r.status === 403 ? '運営者のアカウントで、ログインしてください。' : '読み込めませんでした。もう一度お試しください。'; } render();
+}
 /* ---- stamps (v146) ---- */
 const STAMP_SEEN = 'tabiwari.stampseen';   // this device only: which stamps were already shown as "pressed" (per trip), so each pops once. Not synced, not in backups.
 const stampEl = (x, sm, i) => '<span class="stp' + (sm ? ' sm' : '') + (x.on ? '' : ' off') + '" style="--r:' + [-6, 5, -3, 7, -8][i % 5] + 'deg">' + x.k + '</span>';
@@ -1866,6 +1895,8 @@ function viewSheet(){
       (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener">' + ico('userplus') + '<div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「Tabiflow」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
       sec('文字の大きさ') + '<div class="list"><div class="item slim acc tsize" role="group" aria-label="文字の大きさ">' + [['1', '標準'], ['2', '少し大きく'], ['3', '大きく']].map(x => '<button type="button" class="lc" data-a="text-size" data-v="' + x[0] + '" aria-pressed="' + (textSize() === x[0]) + '">' + x[1] + '</button>').join('') + '</div></div>' +
       (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html">' + ico('doc') + '<div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
+      sec('サポート') + '<div class="list"><button class="item slim acc" data-a="contact-open">' + ico('mail') + '<div class="grow"><div class="t">ご意見・お問い合わせ</div><div class="sub sm">使い方・不具合・ご要望</div></div>' + chev + '</button>' +
+        (lineAcct.user && lineAcct.user.admin ? '<button class="item slim acc" data-a="inbox-open">' + ico('doc') + '<div class="grow"><div class="t">お問い合わせの一覧</div><div class="sub sm">運営者だけに表示されます</div></div>' + chev + '</button>' : '') + '</div>' +
       sec('このアプリについて') + '<div class="list"><div class="item slim acc"><span class="ico" aria-hidden="true"><img src="icons/icon-192.png" alt=""></span><div class="grow"><div class="t">Tabiflow</div><div class="sub sm">' + (s.ver ? '版 ' + esc(s.ver) : '旅行の予算管理と割り勘') + '</div></div></div></div>';
     foot = '';
   }
@@ -1928,6 +1959,39 @@ function viewSheet(){
     const canShare = !!(navigator.canShare && s.file && navigator.canShare({ files: [s.file] }));
     body = s.err ? '' : s.url ? '<img class="recap-img" src="' + s.url + '" alt="旅のまとめの画像">' : '<div class="sub" style="margin-top:14px">画像をつくっています…</div>';
     foot = err + (s.url ? (canShare ? '<button class="btn" data-a="recap-share">共有する</button>' : '<a class="btn" href="' + s.url + '" download="tabiwari-recap.png" style="text-align:center;text-decoration:none">画像を保存する</a><div class="sub sm" style="text-align:center;margin-top:6px">画像を長押しして、保存することもできます。</div>') : '') + '<button class="link" data-a="close-sheet">閉じる</button>';
+  }
+  if (s.type === 'contact'){
+    ttl = 'ご意見・お問い合わせ';
+    if (s.done){
+      body = '<div class="ct-done"><div class="ok" aria-hidden="true">✓</div><b style="font-size:calc(18px*var(--ts))">受け付けました</b><div class="ct-note" style="font-size:calc(13px*var(--ts));margin-top:10px">お問い合わせは、運営者に届きました。<br>返信が必要と選んだときは、選んだ方法で、お返事します。</div></div>';
+      foot = '<button class="btn" data-a="close-sheet">閉じる</button>';
+    } else {
+      const ch = (on, a2, v, label) => '<button type="button" class="chip plain ' + (on ? 'on' : '') + '" data-a="' + a2 + '" data-v="' + v + '" aria-pressed="' + on + '">' + label + '</button>';
+      const reps = [['none', '返信は要りません']].concat(lineAcct.user ? [['line', 'LINEで']] : []).concat([['mail', 'メールで']]), n = Array.from(s.body || '').length;
+      body = '<span class="lab" style="margin-top:6px">種類</span><div class="chips">' + CT_KINDS.map(k => ch(s.kind === k[0], 'ct-kind', k[0], k[1])).join('') + '</div>' +
+        '<span class="lab">内容</span><textarea class="field" id="ct-body" rows="5" maxlength="' + CT_MAX + '" aria-label="内容" style="resize:none" placeholder="' + (s.kind === 'bug' ? '例：精算の画面で、金額が合いません。' : s.kind === 'idea' ? '例：こんな機能がほしいです。' : '例：旅行を、友だちと共有するには？') + '">' + esc(s.body || '') + '</textarea><div class="ct-note" style="text-align:right" id="ct-count">' + n + ' / ' + CT_MAX + '</div>' +
+        '<span class="lab">返信が必要なとき（任意）</span><div class="chips">' + reps.map(r => ch(s.reply === r[0], 'ct-reply', r[0], r[1])).join('') + '</div>' +
+        (s.reply === 'mail' ? '<input class="field" id="ct-mail" type="email" inputmode="email" autocomplete="email" autocapitalize="none" aria-label="メールアドレス" placeholder="返信を受け取るメールアドレス" value="' + esc(s.contact || '') + '" style="margin-top:10px">' : '') +
+        (s.reply === 'line' ? '<div class="ct-note">LINEの表示名が、運営者に届きます。返信は、公式アカウントのトークで届きます。</div>' : '') +
+        '<button type="button" class="ct-check" data-a="ct-info" role="checkbox" aria-checked="' + !!s.info + '"><i aria-hidden="true">' + (s.info ? '✓' : '') + '</i><span>アプリの版と端末の種類を、一緒に送る<span class="ct-note" style="display:block;margin:0">原因を調べるためです。（' + (s.ver ? esc(s.ver) + '・' : '') + deviceKind() + '）</span></span></button>' +
+        '<div class="ct-note">旅行のデータや、お名前は、送りません。内容は、お問い合わせの対応のためだけに使います。</div>';
+      foot = (s.err ? '<div class="err" role="alert" style="margin:0 0 8px">' + esc(s.err) + '</div>' : '') + '<button class="btn" data-a="ct-send" id="ct-send"' + (ctCan(s) && !s.busy ? '' : ' disabled') + '>' + (s.busy ? '送っています…' : '送る') + '</button>';
+    }
+  }
+  if (s.type === 'contact-inbox'){
+    ttl = s.items ? 'お問い合わせ（' + s.items.length + '件）' : 'お問い合わせ';
+    const kn = k => (CT_KINDS.find(x => x[0] === k) || CT_KINDS[3])[1], when = at => { const d = new Date(at * 1000); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+    body = '<div class="ct-note" style="margin:0 0 10px">運営者だけに表示されます。</div>' + (s.items === null ? '<div class="sub">読み込んでいます…</div>' : s.items.length ? s.items.map(x =>
+      '<div class="ct-item"><span class="ct-tag">' + esc(kn(x.kind)) + '</span><small style="display:inline">' + when(x.at) + '</small><div class="bd">' + esc(x.body) + '</div><small>返信：' + (x.reply === 'mail' ? 'メール（<a href="mailto:' + esc(x.contact) + '">' + esc(x.contact) + '</a>）' : x.reply === 'line' ? 'LINE（' + esc(x.contact) + '）' : 'なし') + (x.ver || x.device ? '・' + esc([x.ver, x.device].filter(Boolean).join('・')) : '') + '</small>' +
+      '<button class="link" data-a="ct-del" data-id="' + esc(x.id) + '" style="width:auto;padding:6px 0;margin-top:2px">削除</button></div>').join('') : '<div class="empty">まだ、ありません。</div>');
+    foot = (s.err ? '<div class="err" role="alert" style="margin:0 0 8px">' + esc(s.err) + '</div>' : '') + '<button class="link" data-a="close-sheet">閉じる</button>';
+  }
+  if (s.type === 'admin-claim'){
+    ttl = '運営者の設定';
+    if (s.done){ body = '<div class="ct-done"><div class="ok" aria-hidden="true">✓</div><b style="font-size:calc(18px*var(--ts))">運営者として登録しました</b><div class="ct-note" style="font-size:calc(13px*var(--ts));margin-top:10px">お問い合わせが届くと、公式LINEでお知らせします。一覧は、設定の「お問い合わせの一覧」にあります。</div></div>'; foot = '<button class="btn" data-a="close-sheet">閉じる</button>'; }
+    else if (!lineAcct.user){ body = '<div class="sub" style="margin-top:14px">LINEでログインしてから、もう一度、このページを開いてください。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
+    else { body = '<div class="sub" style="margin-top:10px">Cloudflare に登録した、運営者の合言葉を入れてください。このアカウントが、運営者になります。</div><input class="field" id="adm-token" type="password" autocomplete="off" autocapitalize="none" aria-label="運営者の合言葉" placeholder="合言葉" style="margin-top:14px">';
+      foot = (s.err ? '<div class="err" role="alert" style="margin:0 0 8px">' + esc(s.err) + '</div>' : '') + '<button class="btn" data-a="adm-claim"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '確認しています…' : '運営者になる') + '</button><button class="link" data-a="close-sheet">やめる</button>'; }
   }
   if (s.type === 'stamps'){
     ttl = '旅のスタンプ'; const all = stampsOf(t), n = all.filter(x => x.on).length, md = d => Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
@@ -2004,6 +2068,7 @@ function newDraft(){ const d = todayStr(); return { name: '', start: d, end: add
 function readSheet(){
   const s = ui.sheet; if (!s) return;
   const g = id => document.getElementById(id);
+  if (s.type === 'contact'){ if (g('ct-body')) s.body = g('ct-body').value; if (g('ct-mail')) s.contact = g('ct-mail').value; }
   if (s.type === 'exp'){
     if (g('f-amount')) s.data.amount = g('f-amount').value;
     if (g('f-title')) s.data.title = g('f-title').value;
@@ -2051,6 +2116,7 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
 });
 document.addEventListener('input', e => {
+  if (e.target.id === 'ct-body' || e.target.id === 'ct-mail'){ const c = ui.sheet; if (c && c.type === 'contact'){ if (e.target.id === 'ct-body') c.body = e.target.value; else c.contact = e.target.value; const n = Array.from(c.body || '').length, cnt = document.getElementById('ct-count'), sb = document.getElementById('ct-send'); if (cnt) cnt.textContent = n + ' / ' + CT_MAX; if (sb) sb.disabled = !ctCan(c) || c.busy; } return; }
   if (e.target.id === 'q-quick'){ ui.quick = e.target.value; return; }
   if (e.target.id === 'q-exp'){ ui.q = e.target.value; const t = trip(), box = document.getElementById('exp-list'); if (t && box) box.innerHTML = expList(t, ui.q); return; }
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
@@ -2447,6 +2513,22 @@ document.addEventListener('click', e => {
     Line.deleteAccount().then(() => { ntfOff().catch(() => {}); ui.sheet = null; lineAcct.user = null; lineAcct.count = null; lsSet(BK_SIGS, null); render(); flash('アカウントを削除しました。この端末の旅行は、残っています'); },
       er => { if (ui.sheet) { ui.sheet.err = Line.errText(er); render(); } });
     return;
+  }
+  else if (a === 'contact-open'){
+    ui.sheet = { type: 'contact', back: s && s.type === 'app-settings' ? s : null, kind: 'howto', body: '', reply: 'none', contact: '', info: true, ver: '', err: '', busy: false, done: false }; const cur = ui.sheet;
+    appVerP().then(v => { if (ui.sheet === cur && v){ cur.ver = v; render(); } });
+  }
+  else if (a === 'ct-kind'){ readSheet(); s.kind = el.getAttribute('data-v'); }
+  else if (a === 'ct-reply'){ readSheet(); s.reply = el.getAttribute('data-v'); }
+  else if (a === 'ct-info'){ readSheet(); s.info = !s.info; }
+  else if (a === 'ct-send'){ readSheet(); ctSend(); return; }
+  else if (a === 'inbox-open'){ ui.sheet = { type: 'contact-inbox', back: s && s.type === 'app-settings' ? s : null, items: null, err: '' }; ctLoadInbox(); }
+  else if (a === 'ct-del'){
+    const cur = s, id2 = el.getAttribute('data-id'); ctCall('/api/contact/delete', { id: id2 }).then(r => { if (ui.sheet !== cur) return; if (r.ok){ cur.items = (cur.items || []).filter(x => x.id !== id2); cur.err = ''; } else cur.err = '削除できませんでした。もう一度お試しください。'; render(); }); return;
+  }
+  else if (a === 'adm-claim'){
+    const inp = document.getElementById('adm-token'), tok = inp ? inp.value : ''; if (!tok || s.busy) return; s.busy = true; s.err = ''; const cur = s; render();
+    ctCall('/api/admin/claim', { token: tok }).then(r => { if (ui.sheet !== cur) return; cur.busy = false; if (r.ok){ cur.done = true; if (lineAcct.user) lineAcct.user.admin = true; } else cur.err = r.status === 403 ? '合言葉が、違います。' : r.status === 429 ? '何度も間違えました。1時間ほど、あけてください。' : r.status === 503 ? 'サーバーに、運営者の合言葉が、まだ登録されていません。' : r.status === 401 ? 'LINEでログインしてから、もう一度お試しください。' : '確認できませんでした。もう一度お試しください。'; render(); }); return;
   }
   else if (a === 'stamps-open'){ ui.sheet = { type: 'stamps' }; }
   else if (a === 'join-paste'){ ui.sheet = { type: 'join-paste', err: '', text: '', busy: false }; }

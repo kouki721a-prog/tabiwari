@@ -47,7 +47,9 @@ const page = (title, msg, status = 200) => new Response(
 
 const cookieHeader = (token, req, maxAge) => 'tw_session=' + token + '; Path=/; HttpOnly; SameSite=Lax; Max-Age=' + maxAge + (new URL(req.url).protocol === 'https:' ? '; Secure' : '');
 
-async function userFrom(req, env) {
+export const ADMIN_KEY = 'admin_user';   // meta: the account that is the operator (set by /api/admin/claim)
+export const isAdmin = async (env, userId) => { const r = await env.DB.prepare('SELECT v FROM meta WHERE k = ?1').bind(ADMIN_KEY).first(); return !!r && r.v === userId; };
+export async function userFrom(req, env) {
   const m = /(?:^|;\s*)tw_session=([A-Za-z0-9_-]{20,80})/.exec(req.headers.get('Cookie') || '');
   if (!m) return null;
   return env.DB.prepare('SELECT u.id, u.name, u.picture, u.pic_share, u.settle_notif, u.over_notif, u.adv_notif, u.sv_notif FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?1 AND s.expires_at > ?2').bind(await sha256hex(m[1]), nowSec()).first();
@@ -146,7 +148,7 @@ export async function handleAccount(req, env, url) {
   const on = configured(env);
 
   if (p === '/api/ai/status' && method === 'GET') return aiStatus(env, on ? await userFrom(req, env) : null);
-  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name, settle: u.settle_notif !== 0, over: u.over_notif !== 0, adv: u.adv_notif === 1, sv: u.sv_notif !== 0, picture: u.picture || '', pic: u.pic_share !== 0 } : null, push: u ? (await getVapid(env)).publicKey : null }); }
+  if (p === '/api/me' && method === 'GET') { const u = on ? await userFrom(req, env) : null; return reply({ login: on, user: u ? { name: u.name, settle: u.settle_notif !== 0, over: u.over_notif !== 0, adv: u.adv_notif === 1, sv: u.sv_notif !== 0, picture: u.picture || '', pic: u.pic_share !== 0, admin: await isAdmin(env, u.id) } : null, push: u ? (await getVapid(env)).publicKey : null }); }
   if (!on) return reply({ error: 'not_configured' }, 503);
   if (p === '/api/ai/parse' && method === 'POST') return aiParse(req, env, await userFrom(req, env));
 
@@ -253,7 +255,7 @@ export async function handleAccount(req, env, url) {
     return reply({ ok: true });
   }
   if (p === '/api/account' && method === 'DELETE') {
-    await env.DB.batch(['backups', 'sessions', 'attempts', 'push_subs', 'notif_log', 'member_links', 'ai_usage'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)).concat(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id)));
+    await env.DB.batch(['backups', 'sessions', 'attempts', 'push_subs', 'notif_log', 'member_links', 'ai_usage', 'contacts'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)).concat(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id)));
     return reply({ ok: true }, 200, { 'Set-Cookie': cookieHeader('', req, 0) });
   }
   return reply({ error: 'not_found' }, 404);
