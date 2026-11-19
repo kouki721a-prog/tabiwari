@@ -139,7 +139,7 @@ try {
   const owe = [{ from: 'ma', to: 'md', amount: 2000 }, { from: 'mb', to: 'md', amount: 1000 }, { from: 'mc', to: 'md', amount: 500 }];
   await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q1', n: 1, at: '2026-11-20', total: 3500, transfers: owe }] }]);
   for (let i = 0; i < 40 && !line.pushes.length; i++) await wait(100); await wait(500);
-  assert.deepStrictEqual(line.pushes.map(x => [x.to, x.text]), [['U-ma', '【MEGURI】熱海の精算が確定しました。ディーさんに 2,000円 を送ってください。']], 'only the friend without the app notification gets a LINE message');
+  assert.deepStrictEqual(line.pushes.map(x => [x.to, x.text]), [['U-ma', '【Tabiflow】熱海の精算が確定しました。ディーさんに 2,000円 を送ってください。']], 'only the friend without the app notification gets a LINE message');
   assert.ok(/^[0-9a-f-]{36}$/.test(line.pushes[0].retryKey), 'a retry key makes a repeated request harmless');
   assert.strictEqual(take(dC).length, 1, 'シー got the app notification'); assert.ok(!line.pushes.some(x => x.to === 'U-mc'), 'and no second one by LINE');
   await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q1', n: 1, at: '2026-11-20', total: 3500, transfers: owe }] }]); await wait(700); assert.strictEqual(line.pushes.length, 1, 'not sent twice');
@@ -173,7 +173,7 @@ try {
   assert.strictEqual((await j('/api/me', { cookie: cQ })).data.user.adv, true); assert.strictEqual((await j('/api/me', { cookie: cR })).data.user.adv, false);
   await ops(T3, [adv('a2', 3000, ['p', 'q', 'r', 's'])]); await wait(1000);
   const gotS = await waitFor(dS); assert.strictEqual(gotS.length, 1, 'Ｓ (switch on, has a device) gets it in the app'); assert.ok(gotS[0].title.includes('立て替え') && gotS[0].body.includes('京都：はらうさんが 3,000円 を立て替えました。あなたの分は 750円 です。'), JSON.stringify(gotS));
-  assert.deepStrictEqual(line.pushes.map(x => x.to), ['U-q'], 'Ｑ (switch on, no device, a friend) gets it by LINE; Ｒ (switch off) and the payer get nothing'); assert.ok(line.pushes[0].text.startsWith('【MEGURI】京都：'));
+  assert.deepStrictEqual(line.pushes.map(x => x.to), ['U-q'], 'Ｑ (switch on, no device, a friend) gets it by LINE; Ｒ (switch off) and the payer get nothing'); assert.ok(line.pushes[0].text.startsWith('【Tabiflow】京都：'));
   await ops(T3, [adv('a3', 1000, ['p', 'q'])]); await wait(700); assert.strictEqual(line.pushes.length, 2, 'only the people in the split'); assert.ok(line.pushes[1].text.includes('あなたの分は 500円'));
   await ops(T3, [adv('a4', 1000, ['p', 'q'], { fixed: { q: 300 } })]); await wait(700); assert.ok(line.pushes[2].text.includes('あなたの分は 300円'), 'a fixed amount is respected: ' + line.pushes[2].text);
   await ops(T3, [adv('a5', 600, ['q', 's'])]); await wait(700); assert.strictEqual(line.pushes.length, 4, 'Ｑ again (a share of 300 yen)'); const g5 = await waitFor(dS); assert.strictEqual(g5.length, 1, 'Ｓ got a5 in the app (a2 was taken above)'); assert.ok(g5[0].body.includes('あなたの分は 300円'));

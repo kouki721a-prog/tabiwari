@@ -101,7 +101,7 @@ export async function deliver(env, tripId, events, nowSec = Math.floor(Date.now(
     }
     if (!delivered && viaLine) {   // no app notification got through: the official account, for people who added it as a friend
       budget--;
-      const st = await linePush(env, who.lineSub, '【MEGURI】' + e.msg.body, await uuidFrom(tripId + '|' + e.kind + '|' + who.userId));
+      const st = await linePush(env, who.lineSub, '【Tabiflow】' + e.msg.body, await uuidFrom(tripId + '|' + e.kind + '|' + who.userId));
       if (st === 'ok') { delivered = true; sent++; }
       else if (st === 'not_friend') await env.DB.prepare('UPDATE users SET friend_flag = 0 WHERE id = ?1').bind(who.userId).run();   // blocked or unfriended: ask again at the next login
     }

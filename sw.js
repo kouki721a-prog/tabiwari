@@ -29,7 +29,7 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data.json(); } catch (_) { d = { body: e.data ? e.data.text() : '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'MEGURI', { body: d.body || '', icon: 'icons/icon-192.png', tag: d.tag, data: { url: d.url || './' } }));
+  e.waitUntil(self.registration.showNotification(d.title || 'Tabiflow', { body: d.body || '', icon: 'icons/icon-192.png', tag: d.tag, data: { url: d.url || './' } }));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();

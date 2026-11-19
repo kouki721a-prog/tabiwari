@@ -4,7 +4,7 @@ import { runReminders } from './reminders.js';
 import { notifyOps, reachable, pictures } from './settlenotify.js';
 import { lineWebhook } from './linewebhook.js';
 
-/* MEGURI sharing API: Cloudflare Worker + D1.
+/* Tabiflow sharing API: Cloudflare Worker + D1.
    A shared trip is reachable only with its secret token (sent as `Authorization: Bearer <token>`).
    The database stores sha256(token) as the trip id, never the token itself, so a database leak does not
    reveal anyone's link. There are no accounts: whoever holds the link can read and write that one trip. */

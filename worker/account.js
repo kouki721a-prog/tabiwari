@@ -42,7 +42,7 @@ const page = (title, msg, status = 200) => new Response(
   `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>` +
   `<body style="font-family:-apple-system,'Hiragino Sans','Noto Sans JP',sans-serif;background:#eef2f7;color:#0e2238;margin:0;padding:48px 20px;text-align:center;line-height:1.7">` +
   `<h1 style="font-size:20px">${title}</h1><p style="color:#5b6b80">${msg}</p>` +
-  `<p><a href="/" style="display:inline-block;background:#ffc83d;color:#2a1d00;font-weight:700;padding:12px 24px;border-radius:14px;text-decoration:none">MEGURIに戻る</a></p></body></html>`,
+  `<p><a href="/" style="display:inline-block;background:#ffc83d;color:#2a1d00;font-weight:700;padding:12px 24px;border-radius:14px;text-decoration:none">Tabiflowに戻る</a></p></body></html>`,
   { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
 
 const cookieHeader = (token, req, maxAge) => 'tw_session=' + token + '; Path=/; HttpOnly; SameSite=Lax; Max-Age=' + maxAge + (new URL(req.url).protocol === 'https:' ? '; Secure' : '');
@@ -131,7 +131,7 @@ async function lineCallback(url, env) {
     else await env.DB.prepare('UPDATE users SET name=?, picture=?, last_login=? WHERE id=?').bind(name, picture, now, u.id).run();
     await saveFriendState(env, u.id, access_token, url.searchParams.get('friendship_status_changed'), now);   // never blocks the login
     await env.DB.prepare("UPDATE attempts SET status='done', user_id=? WHERE id=? AND status='pending'").bind(u.id, id).run();
-    return page('ログインできました', 'このページを閉じて、MEGURIのアプリに戻ってください。自動で、ログインが完了します。');
+    return page('ログインできました', 'このページを閉じて、Tabiflowのアプリに戻ってください。自動で、ログインが完了します。');
   } catch (e) {
     console.error('line login failed', e && e.message);
     return page('ログインできませんでした', 'LINEとの通信に失敗しました。しばらくしてから、もう一度お試しください。', 502);
@@ -206,7 +206,7 @@ export async function handleAccount(req, env, url) {
     const out = { sent: 0, failed: 0, gone: 0 };
     for (const x of subs) {
       try {
-        const st = await sendPush(env, vapid, origin ? origin.v : url.origin, x, { title: 'MEGURI：テスト通知', body: 'この通知が見えていれば、通知は正しく届いています。', url: './', tag: 'test' });
+        const st = await sendPush(env, vapid, origin ? origin.v : url.origin, x, { title: 'Tabiflow：テスト通知', body: 'この通知が見えていれば、通知は正しく届いています。', url: './', tag: 'test' });
         if (st >= 200 && st < 300) out.sent++;
         else if (st === 404 || st === 410) { out.gone++; await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ?1').bind(x.endpoint).run(); }
         else out.failed++;
