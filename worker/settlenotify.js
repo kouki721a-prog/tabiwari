@@ -57,7 +57,7 @@ async function noteLinePush(env, status) {
 }
 
 /* Push from the official account to a friend. 'ok' | 'not_friend' (blocked or never added: stop trying) | 'retry' */
-async function linePush(env, to, text, retryKey) {
+export async function linePush(env, to, text, retryKey) {
   try {
     const r = await fetch(lineApi(env) + '/v2/bot/message/push', { method: 'POST', headers: { Authorization: 'Bearer ' + env.LINE_OA_ACCESS_TOKEN, 'Content-Type': 'application/json', 'X-Line-Retry-Key': retryKey },
       body: JSON.stringify({ to, messages: [{ type: 'text', text }] }) });
@@ -66,7 +66,7 @@ async function linePush(env, to, text, retryKey) {
     return r.status === 400 || r.status === 403 ? 'not_friend' : 'retry';
   } catch (e) { await noteLinePush(env, 0); return 'retry'; }
 }
-const uuidFrom = async s => { const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join(''); return h.slice(0, 8) + '-' + h.slice(8, 12) + '-4' + h.slice(13, 16) + '-a' + h.slice(17, 20) + '-' + h.slice(20, 32); };
+export const uuidFrom = async s => { const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join(''); return h.slice(0, 8) + '-' + h.slice(8, 12) + '-4' + h.slice(13, 16) + '-a' + h.slice(17, 20) + '-' + h.slice(20, 32); };
 
 /* events: [{ member, kind, msg }]. Returns how many notifications went out. */
 export async function deliver(env, tripId, events, nowSec = Math.floor(Date.now() / 1000)) {

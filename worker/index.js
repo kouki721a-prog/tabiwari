@@ -3,6 +3,7 @@ import { ACCOUNT_SCHEMA, handleAccount, purgeAccountData } from './account.js';
 import { runReminders } from './reminders.js';
 import { notifyOps, reachable, pictures } from './settlenotify.js';
 import { lineWebhook } from './linewebhook.js';
+import { CONTACT_SCHEMA, handleContact, purgeContacts } from './contact.js';
 
 /* Tabiflow sharing API: Cloudflare Worker + D1.
    A shared trip is reachable only with its secret token (sent as `Authorization: Bearer <token>`).
@@ -21,7 +22,8 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS received (trip_id TEXT NOT NULL, key TEXT NOT NULL, PRIMARY KEY (trip_id, key))`,   // the receiver's 「受け取った」 (same key as paid)
   `CREATE TABLE IF NOT EXISTS savings (trip_id TEXT NOT NULL, member_id TEXT NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY (trip_id, member_id))`,
   `CREATE TABLE IF NOT EXISTS hits (k TEXT NOT NULL, w INTEGER NOT NULL, n INTEGER NOT NULL, t INTEGER NOT NULL, PRIMARY KEY (k, w))`,
-  ...ACCOUNT_SCHEMA
+  ...ACCOUNT_SCHEMA,
+  ...CONTACT_SCHEMA
 ];
 /* Columns added after the first release (CREATE TABLE IF NOT EXISTS does not add columns to an existing table). The order is kept. */
 const ALTERS = [
@@ -221,6 +223,8 @@ export default {
       if (env.TEST_HOOKS === '1' && url.pathname === '/api/_test/friend' && req.method === 'GET') { const u = await env.DB.prepare('SELECT friend_flag, friend_changed FROM users WHERE line_sub = ?').bind(url.searchParams.get('sub')).first(); return reply(u || {}); }   // tests only
       const acct = await handleAccount(req, env, url);
       if (acct) return acct;
+      const ct = await handleContact(req, env, url);
+      if (ct) return ct;
       const m = /^Bearer (\S+)$/.exec(req.headers.get('Authorization') || '');
       if (!m || !TOKEN.test(m[1])) return reply({ error: 'unauthorized' }, 401);
       const id = await sha256hex(m[1]);
@@ -249,6 +253,7 @@ export default {
     const now = Date.now();
     await env.DB.prepare('DELETE FROM hits WHERE t < ?').bind(Math.floor(now / 1000) - 2 * 86400).run();
     await purgeAccountData(env, Math.floor(now / 1000));
+    await purgeContacts(env, Math.floor(now / 1000)).catch(() => {});
     const old = await env.DB.prepare('SELECT id FROM trips WHERE updated_at < ? LIMIT 200').bind(now - RETENTION_DAYS * 86400000).all();
     for (const r of old.results) await env.DB.batch(wipe(env.DB, r.id));
   }
