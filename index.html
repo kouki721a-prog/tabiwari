@@ -58,6 +58,7 @@
   --ease:cubic-bezier(.22,1,.36,1);   /* one calm curve for every move: quick start, soft stop */
   --paper:#eef2f7; --card:#ffffff; --ink:#0e2238; --sub:#5b6b80; --line:#dde4ee; --soft:#e6ecf5;
   --navy:#0f2742; --sun:#ffc83d; --sun-ink:#2a1d00; --good:#17895c; --bad:#c2332d; --focus:#2f6fed;
+  --cream:#fffdf5; --dash:rgba(14,34,56,.26); --mono:ui-monospace,"SF Mono",Menlo,"DejaVu Sans Mono",monospace;   /* paper-ticket look (v148): cream paper, dashed perforations, tabular numbers */
   --tbs:85%; --tbl:92%; --tfs:55%; --tfl:30%;
   --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
   color-scheme:light;
@@ -65,13 +66,13 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#0a1626; --card:#12243a; --ink:#e9f0fa; --sub:#93a3b8; --line:#243750; --soft:#1a2f4a;
-    --navy:#17375e; --good:#4cc795; --bad:#ff7a73; --focus:#7aa2ff;
+    --navy:#17375e; --good:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
     --tbs:38%; --tbl:24%; --tfs:75%; --tfl:82%; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --paper:#0a1626; --card:#12243a; --ink:#e9f0fa; --sub:#93a3b8; --line:#243750; --soft:#1a2f4a;
-  --navy:#17375e; --good:#4cc795; --bad:#ff7a73; --focus:#7aa2ff;
+  --navy:#17375e; --good:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
   --tbs:38%; --tbl:24%; --tfs:75%; --tfl:82%; color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -165,24 +166,34 @@ html,body{overscroll-behavior-x:none}
 .home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
 .home0>*{flex:none}
 /* the first page (no trip yet): a page to read, not one screen. Hero, the three moments with real screens, the settle-up features, notifications, how to start, FAQ. */
-.lp-hero{text-align:center;padding:22px 0 8px}
-.lp-eyebrow{display:inline-block;font-size:calc(12px*var(--ts));color:var(--sub);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:3px 12px}
-.lp-h{font-size:calc(27px*var(--ts));line-height:1.4;margin:14px 0 10px;font-weight:700}.lp-h em{font-style:normal;background:linear-gradient(transparent 62%,rgba(255,200,61,.55) 62%)}
-.lp-lead{color:var(--sub);font-size:calc(14px*var(--ts));line-height:1.7;margin:0 0 18px}
-.home0-tags{text-align:center;color:var(--ink);font-size:calc(13px*var(--ts));margin:12px 0 0;white-space:nowrap}
-.lp-flow{list-style:none;display:flex;gap:6px;margin:22px 0 0;padding:0}.lp-flow li{flex:1;background:var(--navy);color:#fff;border-radius:14px;padding:10px 4px;font-size:calc(12px*var(--ts));line-height:1.35}.lp-flow b{display:block;font-size:calc(14px*var(--ts));color:var(--sun)}
-.lp-sec{padding:30px 0 4px}.lp-sec h2{font-size:calc(20px*var(--ts));margin:0 0 6px;text-align:center;font-weight:700}.lp-sub{font-size:calc(13px*var(--ts));color:var(--sub);text-align:center;margin:0 0 16px}
-.lp-stage{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px;margin-bottom:12px}.lp-stage small{color:var(--sub);font-size:calc(12px*var(--ts));display:flex;align-items:center;gap:6px}
-.lp-stage .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--sun);color:var(--sun-ink);font-weight:700;font-size:12px}
-.lp-stage h3{margin:2px 0 4px;font-size:calc(17px*var(--ts))}.lp-stage p{margin:0 0 10px;font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.6}
-.lp-stage img{display:block;width:100%;height:auto;border-radius:12px;background:#eef2f7}
-.lp-feat{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lp-feat div{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px}.lp-feat b{display:block;font-size:calc(14px*var(--ts));margin-bottom:2px}.lp-feat span{display:block;font-size:calc(12px*var(--ts));color:var(--sub);line-height:1.55}
-.lp-note{border-radius:20px;padding:14px 16px;margin-bottom:10px;background:var(--card);border:1px solid var(--line)}.lp-note>b{font-size:calc(13px*var(--ts))}
-.lp-note.line{background:rgba(6,199,85,.09);border-color:rgba(6,199,85,.3)}.lp-note.line>b{color:var(--good)}
+.lp-hero{padding:20px 0 6px}
+.lp-eye{font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub);text-transform:uppercase}
+.lp-h{font-size:calc(31px*var(--ts));line-height:1.38;margin:8px 0 12px;font-weight:700}
+.lp-lead{color:var(--sub);font-size:calc(14px*var(--ts));line-height:1.75;margin:0 0 22px}
+.home0-tags{text-align:left;color:var(--sub);font-size:calc(12.5px*var(--ts));margin:12px 0 0;white-space:nowrap}
+/* the sample trip ticket in the hero: cream paper, a perforation with a notch at both ends, a barcode, and a pressed stamp */
+.lp-tk{position:relative;background:var(--cream);color:var(--ink);border-radius:14px;margin:6px 0 22px;box-shadow:0 1px 0 var(--dash)}
+.lp-tk-top{padding:16px 18px 14px}.lp-tk-hd{display:flex;justify-content:space-between;font-family:var(--mono);font-size:calc(10.5px*var(--ts));letter-spacing:.14em;color:var(--sub);margin-bottom:12px}
+.lp-tk-grid{display:grid;grid-template-columns:1fr auto;gap:12px 16px}.lp-tk small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.lp-tk b{font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums}
+.lp-tk-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.lp-tk-bot:before,.lp-tk-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.lp-tk-bot:before{left:0;border-radius:0 11px 11px 0}.lp-tk-bot:after{right:0;border-radius:11px 0 0 11px}   /* half discs, inside the ticket: nothing sticks out sideways */
+.lp-bars{display:block;flex:1;max-width:150px;height:32px;opacity:.85;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 5px,var(--ink) 5px 6px,transparent 6px 10px,var(--ink) 10px 14px,transparent 14px 17px,var(--ink) 17px 19px,transparent 19px 22px)}
+.lp-tk-stamp{position:absolute;right:16px;top:-16px;width:60px;height:60px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:calc(24px*var(--ts));color:#0f2742;border:2.5px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(10deg);box-shadow:inset 0 0 0 3px rgba(255,255,255,.55)}.lp-tk-stamp:after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed #0f2742;opacity:.5}
+.lp-sec{padding:34px 0 4px}.lp-sec h2{font-size:calc(20px*var(--ts));margin:2px 0 6px;font-weight:700}.lp-sub{font-size:calc(13px*var(--ts));color:var(--sub);margin:0 0 14px}
+/* the route: a dashed line with a numbered stop for each moment of the trip */
+.lp-rail{position:relative;margin-top:16px;padding-left:38px}.lp-rail:before{content:"";position:absolute;left:11px;top:8px;bottom:8px;border-left:2px dashed var(--dash)}
+.lp-stage{position:relative;margin-bottom:26px}.lp-stage .n{position:absolute;left:-38px;top:0;width:24px;height:24px;border-radius:50%;background:var(--sun);color:var(--sun-ink);font-weight:700;font-size:12px;display:grid;place-items:center;border:2px solid var(--paper);box-shadow:0 0 0 2px var(--ink)}
+.lp-stage small{font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.12em;color:var(--sub)}.lp-stage h3{margin:2px 0 4px;font-size:calc(18px*var(--ts))}.lp-stage p{margin:0 0 10px;font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.6}
+.lp-stage img{display:block;width:100%;height:auto;border-radius:8px;background:var(--paper)}.lp-shot{background:var(--cream);border-radius:12px;padding:8px;box-shadow:0 1px 0 var(--dash)}
+/* the details: a receipt, a dotted leader between the name and its note */
+.lp-feat{background:var(--cream);border-radius:12px;border-top:3px dashed var(--dash);padding:8px 18px 10px;box-shadow:0 1px 0 var(--dash)}
+.lp-feat .ln{display:flex;align-items:baseline;gap:6px;padding:8px 0;font-size:calc(14px*var(--ts))}.lp-feat .ln b{font-weight:600;white-space:nowrap}.lp-feat .ln i{flex:1;min-width:8px;border-bottom:2px dotted var(--dash);transform:translateY(-3px)}.lp-feat .ln span{color:var(--sub);font-size:calc(13px*var(--ts));text-align:right}
+.lp-note{border-radius:16px;padding:14px 16px;margin-bottom:10px;background:var(--cream);box-shadow:0 1px 0 var(--dash)}.lp-note>b{font-size:calc(13px*var(--ts))}
+.lp-note.line{background:rgba(6,199,85,.09);box-shadow:none}.lp-note.line>b{color:var(--good)}
 .lp-bub{background:var(--card);border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:calc(13px*var(--ts));line-height:1.6;margin-top:8px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.lp-steps{list-style:none;margin:0;padding:0}.lp-steps li{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);font-size:calc(14px*var(--ts));line-height:1.6}
-.lp-steps .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-weight:700}
-.lp-faq details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;font-size:calc(14px*var(--ts))}.lp-faq summary{font-weight:600;cursor:pointer}.lp-faq p{margin:6px 0 0;color:var(--sub);font-size:calc(13px*var(--ts));line-height:1.6}
+.lp-steps{list-style:none;margin:0;padding:0}.lp-steps li{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1.5px dashed var(--dash);font-size:calc(14px*var(--ts));line-height:1.6}.lp-steps li:last-child{border-bottom:1.5px dashed var(--dash)}
+.lp-steps .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;font-weight:700;font-size:13px}
+.lp-faq details{border-top:1.5px dashed var(--dash);padding:12px 0;font-size:calc(14px*var(--ts))}.lp-faq details:last-of-type{border-bottom:1.5px dashed var(--dash)}.lp-faq summary{font-weight:600;cursor:pointer}.lp-faq p{margin:6px 0 0;color:var(--sub);font-size:calc(13px*var(--ts));line-height:1.6}
 .lp-cta{padding:24px 0 4px}
 .home0-note-sub{color:var(--sub);font-size:calc(11.5px*var(--ts));margin-top:3px}
 .home0-note{border:1px solid var(--line);border-radius:14px;padding:9px 12px;font-size:calc(12.5px*var(--ts));line-height:1.5;color:var(--ink);margin:14px 2px 8px}.home0-note b{display:block}
@@ -392,12 +403,24 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 @media (max-height:640px){.qchips{display:none}}
 #ptr{position:fixed;left:50%;top:0;width:40px;height:40px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:5;pointer-events:none;opacity:0}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--ts));border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
+/* the budget card as a boarding pass (v148): the main part, a perforated stub on the right, a notch at both ends of the perforation */
+.ticket.m.stub{display:flex;position:relative;--stub:calc(112px*var(--ts));border-radius:16px}
+.ticket.m.stub .tk-l{flex:1;min-width:0}.ticket.m.stub .t-top{padding:11px 12px 6px 18px}
+.ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
+.ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
+.tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
+.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
+.ticket.m.stub:before,.ticket.m.stub:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.ticket.m.stub:before{top:-9px}.ticket.m.stub:after{bottom:-9px}
+/* the record list as paper: cream, a dashed line between rows, small tabular dates */
+#exp-list .sec>h2{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.04em;font-weight:500;color:var(--sub)}#exp-list .sec>h2 span{font-family:var(--mono);font-weight:500}
+#exp-list .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
+#exp-list .list .item,#exp-list .list>.item+.swp,#exp-list .list>.swp+.item{border-top:1.5px dashed var(--dash)}#exp-list .list>:first-child .item,#exp-list .list>.item:first-child{border-top:0}
 /* stamps (v146): one accent colour (the yellow), navy ink; a little tilt so they look pressed by hand */
 .stp{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;position:relative;color:#0f2742;font-weight:700;font-size:calc(21px*var(--ts));border:2.5px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(var(--r,-6deg));box-shadow:inset 0 0 0 3px rgba(255,255,255,.55);flex:none}
 .stp:after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed #0f2742;opacity:.55}
 .stp.off{background:transparent;border:2px dashed var(--sub);color:var(--sub);box-shadow:none;transform:none;font-weight:600;opacity:.55}.stp.off:after{display:none}
 .stp.sm{width:30px;height:30px;font-size:calc(13px*var(--ts));border-width:2px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}.stp.sm:after{display:none}
-.stbar{width:100%;display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:9px 12px;margin:10px 0 2px;text-align:left;color:var(--ink)}
+.stbar{width:100%;display:flex;align-items:center;gap:10px;background:transparent;border:1.5px dashed var(--dash);border-radius:16px;padding:9px 12px;margin:10px 0 2px;text-align:left;color:var(--ink)}
 .strow{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden}.sttxt{text-align:right;flex:none}.sttxt b{font-size:calc(13px*var(--ts))}.sttxt small{display:block;color:var(--sub);font-size:calc(12px*var(--ts))}
 .stgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px 4px;padding:18px 0 8px;text-align:center}.stgrid>div{display:flex;flex-direction:column;align-items:center;gap:6px}.stgrid .stp{margin:6px}
 .stgrid>div>span:last-child{font-size:calc(11px*var(--ts));line-height:1.3}.stgrid small{display:block;font-size:calc(10px*var(--ts));color:var(--sub)}
@@ -1352,25 +1375,26 @@ function viewHomeEmpty(){
   const stages = [['1', '出発前', 'みんなで積立', 'ひとりずつ、あといくらかが見えます。出発が近づくと、お知らせも届きます。', 'save', '積立の画面。みんなの積立が16,000円。', 222],
     ['2', '旅行中', '今日の目安と、ひとことの記録', '今日あといくら使えるかが分かります。「夕食 2000円」と書くだけで、記録できます。', 'exp', '今日の目安が12,000円。ひとことで記録する欄。', 266],
     ['3', '旅行後', '割り勘は、自動で精算', '誰が誰にいくらかを、自動で計算します。払う人には、お知らせが届きます。', 'settle', '精算の画面。あおいさん 8,367円、けんたさん 6,766円。', 224]];
-  const feats = [['一部の人だけの割り勘', '「この2人だけ」の支払いも、正しく。'], ['割合・金額の指定', '食べた量や飲んだ量に合わせて、多め・少なめに。'], ['レシートの写真', '店名と合計を、読み取ります。'], ['受け取りの確認', '「払った」「受け取った」を、お互いに。'], ['変更の履歴', '誰がいつ変えたかが、残ります。'], ['まとめ画像', '旅の終わりに、レシート風の画像に。']];
+  const feats = [['一部の人だけの割り勘', '人ごとに選べる'], ['割合・金額', '多め・少なめに'], ['レシートの写真', '店名と合計を読む'], ['受け取りの確認', '払った・受け取った'], ['変更の履歴', '誰がいつ'], ['まとめ画像', 'レシート風']];
   const steps = ['旅行をつくる（名前・日付・予算・メンバー）', '共有リンクを、LINEで友だちに送る', '旅行中は、払った人が記録する', '最後に「精算」を開いて、表示のとおりに送金する'];
   const faq = [['料金は、かかりますか？', '無料で使えます。'], ['登録やインストールは、必要ですか？', '要りません。ブラウザで開くだけです。ホーム画面に追加すると、すぐ開けて、お知らせも届きます。'], ['お金を、アプリで送れますか？', '送れません。記録と計算だけです。送金は、いつものやり方で。'], ['データは、どこに保存されますか？', 'この端末に保存されます。LINEでログインすると、バックアップされて、端末を替えても戻せます。']];
   let line = '';
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line">' + (isStandalone() ? '<div class="sub sm">LINEでログインすると、通知とバックアップを使えます。</div>' : '') + '<button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
+  const ticket = '<div class="lp-tk" aria-hidden="true"><div class="lp-tk-top"><div class="lp-tk-hd"><span>TRIP TICKET</span><span>SAMPLE</span></div><div class="lp-tk-grid"><div><small>行き先</small><b>箱根 1泊2日</b></div><div><small>日程</small><b>11/18 – 19</b></div><div><small>メンバー</small><b>あおい・けんた・みく</b></div><div><small>予算</small><b>80,000円</b></div></div></div>' +
+    '<div class="lp-tk-bot"><div><small>1人あたり</small><b>26,667円</b></div><i class="lp-bars"></i></div><span class="lp-tk-stamp">初</span></div>';
   return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + remoteCard() + installBanner() +
-    '<div class="lp-hero"><span class="lp-eyebrow">友だち・カップルの国内旅行に</span><h2 class="lp-h">旅のお金を、<br><em>前から後まで</em>、ひとつに。</h2><p class="lp-lead">積立、旅行中の1日の目安、割り勘、精算まで。<br>お知らせつきで、お金の不安をなくします。</p>' +
+    '<div class="lp-hero"><div class="lp-eye">Money · Before / During / After</div><h2 class="lp-h">旅のお金を、<br>前から後まで、<br>ひとつに。</h2><p class="lp-lead">積立、旅行中の1日の目安、割り勘、精算まで。<br>友だち・カップルの国内旅行のために。</p>' + ticket +
     '<button class="btn" data-a="new">旅行をつくる</button><button class="btn line" data-a="join-paste" style="margin-top:10px">友だちに招待された方は、こちら</button>' +
-    '<div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div>' +
-    '<ol class="lp-flow" aria-label="旅の流れ">' + flow.map(x => '<li><b>' + x[0] + '</b>' + x[1] + '</li>').join('') + '</ol></div>' +
-    '<section class="lp-sec"><h2>旅の流れに、そのまま</h2><p class="lp-sub">3つの場面を、ひとつのアプリでつなぎます。</p>' +
-      stages.map(x => '<div class="lp-stage"><small><span class="n" aria-hidden="true">' + x[0] + '</span>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div>').join('') + '</section>' +
-    '<section class="lp-sec"><h2>割り勘が、ラクになるところ</h2><p class="lp-sub">もめやすい所を、ていねいに。</p><div class="lp-feat">' + feats.map(x => '<div><b>' + x[0] + '</b><span>' + x[1] + '</span></div>').join('') + '</div></section>' +
-    '<section class="lp-sec"><h2>お知らせで、忘れない</h2><p class="lp-sub">アプリを開かなくても、気づけます。</p>' +
+    '<div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div></div>' +
+    '<section class="lp-sec"><div class="lp-eye">Route</div><h2>旅の流れに、そのまま</h2><div class="lp-rail">' +
+      stages.map(x => '<div class="lp-stage"><span class="n" aria-hidden="true">' + x[0] + '</span><small>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><div class="lp-shot"><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div></div>').join('') + '</div></section>' +
+    '<section class="lp-sec"><div class="lp-eye">Details</div><h2>割り勘の、明細</h2><div class="lp-feat">' + feats.map(x => '<div class="ln"><b>' + x[0] + '</b><i></i><span>' + x[1] + '</span></div>').join('') + '</div></section>' +
+    '<section class="lp-sec"><div class="lp-eye">Notice</div><h2>お知らせで、忘れない</h2><p class="lp-sub">アプリを開かなくても、気づけます。</p>' +
       '<div class="lp-note line"><b>LINEの公式アカウントから（精算の確定・立て替え）</b><div class="lp-bub">【' + APP_NAME + '】熱海の精算が確定しました。けんたさんに 2,000円 を送ってください。</div></div>' +
       '<div class="lp-note"><b>アプリの通知（積立・記録のし忘れ）</b><div class="lp-bub">箱根まで、あと7日です。あなたの積立は、あと 16,667円 で目標です。</div></div></section>' +
-    '<section class="lp-sec"><h2>はじめ方</h2><ol class="lp-steps">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
-    '<section class="lp-sec lp-faq"><h2>よくある質問</h2>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</section>' +
+    '<section class="lp-sec"><div class="lp-eye">Start</div><h2>はじめ方</h2><ol class="lp-steps">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
+    '<section class="lp-sec lp-faq"><div class="lp-eye">FAQ</div><h2>よくある質問</h2>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</section>' +
     '<div class="lp-cta"><button class="btn" data-a="new">旅行をつくる</button></div>' +
     '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。（ログインなしでも使えます）<div class="home0-note-sub">ログインしていないと、スマホを替えたときや、閲覧履歴を消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>';
 }
@@ -1509,10 +1533,10 @@ function budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct){
   } else {
     hl = a[0]; hv = money(a[1]); rl = b[0]; rv = money(b[1]); fl = (over ? '予算オーバー' : '予算の残り') + ' <b>' + money(Math.abs(left)) + '</b>'; fr = '予算 ' + money(t.budget);
   }
-  return '<div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">' + hl + '</span><span class="t-label">' + rl + '</span></div>' +
-    '<div class="t-row t-hero"><div class="t-amount ' + (hn ? 'neg' : '') + '">' + hv + '</div><b class="' + (rw ? 'warn' : '') + '">' + rv + '</b></div>' +
+  return '<div class="ticket m stub"><div class="tk-l"><div class="t-top"><span class="t-label">' + hl + '</span><div class="t-amount ' + (hn ? 'neg' : '') + '">' + hv + '</div>' +
     '<div class="t-bar ' + (barOver ? 'over' : '') + '" role="img" aria-label="' + (st[0] === '準備中' ? '積立は目標の ' : '予算の ') + barPct + '%"><i style="width:' + barPct + '%"></i></div>' +
-    '<div class="t-row t-foot"><span class="t-label">' + fl + '</span><span class="t-label">' + fr + '</span></div></div>' + usageFold(t) + '</div>';
+    '<div class="t-foot"><span class="t-label">' + fl + '</span></div></div>' + usageFold(t) + '</div>' +
+    '<div class="tk-s"><div><span class="t-label">' + rl + '</span><b class="' + (rw ? 'warn' : '') + '">' + rv + '</b></div><span class="t-label">' + fr + '</span></div></div>';
 }
 function usageFold(t){
   const caps = t.caps || {}, hasCaps = Object.keys(caps).length > 0;
