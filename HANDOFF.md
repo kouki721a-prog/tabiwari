@@ -455,3 +455,5 @@
 ## 公開に向けた作業の記録（2026-11-19〜）
 - **ユーザーの答え**: ①ドメインは、公開前に取る（取ったら、`RECAP_SITE`・`index.html` の OGP の `og:url`・`og:image`・`twitter:image`・`docs/DOMAIN.md` を、新しい名前に直す）。②Cloudflare の有料プラン（月 約$5・800円ほど）は、よい。公開の直前に切り替える。③法務（弁護士）は、いったん、しない（法務ページの専門家の確認のリストは、そのまま残す）。④アプリ名は、あとで決める。
 - **v142（ブランチ `claude/ogp`）SNSで共有されたときの見え方**: `index.html` に OGP・Twitter カード（`summary_large_image`）と `description`。画像は `icons/og.png`（1200x630。`node icons/make-og.js` で作る。`scripts/build.js` が `dist/` にコピー）。**アドレスは絶対URL（いまは workers.dev）。ドメインを取ったら、直すこと。** テスト: `test/splash.test.js`。
+- **v142 公開済み**（共有カードは、LINEで、画像つきで出ることを、ユーザーが確認）。
+- **v143（ブランチ `claude/inapp-browser`）アプリ内ブラウザの案内を強く**: 案内そのもの（`installBanner()` の「Safari／Chromeで開いてください」）は、前からあった。足したのは、①検出（`inAppBrowserUA()`）: 目印に加えて、iPhone で UA に `Safari/`・`CriOS`・`FxiOS`・`EdgiOS` が無いもの（Xなど、アプリの中のWebView）と、Android の `; wv)` も、アプリ内ブラウザとみなす。ホーム画面から開いたとき（`isStandalone()`）は除く。②Android のアプリ内ブラウザに、［Chromeで開く］（`intent://` のリンク。`chromeIntent()`）。テスト: `ui.e2e.mjs`。**実機未確認**（X・Instagram のアプリ内で、案内が出るか、［Chromeで開く］が動くか）。
