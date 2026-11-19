@@ -420,6 +420,25 @@ try {
     { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=終了した旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
+  // 文字の大きさ（設定）: 標準／少し大きく／大きく。選んだ大きさは残り、文字だけが大きくなって、画面は横にあふれず、指に付いてくる動きは、そのまま（指と同じだけ動く）
+  { const c15 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', hasTouch: true }), q = await c15.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      if (!localStorage.getItem('tabiwari.v1')) localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
+        members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'b', cat: 'food', date: t, split: ['a', 'b'] }, { id: 'e2', title: '電車', amount: 1200, payer: 'a', cat: 'transport', date: t, split: ['a', 'b'] }] }] })); });
+    const ts = () => q.evaluate(() => document.documentElement.style.getPropertyValue('--ts')), fs = sel => q.$eval(sel, e => parseFloat(getComputedStyle(e).fontSize));
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip'); assert.strictEqual(await ts(), '1', 'standard: nothing is enlarged'); const f1 = await fs('.trip .nm, .trip b, .trip');
+    await q.click('[data-a=app-settings]'); await q.click('[data-a=text-size][data-v="3"]'); assert.strictEqual(await ts(), '1.25'); assert.strictEqual(await q.getAttribute('[data-a=text-size][data-v="3"]', 'aria-pressed'), 'true');
+    await q.click('[data-a=text-size][data-v="2"]'); assert.strictEqual(await ts(), '1.12'); await q.click('[data-a=text-size][data-v="3"]');
+    await q.reload(); await q.waitForSelector('.trip'); assert.strictEqual(await ts(), '1.25', 'the choice is kept');
+    const f3 = await q.$eval('.ut button', e => parseFloat(getComputedStyle(e).fontSize)); assert.ok(Math.abs(f3 - 14 * 1.25) < 0.1, 'the text is 25% larger: ' + f3);
+    await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow'); await q.click('[data-a=tab][data-t=exp]'); await q.waitForSelector('.swp');
+    assert.ok(await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll when enlarged');
+    { const cdp = await c15.newCDPSession(q), box = await q.locator('.swp .item').first().boundingBox(), y = box.y + box.height / 2, x0 = box.x + box.width - 40, shift = () => q.locator('.swp .item').first().boundingBox().then(r => r.x - box.x);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
+      for (let i = 1; i <= 6; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 - i * 15, y }] });
+      await q.waitForTimeout(80); const moved = await shift(); assert.ok(moved < -75 && moved > -95, 'the row follows the finger (about 90px) when the text is enlarged: ' + moved);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await q.waitForTimeout(500); assert.strictEqual(await q.locator('.swp.open').count(), 1, 'and a long swipe still opens the delete button'); }
+    assert.deepStrictEqual(qerrs, []); await c15.close(); }
   // はじめての人への小さな案内: ひとこと（支出が3件になるまで）と、左スワイプ（［わかった］・スワイプで見つけたら消える・精算済みだけなら出ない）
   { const c14 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c14.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
