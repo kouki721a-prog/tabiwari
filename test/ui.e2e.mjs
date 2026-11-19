@@ -220,6 +220,19 @@ try {
     await p.goto('http://localhost:8797/'); await p.click('.trip'); await p.waitForSelector('#exp-list .sec h2');
     const r = await p.evaluate(async () => { const sc = document.querySelector('#app.fit>.scroll'), hs = [...document.querySelectorAll('#exp-list .sec>h2')]; sc.scrollTop = 520; await new Promise(r => setTimeout(r, 150)); return { top: sc.getBoundingClientRect().top, hs: hs.map(h => Math.round(h.getBoundingClientRect().top - sc.getBoundingClientRect().top)), st: sc.scrollTop }; });
     assert.ok(r.st > 300 && r.hs.some(v => v >= -1 && v <= 2), 'a date heading sits at the top of the scrolling list: ' + JSON.stringify(r)); await c.close(); }
+  { // first-page motion (v151): the hero ticket moves, each part rises when it comes into view, a re-draw does not restart it; "reduce motion" shows everything still
+    const mk = async o => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 700 }, ...o }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message)); await q.addInitScript(() => localStorage.setItem('tabiwari.noinstall', '1')); await q.goto('http://localhost:8797/'); await q.waitForSelector('.lp-h'); return q; };
+    const cs = (q, sel, prop) => q.$eval(sel, (e, pr) => getComputedStyle(e)[pr], prop);
+    let q = await mk(); assert.strictEqual(await cs(q, '.lp-tk-stamp', 'animationName'), 'lpStamp', 'the stamp is pressed'); assert.strictEqual(await cs(q, '.lp-bars', 'animationName'), 'lpBars', 'the barcode is drawn');
+    assert.strictEqual(await q.locator('.lp-stage.in').count(), 0, 'parts below the fold wait'); assert.strictEqual(await cs(q, '.lp-stage >> nth=2', 'opacity').catch(() => '0'), '0', 'and are not drawn yet');
+    await q.evaluate(() => { const h = document.querySelector('.home0'); h.scrollTo(0, h.scrollHeight * .45); }); await q.waitForFunction(() => document.querySelector('.lp-stage.in'), null, { timeout: 3000 });
+    await q.waitForTimeout(700); assert.strictEqual(await cs(q, '.lp-stage.in', 'opacity'), '1', 'a part is shown once it has risen');
+    // a re-draw (any state change draws the page again) carries the move on: nothing blinks back to hidden, nothing starts over
+    const seen = await q.evaluate(() => document.querySelectorAll('.lp-stage.in').length); await q.evaluate(() => render()); await q.waitForTimeout(80);
+    const after = await q.evaluate(() => ({ n: document.querySelectorAll('.lp-stage.in, .lp-stage.done').length, op: getComputedStyle(document.querySelector('.lp-stage.in, .lp-stage.done')).opacity }));
+    assert.ok(after.n >= seen && after.op === '1', 'the same parts stay shown after a re-draw: ' + JSON.stringify([seen, after])); await q.context().close();
+    q = await mk({ reducedMotion: 'reduce' }); assert.strictEqual(await cs(q, '.lp-tk-stamp', 'animationName'), 'none', 'reduce motion: no animation'); assert.strictEqual(await cs(q, '.lp-stage >> nth=2', 'opacity').catch(() => '1'), '1', 'reduce motion: everything is shown'); await q.context().close();
+  }
   { // stamps (v146): the row on the record tab, the stamp book, the "pressed" moment (once per stamp), reduce motion, the recap
     const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }];
     const seed = { id: 'st', name: '箱根', start: '2026-11-18', end: '2026-11-19', budget: 80000, members: ms, paid: {}, savings: { a: 26667, b: 26667, c: 26667 }, expenses: [
