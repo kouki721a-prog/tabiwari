@@ -65,9 +65,9 @@ try {
   // trip screen, no expenses yet: short guidance without an orphaned "す。", a button that opens the same sheet as the + button, members row with an invite button, "残りN日" label
   await see(p, '最初の支出を記録しましょう'); await see(p, '＋ボタンから入力できます');
   { const m = await p.evaluate(() => { const e = document.querySelector('.exp0'), lines = Array.from(e.querySelectorAll('b,span')).map(x => { const r = document.createRange(); r.selectNodeContents(x); return r.getClientRects().length; });
-      const lab = Array.from(document.querySelectorAll('.t-bot .t-label')).map(x => x.textContent); return { lines, lab, hasBtn: !!e.querySelector('[data-a=add-exp]'), mem: !!document.querySelector('.mem-row [data-a=invite]'), avs: document.querySelectorAll('.mem-row .av').length }; });
+      const lab = Array.from(document.querySelectorAll('.ticket .t-top .t-label')).map(x => x.textContent); return { lines, lab, hasBtn: !!e.querySelector('[data-a=add-exp]'), mem: !!document.querySelector('.mem-row [data-a=invite]'), avs: document.querySelectorAll('.mem-row .av').length }; });
     assert.deepStrictEqual(m.lines, [1, 1], 'each guidance line stays on one line: ' + JSON.stringify(m)); assert.ok(m.hasBtn && m.mem && m.avs === 1, JSON.stringify(m));
-    assert.ok(/^1日あたりの目安（残り\d+日）$/.test(m.lab[0]), 'label: ' + m.lab[0]); assert.ok(!(await p.textContent('.ticket')).includes('今日からの1日目安')); }
+    assert.ok(/^今日の目安（残り\d+日）$/.test(m.lab[0]), 'label: ' + m.lab[0]); assert.ok(!(await p.textContent('.ticket')).includes('今日からの1日目安')); }
   await p.click('.exp0 [data-a=add-exp]'); await p.waitForSelector('#f-amount'); await p.click('[data-a=close-sheet]');
 
   // the record screen: alone -> no pickers, invite instead; amount field; 0 yen cannot be saved; today is shown as 今日
@@ -297,7 +297,7 @@ try {
     // before the trip the cards show the savings: home card, trip card, and the pace on the savings tab
     { const soon = q.locator('.trip', { hasText: '準備中の旅' }); assert.ok((await soon.textContent()).includes('積立（目標 30,000円）') && (await soon.textContent()).includes('10,000円'));
       assert.strictEqual(await soon.locator('.bar>i').evaluate(e => e.style.width), '33%', 'the bar shows the savings'); await soon.click(); await q.waitForSelector('.ticket.m');
-      assert.ok((await q.textContent('.ticket.m')).includes('積立 10,000円（33%）') && (await q.textContent('.ticket.m')).includes('30,000円'), 'detail card'); await q.click('[data-a=tab][data-t=save]'); await q.waitForSelector('.ticket.c');
+      { const tm = await q.innerText('.ticket.m'); assert.ok(tm.includes('積立') && tm.includes('10,000円') && tm.includes('33%') && tm.includes('予算') && tm.includes('30,000円'), 'detail card: ' + tm); } await q.click('[data-a=tab][data-t=save]'); await q.waitForSelector('.ticket.c');
       const sv = await q.textContent('.ticket.c'); assert.ok(sv.includes('出発まで あと3日') && sv.includes('あと 20,000円・1日 約6,667円 ずつで届きます'), sv); await q.click('[data-a=home]'); }
     // trip recap image: offered on a finished trip with expenses (and in the trip settings), made on the device as a 1080x1350 PNG
     await q.locator('.trip', { hasText: '旅行中の旅' }).click(); await q.waitForSelector('[data-a=add-exp]'); assert.strictEqual(await q.locator('[data-a=recap]').count(), 0, 'nothing recorded: no recap'); await q.click('[data-a=home]');
@@ -420,6 +420,27 @@ try {
     { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=終了した旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
+  // 記録タブの予算カード: 主役は1つ（旅行中=今日の目安／準備中=積立／終了=使った合計）、バーは1本、カテゴリの内訳は1行にたたむ（押すとバーとチップが開く。絞り込み中は開いたまま）
+  { const c17 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c17.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: '2026-01-01', end: '2026-01-02', budget: 50000, paid: {}, savings: { a: 12000, b: 5000 }, settlements: [], adjustments: [],
+        members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.ticket.m');
+    const day = n => q.evaluate(n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }, n);
+    const setTrip = async (dStart, dEnd, budget, exps) => { const [st, en, d0, d1] = [await day(dStart), await day(dEnd), await day(-1), await day(0)]; await q.evaluate(([st, en, budget, exps, d0, d1]) => { const t = state.trips[0]; t.start = st; t.end = en; t.budget = budget; t.expenses = exps.map((e, i) => ({ id: 'e' + i, title: e[0], amount: e[1], payer: 'a', cat: e[2], date: e[3] === 0 ? d0 : d1, split: ['a', 'b'] })); ui.catF = null; ui.usageOpen = false; render(); }, [st, en, budget, exps, d0, d1]); await q.waitForSelector('.ticket.m'); };
+    const card = () => q.innerText('.ticket.m');
+    await setTrip(10, 12, 50000, []); { const c = await card(); assert.ok(c.includes('積立') && c.includes('17,000円') && c.includes('34%') && c.includes('予算') && c.includes('50,000円'), 'before the trip: the savings are the star: ' + c); assert.strictEqual(await q.locator('.ticket.m .t-bar').count(), 1, 'one bar'); }
+    await setTrip(-1, 1, 50000, [['夕食', 4000, 'food', 0], ['電車', 1200, 'transport', 1], ['昼食', 900, 'food', 1]]);
+    { const c = await card(); assert.ok(c.includes('今日の目安（残り2日）') && c.includes('21,950円') && c.includes('今日使った額') && c.includes('2,100円') && c.includes('予算の残り') && c.includes('43,900円') && c.includes('50,000円'), 'travelling: ' + c);
+      assert.ok(!c.includes('1日あたりの目安'), 'the old label is gone'); assert.strictEqual(await q.locator('.ticket.m .t-bar').count(), 1, 'one bar'); assert.strictEqual(await q.locator('.legend2').count(), 0, 'the split is folded'); assert.ok((await q.innerText('.ufold')).includes('内訳：食事 4,900・交通 1,200'), 'the fold line names the biggest categories'); assert.strictEqual(await q.getAttribute('.ufold', 'aria-expanded'), 'false'); }
+    await q.click('.ufold'); await q.waitForSelector('.legend2'); assert.strictEqual(await q.getAttribute('.ufold', 'aria-expanded'), 'true'); assert.ok((await q.innerText('.ufold')).includes('内訳を閉じる'));
+    await q.click('.lc[data-v=food]'); await q.waitForSelector('.fline'); assert.strictEqual(await q.getAttribute('.lc[data-v=food]', 'aria-pressed'), 'true', 'the category chips still filter the list');
+    await q.evaluate(() => { ui.usageOpen = false; render(); }); await q.waitForSelector('.ticket.m'); assert.strictEqual(await q.locator('.legend2').count(), 1, 'while a filter is on, the chips stay (so it can be cleared)');
+    await q.click('.ufold'); await q.waitForTimeout(150); assert.strictEqual(await q.locator('.legend2').count(), 0, 'closing the fold clears the filter too'); assert.strictEqual(await q.evaluate(() => ui.catF), null);
+    await setTrip(-1, 1, 5000, [['宿', 6000, 'stay', 0], ['夕食', 900, 'food', 1]]);
+    { const c = await card(); assert.ok(c.includes('予算オーバー') && c.includes('1,900円') && c.includes('今日の目安') && c.includes('0円'), 'over budget: ' + c); assert.ok(await q.$eval('.ticket.m .t-amount', e => e.classList.contains('neg')), 'the overage is in red'); assert.ok(await q.$eval('.ticket.m .t-bar', e => e.classList.contains('over'))); }
+    await setTrip(-5, -3, 50000, [['夕食', 4000, 'food', 0], ['宿', 6000, 'stay', 0]]); { const c = await card(); assert.ok(c.includes('使った合計') && c.includes('10,000円') && c.includes('1人あたり') && c.includes('5,000円') && c.includes('予算の残り') && c.includes('40,000円'), 'after the trip: ' + c); }
+    assert.ok(await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll'); assert.deepStrictEqual(qerrs, []); await c17.close(); }
   // 受け取りの確認（任意）: 「払った」のあとに、受け取る人だけが「受け取った」を押せる。数え方（あと◯件）は、「払った」のまま
   { const c16 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c16.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
@@ -570,6 +591,7 @@ try {
     await q.click('[data-a=caps-edit]'); await q.waitForSelector('[data-cap]'); assert.strictEqual(await q.locator('[data-cap]').count(), 6); assert.strictEqual(await q.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-cap')), false, 'the keyboard does not open by itself');
     await q.fill('[data-cap=food]', '1x'); await q.click('[data-a=caps-save]'); await see(q, '上限は、1以上の数字で入力してください'); assert.strictEqual(await q.evaluate(() => state.trips[0].caps), undefined);
     await q.fill('[data-cap=food]', '5,000'); await q.fill('[data-cap=gift]', '3000'); await q.click('[data-a=caps-save]'); await see(q, '上限を保存しました'); assert.deepStrictEqual(await q.evaluate(() => state.trips[0].caps), { food: 5000, gift: 3000 });
+    assert.strictEqual(await q.locator('.legend2').count(), 0, 'the category split is folded into one line'); assert.ok((await q.textContent('.ufold')).includes('内訳'), 'with a limit but nothing recorded: the fold line'); await q.click('[data-a=usage-toggle]'); await q.waitForSelector('.legend2');
     assert.ok((await q.textContent('.legend2')).includes('食事 0／5,000') && (await q.textContent('.legend2')).includes('お土産 0／3,000'), 'the categories with a limit show even when unused');
     await q.fill('#q-quick', '夕食 4000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 4,000円を記録しました'); assert.ok(!(await q.textContent('.toast, [role=status]').catch(() => '')).includes('超えました'));
     await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '食事が、上限を 1,000円 超えました。');
