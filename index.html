@@ -1546,6 +1546,11 @@ function xferList(t, pays, n){
     return (g.length > 1 ? '<div class="xgroup"><div class="xhead"><span>' + esc(nameOf(t, to)) + 'さんへ</span><span>合計 ' + yen(g.reduce((a, p) => a + p.amount, 0)) + '</span></div><div class="list">' + g.map(p => row(p, true)).join('') + '</div></div>'
       : '<div class="list xl">' + row(g[0], false) + '</div>') + noteLine(t, to); }).join('');
 }
+/* a trip that is not shared cannot send settlement / advance notices (they come from the server): say so, once, quietly; a tap starts sharing */
+function shareHint(t){
+  if (t.share || t.members.length < 2 || status(t)[0] === '終了') return '';
+  return '<button class="item slim acc noteRow" data-a="invite" data-id="' + esc(t.id) + '"' + (ui.inviting === t.id ? ' disabled' : '') + '><div class="grow">共有すると、精算のお知らせが、LINEに届きます</div>' + icon('chev', 18) + '</button>';
+}
 function noteRow(t){   // my own 受け取り方のメモ: where to send the money
   const mine = t.members.find(m => m.id === meId(t));
   return '<button class="item slim acc noteRow" data-a="note-edit"><div class="grow">' + (mine && mine.note ? '自分の受け取り方：' + esc(mine.note) : '自分の受け取り方を書く') + '</div>' + icon('chev', 18) + '</button>';
@@ -1566,7 +1571,7 @@ function tabSettle(t){
   if (t.share && (!ui.reach || ui.reach.id !== t.id || Date.now() - ui.reach.at > 60000)) refreshReach(t);
   const me = meId(t), off = t.share && ui.reach && ui.reach.id === t.id && ui.reach.ids ? t.members.filter(m => m.id !== me && ui.reach.ids.indexOf(m.id) < 0) : [];
   let h = (off.length ? '<div class="panel" style="margin:0 0 10px"><b>まだ' + off.map(m => esc(m.name)).join('さん、') + 'さんが、お知らせを受け取れません。</b><div class="sub sm">LINEにログインして、通知をオンにすると、精算のお知らせが届きます。</div></div>' : '') + '<div class="sec"><h2>第' + n + '回の精算<span' + (ui.justPaid && has && pays.length && !left ? ' class="alldone"' : '') + '>' + (!has || !pays.length ? '' : left ? 'あと' + left + '件・残り ' + yen(pays.reduce((a, p) => a + (t.paid[payKey(n, p)] ? 0 : p.amount), 0)) : 'すべて完了') + '</span></h2>';
-  h += noteRow(t);
+  h += noteRow(t) + shareHint(t);
   if (!has) h += '<div class="panel"><b>未精算の支出はありません。</b><div class="sub">これから記録する支出は、第' + n + '回の精算になります。</div></div>';
   if (!has && recapNudge(t)) h += '<div class="panel recapnudge" style="margin-top:10px"><b>みんなの精算が済みました。</b><div class="sub">旅のまとめを、画像にして、友だちに送れます。</div><div class="row" style="margin-top:8px"><button class="btn line sm" data-a="recap">まとめ画像をつくる</button><button class="link" data-a="recap-nudge-no" style="width:auto">あとで</button></div></div>';
   else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
