@@ -166,7 +166,7 @@ html,body{overscroll-behavior-x:none}
 .home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
 .home0>*{flex:none}
 /* the first page (no trip yet): a page to read, not one screen. Hero, the three moments with real screens, the settle-up features, notifications, how to start, FAQ. */
-.lp-hero{padding:20px 0 6px}
+.lp-hero{padding:20px 0 6px;overflow-x:clip}
 .lp-eye{font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub);text-transform:uppercase}
 .lp-h{font-size:calc(31px*var(--ts));line-height:1.38;margin:8px 0 12px;font-weight:700}
 .lp-lead{color:var(--sub);font-size:calc(14px*var(--ts));line-height:1.75;margin:0 0 22px}
@@ -419,6 +419,22 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 /* settle / savings / members: paper lists with dashed lines */
 .scroll .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
 .scroll .list .item,.scroll .list>.item+.swp,.scroll .list>.swp+.item{border-top:1.5px dashed var(--dash)}.scroll .list>:first-child .item,.scroll .list>.item:first-child{border-top:0}
+/* the first page moves once (v151): the hero ticket, then each part rises as it comes into view. Only when "reduce motion" is off. A re-draw in the middle of a move does not restart it (a negative delay carries on). */
+@media (prefers-reduced-motion: no-preference){
+  @keyframes lpUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes lpStamp{from{opacity:0;transform:scale(1.9) rotate(-18deg)}60%{opacity:1}to{opacity:1;transform:rotate(10deg)}}
+  @keyframes lpBars{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+  @keyframes lpLine{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  @keyframes lpPop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+  .lp-hero:not(.done) .lp-tk{animation:lpUp .5s var(--ease) both;animation-delay:calc(.05s - var(--lp-e,0ms))}
+  .lp-hero:not(.done) .lp-tk-stamp{animation:lpStamp .42s var(--ease) both;animation-delay:calc(.5s - var(--lp-e,0ms))}
+  .lp-hero:not(.done) .lp-bars{animation:lpBars .6s var(--ease) both;animation-delay:calc(.4s - var(--lp-e,0ms))}
+  .lp-rv:not(.in):not(.done){opacity:0;transform:translateY(14px)}
+  .lp-rv.in{animation:lpUp .5s var(--ease) both;animation-delay:var(--lp-d,0s)}
+  .lp-rl:not(.in):not(.done):before{transform:scaleY(0)}
+  .lp-rl:before{transform-origin:top}.lp-rl.in:before{animation:lpLine 1.2s cubic-bezier(.3,0,.3,1) both;animation-delay:var(--lp-d,0s)}
+  .lp-stage:not(.in):not(.done) .n{opacity:0}.lp-stage.in .n{animation:lpPop .35s var(--ease) both;animation-delay:calc(.15s + var(--lp-d,0s))}
+}
 /* the record list as paper: cream, a dashed line between rows, small tabular dates */
 #exp-list .sec>h2{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.04em;font-weight:500;color:var(--sub)}#exp-list .sec>h2 span{font-family:var(--mono);font-weight:500}
 #exp-list .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
@@ -1294,7 +1310,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
-  stampWatch();
+  stampWatch(); lpObserve();
 }
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
@@ -1378,6 +1394,17 @@ async function makeRecap(t){
 }
 const APP_NAME = 'Tabiflow';
 const brandRow = () => '<div class="brandrow"><h1 class="brand">Tabiflow</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
+/* first-page motion (v151): when each part first came into view (ui.lpAt), and when the hero started (ui.lpHero0). Kept in memory, so a re-draw carries the move on instead of restarting it. */
+const lpRv = (id, cls, line) => { const t = ui.lpAt && ui.lpAt[id], base = (cls ? cls + ' ' : '') + (line ? 'lp-rl' : 'lp-rv');
+  if (t == null) return ' class="' + base + '" data-rv="' + id + '"'; const e = performance.now() - t;
+  return e > 1800 ? ' class="' + base + ' done" data-rv="' + id + '"' : ' class="' + base + ' in" data-rv="' + id + '" style="--lp-d:' + (-Math.round(e)) + 'ms"'; };
+function lpObserve(){
+  const root = document.querySelector('.home0'); if (!root) return;
+  if (lpObserve.io){ lpObserve.io.disconnect(); lpObserve.io = null; }
+  const todo = root.querySelectorAll('[data-rv]:not(.in):not(.done)'); if (!todo.length || !calm() || !('IntersectionObserver' in window)) return;
+  const io = lpObserve.io = new IntersectionObserver(es => es.forEach(en => { if (!en.isIntersecting) return; const el = en.target, id = el.getAttribute('data-rv'); io.unobserve(el); ui.lpAt = ui.lpAt || {}; if (ui.lpAt[id] == null) ui.lpAt[id] = performance.now(); el.classList.add('in'); }), { root, threshold: .12 });
+  todo.forEach(el => io.observe(el));
+}
 function viewHomeEmpty(){
   const flow = [['出発前', '積立'], ['旅行中', '1日の目安・割り勘'], ['旅行後', '通知つきの精算']];
   const stages = [['1', '出発前', 'みんなで積立', 'ひとりずつ、あといくらかが見えます。出発が近づくと、お知らせも届きます。', 'save', '積立の画面。みんなの積立が16,000円。', 222],
@@ -1389,21 +1416,23 @@ function viewHomeEmpty(){
   let line = '';
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line">' + (isStandalone() ? '<div class="sub sm">LINEでログインすると、通知とバックアップを使えます。</div>' : '') + '<button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
+  if (ui.lpHero0 == null) ui.lpHero0 = performance.now();
+  const he = performance.now() - ui.lpHero0, hero = he > 1800 ? { cls: ' done', st: '' } : { cls: '', st: ' style="--lp-e:' + Math.round(he) + 'ms"' };
   const ticket = '<div class="lp-tk" aria-hidden="true"><div class="lp-tk-top"><div class="lp-tk-hd"><span>TRIP TICKET</span><span>SAMPLE</span></div><div class="lp-tk-grid"><div><small>行き先</small><b>箱根 1泊2日</b></div><div><small>日程</small><b>11/18 – 19</b></div><div><small>メンバー</small><b>あおい・けんた・みく</b></div><div><small>予算</small><b>80,000円</b></div></div></div>' +
     '<div class="lp-tk-bot"><div><small>1人あたり</small><b>26,667円</b></div><i class="lp-bars"></i></div><span class="lp-tk-stamp">初</span></div>';
   return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + remoteCard() + installBanner() +
-    '<div class="lp-hero"><div class="lp-eye">Money · Before / During / After</div><h2 class="lp-h">旅のお金を、<br>前から後まで、<br>ひとつに。</h2><p class="lp-lead">積立、旅行中の1日の目安、割り勘、精算まで。<br>友だち・カップルの国内旅行のために。</p>' + ticket +
+    '<div class="lp-hero' + hero.cls + '"' + hero.st + '><div class="lp-eye">Money · Before / During / After</div><h2 class="lp-h">旅のお金を、<br>前から後まで、<br>ひとつに。</h2><p class="lp-lead">積立、旅行中の1日の目安、割り勘、精算まで。<br>友だち・カップルの国内旅行のために。</p>' + ticket +
     '<button class="btn" data-a="new">旅行をつくる</button><button class="btn line" data-a="join-paste" style="margin-top:10px">友だちに招待された方は、こちら</button>' +
     '<div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div></div>' +
-    '<section class="lp-sec"><div class="lp-eye">Route</div><h2>旅の流れに、そのまま</h2><div class="lp-rail">' +
-      stages.map(x => '<div class="lp-stage"><span class="n" aria-hidden="true">' + x[0] + '</span><small>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><div class="lp-shot"><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div></div>').join('') + '</div></section>' +
-    '<section class="lp-sec"><div class="lp-eye">Details</div><h2>割り勘の、明細</h2><div class="lp-feat">' + feats.map(x => '<div class="ln"><b>' + x[0] + '</b><i></i><span>' + x[1] + '</span></div>').join('') + '</div></section>' +
+    '<section class="lp-sec"><div class="lp-eye">Route</div><h2>旅の流れに、そのまま</h2><div' + lpRv('rail', 'lp-rail', true) + '>' +
+      stages.map(x => '<div' + lpRv('st' + x[0], 'lp-stage') + '><span class="n" aria-hidden="true">' + x[0] + '</span><small>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><div class="lp-shot"><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div></div>').join('') + '</div></section>' +
+    '<section class="lp-sec"><div class="lp-eye">Details</div><h2>割り勘の、明細</h2><div' + lpRv('feat', 'lp-feat') + '>' + feats.map(x => '<div class="ln"><b>' + x[0] + '</b><i></i><span>' + x[1] + '</span></div>').join('') + '</div></section>' +
     '<section class="lp-sec"><div class="lp-eye">Notice</div><h2>お知らせで、忘れない</h2><p class="lp-sub">アプリを開かなくても、気づけます。</p>' +
-      '<div class="lp-note line"><b>LINEの公式アカウントから（精算の確定・立て替え）</b><div class="lp-bub">【' + APP_NAME + '】熱海の精算が確定しました。けんたさんに 2,000円 を送ってください。</div></div>' +
-      '<div class="lp-note"><b>アプリの通知（積立・記録のし忘れ）</b><div class="lp-bub">箱根まで、あと7日です。あなたの積立は、あと 16,667円 で目標です。</div></div></section>' +
-    '<section class="lp-sec"><div class="lp-eye">Start</div><h2>はじめ方</h2><ol class="lp-steps">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
-    '<section class="lp-sec lp-faq"><div class="lp-eye">FAQ</div><h2>よくある質問</h2>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</section>' +
-    '<div class="lp-cta"><button class="btn" data-a="new">旅行をつくる</button></div>' +
+      '<div' + lpRv('n1', 'lp-note line') + '><b>LINEの公式アカウントから（精算の確定・立て替え）</b><div class="lp-bub">【' + APP_NAME + '】熱海の精算が確定しました。けんたさんに 2,000円 を送ってください。</div></div>' +
+      '<div' + lpRv('n2', 'lp-note') + '><b>アプリの通知（積立・記録のし忘れ）</b><div class="lp-bub">箱根まで、あと7日です。あなたの積立は、あと 16,667円 で目標です。</div></div></section>' +
+    '<section class="lp-sec"><div class="lp-eye">Start</div><h2>はじめ方</h2><ol' + lpRv('steps', 'lp-steps') + '>' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
+    '<section class="lp-sec lp-faq"><div class="lp-eye">FAQ</div><h2>よくある質問</h2><div' + lpRv('faq', '') + '>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</div></section>' +
+    '<div' + lpRv('cta', 'lp-cta') + '><button class="btn" data-a="new">旅行をつくる</button></div>' +
     '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。（ログインなしでも使えます）<div class="home0-note-sub">ログインしていないと、スマホを替えたときや、閲覧履歴を消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>';
 }
 /* the one line on a home card that says what to do next */
