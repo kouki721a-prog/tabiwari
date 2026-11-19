@@ -392,6 +392,18 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 @media (max-height:640px){.qchips{display:none}}
 #ptr{position:fixed;left:50%;top:0;width:40px;height:40px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:5;pointer-events:none;opacity:0}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--ts));border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
+/* stamps (v146): one accent colour (the yellow), navy ink; a little tilt so they look pressed by hand */
+.stp{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;position:relative;color:#0f2742;font-weight:700;font-size:calc(21px*var(--ts));border:2.5px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(var(--r,-6deg));box-shadow:inset 0 0 0 3px rgba(255,255,255,.55);flex:none}
+.stp:after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed #0f2742;opacity:.55}
+.stp.off{background:transparent;border:2px dashed var(--sub);color:var(--sub);box-shadow:none;transform:none;font-weight:600;opacity:.55}.stp.off:after{display:none}
+.stp.sm{width:30px;height:30px;font-size:calc(13px*var(--ts));border-width:2px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}.stp.sm:after{display:none}
+.stbar{width:100%;display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:9px 12px;margin:10px 0 2px;text-align:left;color:var(--ink)}
+.strow{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden}.sttxt{text-align:right;flex:none}.sttxt b{font-size:calc(13px*var(--ts))}.sttxt small{display:block;color:var(--sub);font-size:calc(12px*var(--ts))}
+.stgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px 4px;padding:18px 0 8px;text-align:center}.stgrid>div{display:flex;flex-direction:column;align-items:center;gap:6px}.stgrid .stp{margin:6px}
+.stgrid>div>span:last-child{font-size:calc(11px*var(--ts));line-height:1.3}.stgrid small{display:block;font-size:calc(10px*var(--ts));color:var(--sub)}
+.stpop{position:fixed;left:50%;top:38%;z-index:60;pointer-events:none;text-align:center;transform:translate(-50%,-50%) rotate(-8deg)}
+.stpop .stp{width:128px;height:128px;font-size:50px;border-width:4px;transform:none;margin:0 auto}.stpop .stp:after{inset:-12px;border-width:2px}
+.stpop-t{display:inline-block;margin-top:24px;background:var(--ink);color:var(--paper);border-radius:99px;padding:6px 16px;font-weight:600;font-size:15px;transform:rotate(8deg)}
 @media (prefers-reduced-motion: no-preference){
   .sheet{animation:up .3s var(--ease)}
   .btn,.trip,.item,.chip,.cat,.tile,.iconbtn,.tab,.plus,.usage,.delrow,.link{transition:transform .12s ease-out}   /* pressed: a small sink, as in other apps */
@@ -696,7 +708,8 @@ function recapData(trip){
   var cats = Object.keys(by).sort(function(a, b){ return by[b] - by[a] || (a < b ? -1 : 1); }).map(function(k){ return { id: k, amount: by[k], pct: Math.round(by[k] / total * 100) }; });
   var n = Math.max(1, trip.members.length);
   return { name: trip.name, start: trip.start, end: trip.end, days: dayDiff(trip.start, trip.end) + 1, members: trip.members.map(function(m){ return m.name; }), total: total, per: Math.round(total / n), count: ex.length,
-    budget: trip.budget, diff: trip.budget - total, cats: cats, top: top, topDay: topDay };
+    budget: trip.budget, diff: trip.budget - total, cats: cats, top: top, topDay: topDay,
+    stamps: stampsOf(trip).filter(function(x){ return x.on; }) };
 }
 /* One line like "夕食 2000円" -> { title, amount, cat, offset } (offset: 0 today, -1 yesterday, -2 the day before). null when no amount is found. */
 var QUICK_CATS = [
@@ -761,6 +774,23 @@ function expenseChanged(a, b){
 }
 /* what to remember about the values before a change: the money side only (amount, who paid, who shares) */
 function prevOf(old){ return { amount: old.amount, payer: old.payer, split: old.split.slice() }; }
+/* ---- stamps (v146): ten stamps worked out from the trip's own data every time. Nothing new is saved, so sharing, sync and backups are not affected. ---- */
+const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
+var STAMPS = [['food', '食', '食事'], ['transport', '交', '交通'], ['stay', '宿', '宿泊'], ['sight', '遊', '観光'], ['gift', '土', 'お土産'], ['first', '初', 'はじめの記録'], ['all', '割', 'みんなで割り勘'], ['save', '積', '積立が目標に'], ['settle', '精', '精算を確定'], ['paid', '済', 'みんな払い終えた']];
+/* -> [{ id, k (the character), name, on, date ('YYYY-MM-DD' or null) }] in a fixed order */
+function stampsOf(t){
+  var ex = t.expenses || [], mem = t.members || [], ids = mem.map(function(m){ return m.id; }), ss = t.settlements || [], paid = t.paid || {}, sv = t.savings || {};
+  function firstOf(f){ var d = null, on = false; ex.forEach(function(e){ if (f(e)){ on = true; if (d === null || e.date < d) d = e.date; } }); return on ? { on: true, date: d || null } : { on: false, date: null }; }
+  var r = {};
+  STAMPS.forEach(function(x){ if (['food', 'transport', 'stay', 'sight', 'gift'].indexOf(x[0]) >= 0) r[x[0]] = firstOf(function(e){ return e.cat === x[0]; }); });
+  r.first = firstOf(function(){ return true; });
+  r.all = ids.length >= 2 ? firstOf(function(e){ var sp = e.split && e.split.length ? e.split : ids; return ids.every(function(id){ return sp.indexOf(id) >= 0; }); }) : { on: false, date: null };
+  var sum = ids.reduce(function(a, id){ return a + (sv[id] || 0); }, 0);
+  r.save = { on: ids.length > 0 && t.budget > 0 && sum >= t.budget, date: null };
+  r.settle = { on: ss.length > 0, date: ss.length && /^\d{4}-\d\d-\d\d$/.test(ss[0].at || '') ? ss[0].at : null };
+  r.paid = { on: ss.length > 0 && ss.every(function(st, i){ return (st.transfers || []).every(function(x){ return paid[payKey(i + 1, x)]; }); }), date: null };
+  return STAMPS.map(function(x){ return { id: x[0], k: x[1], name: x[2], on: r[x[0]].on, date: r[x[0]].date }; });
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -1224,6 +1254,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
+  stampWatch();
 }
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
@@ -1272,7 +1303,7 @@ function recapCanvas(d, icon){
   const catName = k => (CAT[k.id] || CAT.other)[2];
   g.fillStyle = NAVY; g.fillRect(0, 0, W, H);
   const RX = 110, RW = W - 220, P = 60, IN = RX + P, IW = RW - P * 2, ROW = 64, cats = d.cats.slice(0, 5), lines = wrap(d.name, 700, 58, IW, 2);
-  const body = 96 + 52 + 74 + (lines.length - 1) * 68 + 54 + 44 + 62 + cats.length * ROW + 28 + 70 + 70 + ROW + ROW + 26 + 62 + ROW + 34 + ROW + 22 + 58 + 40 + 96 + 70 + 70 - 235 + 52;
+  const stp = d.stamps || [], SH = stp.length ? 150 : 0, body = SH + 96 + 52 + 74 + (lines.length - 1) * 68 + 54 + 44 + 62 + cats.length * ROW + 28 + 70 + 70 + ROW + ROW + 26 + 62 + ROW + 34 + ROW + 22 + 58 + 40 + 96 + 70 + 70 - 235 + 52;
   const top = Math.round((H - body) / 2), n = Math.round(RW / 22), st = RW / n, sc = Math.min(1.16, 1500 / (body + 28));   // a short receipt is enlarged a little so it fills the screen
   g.save(); g.translate(W / 2, H / 2); g.scale(sc, sc); g.translate(-W / 2, -H / 2);
   g.fillStyle = '#fffdf5'; g.beginPath(); g.moveTo(RX, top); for (let k = 0; k < n; k++){ g.lineTo(RX + k * st + st / 2, top - 14); g.lineTo(RX + (k + 1) * st, top); }
@@ -1285,7 +1316,15 @@ function recapCanvas(d, icon){
   y -= 36; dash(y); y += 70; font(700, 48); text('合計', IN, y, INK); const tp = fit(yen(d.total), 700, 74, IW - 150, 40); font(700, tp); text(yen(d.total), IN + IW, y + 2, INK, 'right');
   y += 70; row('1人あたり', yen(d.per), y, 500, 40); y += ROW; row('支出', d.count + '件', y, 500, 40); y += 26; dash(y); y += 62;
   row('一番高かった', yen(d.top.amount), y, 500, 36); font(400, 28); g.globalAlpha = .6; text('　' + clip(d.top.title, 16), IN, y + 34, INK); g.globalAlpha = 1; y += ROW + 34; row('一番使った日', md(d.topDay.date), y, 500, 36); y += 22; dash(y + 10); y += 58 + 10;
-  font(700, fit(budget, 700, 36, IW, 24)); text(budget, W / 2, y, INK, 'center'); y += 40; let seed = 7; Array.from(d.name).forEach(ch => { seed = (seed * 31 + ch.charCodeAt(0)) % 9973; });
+  font(700, fit(budget, 700, 36, IW, 24)); text(budget, W / 2, y, INK, 'center'); y += 40;
+  if (stp.length){   // the stamps that were pressed on this trip, as small round stamps in a row
+    font(500, 28); g.globalAlpha = .65; text('スタンプ ' + stp.length + '/' + STAMPS.length, W / 2, y + 22, INK, 'center'); g.globalAlpha = 1;
+    const R = 31, gap = 72, x0 = W / 2 - (stp.length - 1) * gap / 2, cy = y + 22 + 22 + R + 8;
+    stp.forEach((q, i) => { const cx = x0 + i * gap; g.save(); g.translate(cx, cy); g.rotate([-.1, .09, -.05, .12, -.14][i % 5]); const gr = g.createRadialGradient(-10, -12, 4, 0, 0, R); gr.addColorStop(0, '#ffe08a'); gr.addColorStop(1, '#ffc83d');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill(); g.strokeStyle = NAVY; g.lineWidth = 3; g.stroke(); g.setLineDash([4, 5]); g.globalAlpha = .55; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, R + 6, 0, 7); g.stroke(); g.restore(); g.globalAlpha = 1;
+      font(700, 30); text(q.k, cx, cy + 11, NAVY, 'center'); });
+    y += SH - 4;
+  } let seed = 7; Array.from(d.name).forEach(ch => { seed = (seed * 31 + ch.charCodeAt(0)) % 9973; });
   let bx = IN + 30; while (bx < IN + IW - 40){ seed = (seed * 1103 + 12345) % 65536; const bw2 = 4 + (seed % 3) * 4; g.fillStyle = INK; g.fillRect(bx, y, bw2, 70); bx += bw2 + 6 + (seed % 4) * 2; }   // a barcode that is always the same for the same trip name
   font(400, 30); g.globalAlpha = .7; text('ありがとうございました。またいい旅を。', W / 2, y + 70 + 52, INK, 'center'); g.globalAlpha = 1;
   font(400, 26); g.globalAlpha = .55; text(RECAP_SITE, W / 2, y + 70 + 52 + 52, INK, 'center'); g.globalAlpha = 1;   // inside the receipt, so it is never under the story app's own buttons
@@ -1598,6 +1637,30 @@ function quickChips(t){
   const all = mine.concat(USUAL.filter(u => mine.indexOf(u) < 0)).slice(0, 8);
   return '<div class="qchips" role="group" aria-label="よく使う内容">' + all.map(k => '<button type="button" class="chip plain qchip" data-a="quick-chip" data-v="' + esc(k) + '">' + esc(k) + '</button>').join('') + '</div>';
 }
+/* ---- stamps (v146) ---- */
+const STAMP_SEEN = 'tabiwari.stampseen';   // this device only: which stamps were already shown as "pressed" (per trip), so each pops once. Not synced, not in backups.
+const stampEl = (x, sm, i) => '<span class="stp' + (sm ? ' sm' : '') + (x.on ? '' : ' off') + '" style="--r:' + [-6, 5, -3, 7, -8][i % 5] + 'deg">' + x.k + '</span>';
+function stampBar(t){
+  const all = stampsOf(t), on = all.filter(x => x.on), n = on.length, show = on.concat(all.filter(x => !x.on)).slice(0, 6);
+  return '<button type="button" class="stbar" data-a="stamps-open" aria-label="旅のスタンプ。' + n + '個押されています。開く"><span class="strow" aria-hidden="true">' + show.map((x, i) => stampEl(x, true, i)).join('') + '</span>' +
+    '<span class="sttxt"><b>スタンプ ' + n + '/' + all.length + '</b><small>' + (n >= all.length ? 'コンプリート ›' : 'あと' + (all.length - n) + 'つ ›') + '</small></span></button>';
+}
+function stampPop(list){
+  if (!calm() || !document.body.animate) return;   // "reduce motion": no pop (the count on the stamp row still changes)
+  const x = list[0], d = document.createElement('div'); d.className = 'stpop'; d.setAttribute('aria-hidden', 'true');
+  d.innerHTML = stampEl(x, false, 0).replace(' style="--r:-6deg"', '') + '<div class="stpop-t">' + esc(x.name) + 'のスタンプ' + (list.length > 1 ? ' ほか' + (list.length - 1) + 'つ' : '') + '</div>';
+  document.body.appendChild(d);
+  const at = 'translate(-50%,-50%) ', a = d.animate([{ opacity: 0, transform: at + 'scale(1.9) rotate(-18deg)' }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .3 }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .78 }, { opacity: 0, transform: at + 'scale(.96) rotate(-8deg)' }], { duration: 1300, easing: 'cubic-bezier(.22,1,.36,1)' });
+  a.onfinish = a.oncancel = () => d.remove();
+}
+function stampWatch(){
+  const t = trip(); if (!t) return;
+  let seen = {}; try { seen = JSON.parse(lsGet(STAMP_SEEN)) || {}; } catch(e){ seen = {}; }
+  const now = stampsOf(t).filter(x => x.on), keep = () => { const ks = Object.keys(seen); ks.slice(0, Math.max(0, ks.length - 60)).forEach(k => delete seen[k]); lsSet(STAMP_SEEN, JSON.stringify(seen)); };
+  if (!Array.isArray(seen[t.id])){ seen[t.id] = now.map(x => x.id); keep(); return; }   // first time this device sees the trip: stamps that are already there do not pop
+  const fresh = now.filter(x => seen[t.id].indexOf(x.id) < 0); if (!fresh.length) return;
+  seen[t.id] = seen[t.id].concat(fresh.map(x => x.id)); keep(); stampPop(fresh);
+}
 function quickForm(){
   return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとこと：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button>' + aiButtons() + (ui.canFind ? '<button class="btn line aibtn" type="button" data-a="find-toggle" aria-label="支出を探す" aria-pressed="' + !!(ui.qOpen || ui.q) + '">' + icon('find', 22) + '</button>' : '') + '</form>' +
     (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '') + (trip() ? quickChips(trip()) : '');
@@ -1610,13 +1673,12 @@ const quickHint = t => t.expenses.length < 3 ? '<div class="hint"><span>「夕�
 const swipeHint = t => !lsGet(HINT_SWIPE) && t.expenses.some(e => !isSettled(t, e)) ? '<div class="hint swiphint"><span>左にスワイプすると、支出を削除できます。</span><button class="link" data-a="hint-swipe-no">わかった</button></div>' : '';
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
-  if (!t.expenses.length) return welcomeCard(t) + quickForm() + quickHint(t) + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
+  if (!t.expenses.length) return welcomeCard(t) + stampBar(t) + quickForm() + quickHint(t) + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:calc(14px*var(--ts));padding:8px 14px">まとめ画像</button></div>' : '';
   const box = done + (ui.canFind && (ui.qOpen || ui.q) ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
-  return welcomeCard(t) + quickForm() + quickHint(t) + box + swipeHint(t) + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
+  return welcomeCard(t) + stampBar(t) + quickForm() + quickHint(t) + box + swipeHint(t) + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
 }
 
-const payKey = (n, p) => { const b = p.from + '-' + p.to + '-' + p.amount; return n === 1 ? b : n + ':' + b; };   // round 1 keeps the old key format, so earlier checkmarks still count
 const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => esc(nameOf(t, id)) + ' ' + (nets[id] > 0 ? '+' : '−') + Math.abs(nets[id]).toLocaleString('ja-JP')).join('・');
 function noteLine(t, id){   // how the receiver wants to be paid (the memo they wrote), with a button to copy it
   const m = t.members.find(x => x.id === id); if (!m || !m.note) return '';
@@ -1866,6 +1928,12 @@ function viewSheet(){
     const canShare = !!(navigator.canShare && s.file && navigator.canShare({ files: [s.file] }));
     body = s.err ? '' : s.url ? '<img class="recap-img" src="' + s.url + '" alt="旅のまとめの画像">' : '<div class="sub" style="margin-top:14px">画像をつくっています…</div>';
     foot = err + (s.url ? (canShare ? '<button class="btn" data-a="recap-share">共有する</button>' : '<a class="btn" href="' + s.url + '" download="tabiwari-recap.png" style="text-align:center;text-decoration:none">画像を保存する</a><div class="sub sm" style="text-align:center;margin-top:6px">画像を長押しして、保存することもできます。</div>') : '') + '<button class="link" data-a="close-sheet">閉じる</button>';
+  }
+  if (s.type === 'stamps'){
+    ttl = '旅のスタンプ'; const all = stampsOf(t), n = all.filter(x => x.on).length, md = d => Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
+    body = '<div class="sub">' + esc(t.name) + '・' + n + '/' + all.length + '</div><div class="stgrid">' + all.map((x, i) => '<div>' + stampEl(x, false, i) + '<span>' + esc(x.name) + '<small>' + (x.on ? (x.date ? md(x.date) : '達成') : 'まだ') + '</small></span></div>').join('') + '</div>' +
+      '<div class="sub sm" style="text-align:center;margin-top:4px">記録や精算で、スタンプが押されます。旅のまとめ画像にも並びます。</div>';
+    foot = '<button class="link" data-a="close-sheet">閉じる</button>';
   }
   if (s.type === 'join-loading'){
     ttl = 'リンクを確認しています';
@@ -2380,6 +2448,7 @@ document.addEventListener('click', e => {
       er => { if (ui.sheet) { ui.sheet.err = Line.errText(er); render(); } });
     return;
   }
+  else if (a === 'stamps-open'){ ui.sheet = { type: 'stamps' }; }
   else if (a === 'join-paste'){ ui.sheet = { type: 'join-paste', err: '', text: '', busy: false }; }
   else if (a === 'join-paste-go'){
     const text = document.getElementById('p-link').value, tok = Share.parseToken(text); s.text = text;
