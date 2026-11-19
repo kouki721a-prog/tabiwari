@@ -129,11 +129,11 @@ html,body{overscroll-behavior-x:none}
 .pill.wait{background:none;border:1.5px dashed var(--sub);color:var(--sub);padding:1px 9px}
 
 /* home */
-.trip{display:block;width:100%;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px 16px;margin-top:10px}
+.trip{display:flex;position:relative;width:100%;text-align:left;background:var(--cream);border:0;border-radius:16px;padding:0;margin-top:10px;box-shadow:0 1px 0 var(--dash);--stub:calc(116px*var(--ts))}
 .trip-name{font-size:calc(18px*var(--ts));font-weight:700;overflow-wrap:anywhere}
 .bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:12px}
 .bar>i{display:block;height:100%;background:var(--sun);border-radius:99px}
-.trip.now{border-color:var(--sun);box-shadow:0 0 0 1px var(--sun)}
+.trip.now{box-shadow:0 0 0 2px var(--sun)}
 .trip .hint{font-weight:700;color:var(--ink)}
 .bar.over>i{background:var(--bad)}
 .legal a{color:var(--sub)}
@@ -411,6 +411,14 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
 .tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
 .ticket.m.stub:before,.ticket.m.stub:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.ticket.m.stub:before{top:-9px}.ticket.m.stub:after{bottom:-9px}
+/* the home card as a trip ticket (v148): the trip on the left, a perforated stub with the money on the right, a notch at both ends of the perforation */
+.trip-l{flex:1;min-width:0;padding:14px 12px 14px 16px}.trip-s{flex:none;width:var(--stub);border-left:2px dashed var(--dash);padding:14px 12px 14px 14px;display:flex;align-items:center}
+.trip-s .right{text-align:left;min-width:0}.trip-s .num{font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.trip-s .sub{white-space:normal;line-height:1.35}
+.trip:before,.trip:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.trip:before{top:-9px}.trip:after{bottom:-9px}
+.trip .hint-row{display:block;margin-top:2px}.trip .avs{display:flex}
+/* settle / savings / members: paper lists with dashed lines */
+.scroll .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
+.scroll .list .item,.scroll .list>.item+.swp,.scroll .list>.swp+.item{border-top:1.5px dashed var(--dash)}.scroll .list>:first-child .item,.scroll .list>.item:first-child{border-top:0}
 /* the record list as paper: cream, a dashed line between rows, small tabular dates */
 #exp-list .sec>h2{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.04em;font-weight:500;color:var(--sub)}#exp-list .sec>h2 span{font-family:var(--mono);font-weight:500}
 #exp-list .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
@@ -1417,11 +1425,11 @@ const isPast = t => status(t)[0] === '終了' && !settlePending(t);   // ended a
 function tripCard(t){
   const sp = total(t), left = t.budget - sp, pre = status(t)[0] === '準備中', pct = pre ? savedPct(t) : Math.min(100, Math.round(sp / t.budget * 100));
   const hint = homeHint(t);
-  let h = '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-a="open" data-id="' + t.id + '"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
-    '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '　<span class="hint">' + esc(hint) + '</span>' : '') + '</div>' +
-    '<div class="row between" style="margin-top:14px"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
-    (pre ? '<div class="right"><div class="sub sm">積立（目標 ' + yen(t.budget) + '）</div><div class="num">' + yen(savedOf(t)) + '</div></div></div>' : '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div></div>') +
-    '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></button>';
+  let h = '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-a="open" data-id="' + t.id + '"><div class="trip-l"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
+    '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '<span class="hint-row"><span class="hint">' + esc(hint) + '</span></span>' : '') + '</div>' +
+    '<div class="avs" style="margin-top:12px">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
+    '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></div>' +
+    '<div class="trip-s">' + (pre ? '<div class="right"><div class="sub sm">積立（目標 ' + yen(t.budget) + '）</div><div class="num">' + yen(savedOf(t)) + '</div></div>' : '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div>') + '</div></button>';
   if (status(t)[0] === '終了' && t.members.length > 1) h += '<button class="btn line inv" data-a="next-trip" data-id="' + t.id + '">同じメンバーで次の旅行をつくる</button>';   // starts the next trip from this one
   if (t.members.length === 1) h += '<button class="btn line inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button>';   // only while I am the only member
   return h;
