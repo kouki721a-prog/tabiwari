@@ -199,6 +199,8 @@ html,body{overscroll-behavior-x:none}
 .t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
 .ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:calc(30px*var(--ts));line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
 .ticket.m .t-bot{margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28)}.ticket.m .t-bot b{font-size:calc(16px*var(--ts))}.ticket.m .t-bot .t-label{font-size:calc(12px*var(--ts))}
+.ticket.m .t-hero{margin-top:2px}.ticket.m .t-hero b{font-size:calc(17px*var(--ts));font-weight:700}.ticket.m .t-hero b.warn{color:#ff9a92}.ticket.m .t-foot{margin-top:2px}.ticket.m .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m .t-foot b{font-size:calc(14px*var(--ts));opacity:1;margin-left:2px}
+.ufold{display:flex;justify-content:space-between;align-items:center;gap:8px;width:calc(100% - 36px);margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28);font-size:calc(12px*var(--ts));color:rgba(255,255,255,.8);text-align:left}.ufold em{font-style:normal;color:#ff9a92;margin-left:6px;font-weight:700}
 .ticket.c{border-radius:16px;padding:9px 16px 11px}.ticket.c .t-amount{font-size:calc(22px*var(--ts));line-height:1.2}.ticket.c .t-bar{height:5px;margin-top:6px}
 
 /* lists */
@@ -1386,19 +1388,13 @@ function viewTrip(){
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1>' + pill(st) + '</div>' +
     '<div class="sub subrow"><span>' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' : '') + '</span>' + memRow(t) + '</div>';
   const lab = over ? '予算オーバー' : '予算の残り', amt = '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>', bar = '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>';
-  if (ui.tab === 'exp' && st[0] === '準備中')   // before the trip: the budget, and how much of it the group has saved
-    h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">予算</span><span class="t-label">積立 ' + yen(savedOf(t)) + '（' + savedPct(t) + '%）</span></div><div class="t-amount">' + yen(t.budget) + '</div><div class="t-bar"><i style="width:' + savedPct(t) + '%"></i></div></div>' +
-      '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b>' + yen(b[1]) + '</b></div></div></div>';
-  else if (ui.tab === 'exp')   // record tab: the budget in a short card, so the list gets the room
-    h += '<i class="sp"></i><div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">' + lab + '</span><span class="t-label">' + yen(sp) + ' 使用 / ' + yen(t.budget) + '</span></div>' + amt + bar + '</div>' +
-      '<div class="t-bot"><div><div class="t-label">' + a[0] + '</div><b>' + yen(a[1]) + '</b></div><div><div class="t-label">' + b[0] + '</div><b class="' + (bWarn ? 'warn' : '') + '">' + yen(b[1]) + '</b></div></div>' + usageBar(t, true) + '</div>';
+  if (ui.tab === 'exp') h += '<i class="sp"></i>' + budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct);   // record tab: the budget in a short card, so the list gets the room
   else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
     const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = Math.min(100, Math.round(ssum / t.budget * 100));
     const saveMiss = t.budget - savedOf(t), saveInline = st[0] !== '準備中' || saveMiss <= 0 || dayDiff(today, t.start) <= 0;   // one line when there is no daily pace to show
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">予算 ' + yen(t.budget) + ' の ' + spct + '%' + (st[0] === '準備中' ? '・出発まで あと' + dayDiff(today, t.start) + '日' : '') + (saveInline ? '・' + (saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)) : '') + '</div>' + (saveInline ? '' : savePace(t, today)) + '</div>';
   } else   // settlement tab: one thin line
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
-  if (ui.tab === 'exp' && st[0] === '準備中') h += '<i class="sp"></i>' + usageBar(t);   // otherwise the categories sit inside the budget card
   h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
   return h + '<nav class="nav"><div class="nav-in">' + tb('exp', 'list', '記録') + tb('settle', 'swap', '精算') +
@@ -1414,6 +1410,30 @@ function capNotice(t, before){   // "食事が、上限を 2,000円 超えまし
 function memRow(t){   // the members and the invite button (on the record tab they share the date line)
   return '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
     '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
+}
+/* the record tab's card: ONE thing in big letters (today's guide while travelling / what was saved before / what was spent after), one bar, one line for the rest; the category split is folded into one line (a tap opens the bar and the chips) */
+function budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct){
+  const money = n => yen(n);
+  let hl, hv, hn = false, rl, rv, rw = false, fl, fr, barPct = pct, barOver = over;
+  if (st[0] === '旅行中'){
+    if (over){ hl = '予算オーバー'; hv = money(-left); hn = true; fl = a[0].replace('1日あたりの目安', '今日の目安') + ' <b>' + money(a[1]) + '</b>'; }
+    else { hl = a[0].replace('1日あたりの目安', '今日の目安'); hv = money(a[1]); fl = '予算の残り <b>' + money(left) + '</b>'; }
+    rl = b[0]; rv = money(b[1]); rw = bWarn; fr = '予算 ' + money(t.budget);
+  } else if (st[0] === '準備中'){
+    hl = '積立'; hv = money(savedOf(t)); rl = '目標に対して'; rv = savedPct(t) + '%'; barPct = savedPct(t); barOver = false; fl = '予算 <b>' + money(t.budget) + '</b>'; fr = b[0] + ' ' + money(b[1]);
+  } else {
+    hl = a[0]; hv = money(a[1]); rl = b[0]; rv = money(b[1]); fl = (over ? '予算オーバー' : '予算の残り') + ' <b>' + money(Math.abs(left)) + '</b>'; fr = '予算 ' + money(t.budget);
+  }
+  return '<div class="ticket m"><div class="t-top"><div class="t-row"><span class="t-label">' + hl + '</span><span class="t-label">' + rl + '</span></div>' +
+    '<div class="t-row t-hero"><div class="t-amount ' + (hn ? 'neg' : '') + '">' + hv + '</div><b class="' + (rw ? 'warn' : '') + '">' + rv + '</b></div>' +
+    '<div class="t-bar ' + (barOver ? 'over' : '') + '" role="img" aria-label="' + (st[0] === '準備中' ? '積立は目標の ' : '予算の ') + barPct + '%"><i style="width:' + barPct + '%"></i></div>' +
+    '<div class="t-row t-foot"><span class="t-label">' + fl + '</span><span class="t-label">' + fr + '</span></div></div>' + usageFold(t) + '</div>';
+}
+function usageFold(t){
+  const caps = t.caps || {}, hasCaps = Object.keys(caps).length > 0;
+  if (!t.expenses.length && !hasCaps) return usageBar(t, true);   // nothing to fold yet: the one line that offers the limits
+  const by = catSums(t), top = CATS.filter(c => by[c[0]]).sort((x, y) => by[y[0]] - by[x[0]]).slice(0, 3), capOver = CATS.some(c => caps[c[0]] && (by[c[0]] || 0) > caps[c[0]]), open = ui.usageOpen || !!ui.catF;
+  return (open ? usageBar(t, true) : '') + '<button type="button" class="ufold" data-a="usage-toggle" aria-expanded="' + open + '"><span>' + (open ? '内訳を閉じる' : '内訳：' + (top.map(c => c[2] + ' ' + by[c[0]].toLocaleString('ja-JP')).join('・') || 'なし') + (capOver ? '<em>上限超え</em>' : '')) + '</span><span class="chev' + (open ? ' open' : '') + '">' + icon('chev', 16) + '</span></button>';
 }
 function usageBar(t, inCard){   // the share of each category (a tap opens the limits); a category with a limit shows "used／limit", in red when over
   const caps = t.caps || {}, hasCaps = Object.keys(caps).length > 0, sp = total(t), by = catSums(t);
@@ -2459,6 +2479,7 @@ document.addEventListener('click', e => {
     ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
   }
   else if (a === 'text-size'){ const v = el.getAttribute('data-v'); if (!TEXT_SIZES[v]) return; lsSet(TEXT_KEY, v === '1' ? null : v); applyTextSize(); render(); return; }
+  else if (a === 'usage-toggle'){ const open = ui.usageOpen || !!ui.catF; if (open){ ui.usageOpen = false; ui.catF = null; } else ui.usageOpen = true; render(); return; }
   else if (a === 'hint-swipe-no'){ lsSet(HINT_SWIPE, '1'); render(); return; }
   else if (a === 'copy-note'){ const m = t.members.find(x => x.id === id), v = m && m.note; if (!v) return; try { navigator.clipboard.writeText(v).then(() => flash('コピーしました'), () => flash(v)); } catch(err){ flash(v); } return; }
   else if (a === 'quick-chip'){   // the content goes into the box; the number keyboard opens for the amount (a tap on a chip is the one time the box takes focus by itself)
