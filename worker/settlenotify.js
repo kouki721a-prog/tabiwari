@@ -9,7 +9,7 @@ const MAX_SENDS = 15, ADV_PER_DAY = 5;   // 立て替えのお知らせ: at most
 const lineApi = env => env.LINE_API_BASE || 'https://api.line.me';   // outgoing requests per call; the free plan allows ~50 per invocation and the hourly job has its own share
 const yen = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
 export const messages = {
-  settle: (trip, to, amount) => ({ title: '精算のお知らせ', body: trip + 'の精算ができました。' + to + 'さんに ' + yen(amount) + ' を送ってください。' }),
+  settle: (trip, to, amount) => ({ title: '精算のお知らせ', body: trip + 'の精算が確定しました。' + to + 'さんに ' + yen(amount) + ' を送ってください。' }),
   paid: (from, amount) => ({ title: '支払いのお知らせ', body: from + 'さんが ' + yen(amount) + ' を支払いました。' }),
   advance: (trip, payer, amount, share) => ({ title: '立て替えのお知らせ', body: trip + '：' + payer + 'さんが ' + yen(amount) + ' を立て替えました。あなたの分は ' + yen(share) + ' です。' }),
   again: (trip, to, amount) => ({ title: '精算のお知らせ', body: trip + 'の精算の、' + to + 'さんへの ' + yen(amount) + ' は、お済みですか。' })

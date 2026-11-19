@@ -1286,7 +1286,7 @@ function homeHint(t){
   if (!has) return ss.length ? '精算は済んでいます' : '';
   const pays = settle(roundBalances(t).net); if (!pays.length) return '';
   const n = ss.length + 1, un = pays.filter(p => !t.paid[payKey(n, p)]).length;
-  return un ? '精算があと' + un + '件' : '精算を完了しましょう';
+  return un ? '精算があと' + un + '件' : '精算を確定しましょう';
 }
 function settlePending(t){   // an ended trip that still has money to settle: it stays on the home screen
   if (status(t)[0] !== '終了') return false;
@@ -1572,7 +1572,7 @@ function tabSettle(t){
   else if (!pays.length) h += '<div class="panel"><b>送金は必要ありません。</b><div class="sub">全員の支払いがちょうど同じです。</div></div>';
   else h += xferList(t, pays, n);
   if (open.adjustments.length) h += '<div class="panel" style="margin-top:10px"><b>過去の精算の変更による差額</b>' + open.adjustments.map(a => '<div class="sub sm" style="margin-top:4px">' + esc(a.note || '支出の変更') + '：' + netLine(t, a.nets) + '</div>').join('') + '</div>';
-  if (has) h += '<button class="btn" data-a="settle-ask" style="margin-top:14px">この精算を完了する</button><div class="sub sm" style="margin-top:6px;text-align:center">完了すると、いまの支出が第' + n + '回にまとまります。</div>';
+  if (has) h += '<button class="btn" data-a="settle-ask" style="margin-top:14px">この精算を確定する</button><div class="sub sm" style="margin-top:6px;text-align:center">確定すると、いまの支出が第' + n + '回にまとまります。送金は、そのあとで、各自が行います。</div>';
   h += '</div>';
   if (has) h += '<div class="sec"><h2>ひとりずつの内訳<span>第' + n + '回</span></h2><div class="list">' + t.members.map(m => {
     const v = bal.net[m.id];
@@ -1625,23 +1625,23 @@ function viewSheet(){
       (s.editId ? (s.confirmDel ? '<div style="margin-top:8px">' + (closedNo ? '<div class="sub sm" style="margin-bottom:6px">第' + closedNo + '回で精算済みです。削除すると、差額が第' + nextNo + '回の精算に入ります。</div>' : '') + '<button class="btn bad" data-a="del-exp">本当に削除する</button></div>' : '<button class="link bad" data-a="ask-del">この支出を削除</button>') : '');
   } else if (s.type === 'settle-confirm'){
     const n = (t.settlements || []).length + 1, open = openItems(t), pays = settle(roundBalances(t).net), left = pays.filter(p => !t.paid[payKey(n, p)]).length;
-    ttl = '第' + n + '回の精算を完了する';
+    ttl = '第' + n + '回の精算を確定する';
     body = '<div class="panel" style="margin-top:12px"><b>いまの未精算の支出 ' + open.expenses.length + '件（合計 ' + yen(open.total) + '）が、第' + n + '回にまとまります。</b>' +
       (open.adjustments.length ? '<div class="sub" style="margin-top:4px">過去の精算の変更による差額 ' + open.adjustments.length + '件も含みます。</div>' : '') +
-      '<div class="sub" style="margin-top:6px">完了したあとに追加した支出は、第' + (n + 1) + '回の精算になります。完了した回の支出を変えたときの差額も、次の回に入ります。</div>' +
+      '<div class="sub" style="margin-top:6px">確定したあとに追加した支出は、第' + (n + 1) + '回の精算になります。確定した回の支出を変えたときの差額も、次の回に入ります。</div>' +
       (left ? '<div class="sub" style="margin-top:6px;color:var(--bad)">支払い済みのチェックが付いていない送金が、' + left + '件あります。</div>' : '') + '</div>';
-    foot = err + '<button class="btn" data-a="settle-go">第' + n + '回の精算を完了する</button><button class="link" data-a="close-sheet">やめる</button>';
+    foot = err + '<button class="btn" data-a="settle-go">第' + n + '回の精算を確定する</button><button class="link" data-a="close-sheet">やめる</button>';
   } else if (s.type === 'settle-detail'){
     const st = (t.settlements || []).find(x => x.id === s.id), n = roundNo(t, s.id);
     if (!st){ ttl = '精算の履歴'; body = '<div class="empty">見つかりませんでした。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
     else {
       const exps = t.expenses.filter(e => e.settleId === st.id), adjs = (t.adjustments || []).filter(a => a.settleId === st.id);
       ttl = '第' + n + '回の精算';
-      body = '<div class="sub" style="margin-top:12px">' + fmtDate(st.at) + ' に完了・支出 ' + yen(st.total) + '</div><span class="lab">送金</span>' +
+      body = '<div class="sub" style="margin-top:12px">' + fmtDate(st.at) + ' に確定・支出 ' + yen(st.total) + '</div><span class="lab">送金</span>' +
         (st.transfers.length ? xferList(t, st.transfers, n) : '<div class="panel"><b>送金は必要ありませんでした。</b></div>') +
         '<span class="lab">この回の支出（' + exps.length + '件）</span>' + (exps.length ? '<div class="list">' + exps.map(e => '<div class="item slim"><div class="grow"><div class="t">' + esc(e.title || (CAT[e.cat] || CAT.other)[2]) + '</div><div class="sub sm">' + fmtDate(e.date) + '・' + esc(nameOf(t, e.payer)) + 'が払った</div></div><div class="amt">' + yen(e.amount) + '</div></div>').join('') + '</div>' : '<div class="sub">支出は、あとで削除されました。</div>') +
         (adjs.length ? '<span class="lab">この回に含めた、過去の精算の変更による差額</span><div class="list">' + adjs.map(a => '<div class="item slim"><div class="grow"><div class="t">' + esc(a.note || '支出の変更') + '</div><div class="sub sm">' + netLine(t, a.nets) + '</div></div></div>').join('') + '</div>' : '') +
-        '<div class="sub sm" style="margin-top:10px">送金の金額は、完了したときのものです。このあとに支出を変更すると、差額は、いまの回に入ります。</div>';
+        '<div class="sub sm" style="margin-top:10px">送金の金額は、確定したときのものです。このあとに支出を変更すると、差額は、いまの回に入ります。</div>';
       foot = '<button class="link" data-a="close-sheet">閉じる</button>';
     }
   } else if (s.type === 'note'){
@@ -1720,7 +1720,7 @@ function viewSheet(){
       '<div class="sub sm acc-note">旅行を作ったり、記録したりすると、自動でバックアップします。共有している旅行は、リンクだけを暗号化して控えます。</div>' +
       '<div class="sechd">写真</div><div class="list">' + row('image', 'LINEの写真を、友だちに見せる', '同じ旅行の友だちの画面に、あなたのLINEの写真が出ます。止めると、頭文字のアイコンになります。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.pic !== false) + '" aria-label="LINEの写真を、友だちに見せる" data-a="pic-toggle"></button>') + '</div>' +
       (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('bell', 'この端末に通知する', ntfSub, sw) +
-        (s.ntf === 'on' || s.ntf === 'off' ? row('coin', '精算のお知らせ', '精算ができたときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
+        (s.ntf === 'on' || s.ntf === 'off' ? row('coin', '精算のお知らせ', '精算が確定したときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
         (s.ntf === 'on' || s.ntf === 'off' ? row('coin', '積立のお知らせ', '出発の1週間前と前日に、あなたの積立の、あと何円かをお知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.sv !== false) + '" aria-label="積立のお知らせ" data-a="sv-toggle"></button>') : '') +
         (s.ntf === 'on' || s.ntf === 'off' ? row('send', '立て替えのお知らせ', '友だちが払ったとき、あなたの分をお知らせします。1日に5通までです。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.adv === true) + '" aria-label="立て替えのお知らせ" data-a="adv-toggle"></button>') : '') +
         (s.ntf === 'on' || s.ntf === 'off' ? row('alert', '今日の使いすぎのお知らせ', '旅行中、今日の支出が1日の目安を超えたら、1日に1回お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.over !== false) + '" aria-label="今日の使いすぎのお知らせ" data-a="over-toggle"></button>') : '') +
@@ -2418,7 +2418,7 @@ document.addEventListener('click', e => {
   else if (a === 'toggle-paid'){ const k = el.getAttribute('data-k'); if (t.paid[k]){ delete t.paid[k]; ui.justPaid = null; } else { t.paid[k] = true; ui.justPaid = k; } save(); }
   else if (a === 'settle-ask'){ if (openItems(t).expenses.length || openItems(t).adjustments.length) ui.sheet = { type: 'settle-confirm', err: '' }; }
   else if (a === 'settle-go'){
-    const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; save(); render(); flash('第' + n + '回の精算を完了しました'); return;
+    const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; save(); render(); flash('第' + n + '回の精算を確定しました'); return;
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }

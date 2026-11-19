@@ -78,7 +78,7 @@ try {
   // a confirmed round: who owes is told
   assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'settlements', rows: [settlement] }, { kind: 'update', table: 'expenses', row: { id: 'e1', title: '宿', amount: 9000, payer: 'm-aoi', cat: 'stay', spent_on: '2026-11-18', split: ['m-aoi', 'm-kenta', 'm-miku'], settle_id: 'r1' } }])).status, 200);
   const k1 = await waitFor(dKenta);
-  assert.strictEqual(k1.length, 1, JSON.stringify(k1)); assert.strictEqual(k1[0].body, '箱根の精算ができました。あおいさんに 3,500円 を送ってください。');
+  assert.strictEqual(k1.length, 1, JSON.stringify(k1)); assert.strictEqual(k1[0].body, '箱根の精算が確定しました。あおいさんに 3,500円 を送ってください。');
   assert.ok(k1[0].url.includes('trip=' + TID) && k1[0].url.includes('tab=settle'), k1[0].url);
   for (const m of [k1[0]]) assert.ok(!/[！]|催促|至急/.test(m.title + m.body));
   await wait(400); assert.strictEqual(take(dAoi).length, 0, 'the person who is owed is not told about the round'); assert.strictEqual(inbox.length, 0, 'みく has no device: nothing');
@@ -133,7 +133,7 @@ try {
   const owe = [{ from: 'ma', to: 'md', amount: 2000 }, { from: 'mb', to: 'md', amount: 1000 }, { from: 'mc', to: 'md', amount: 500 }];
   await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q1', n: 1, at: '2026-11-20', total: 3500, transfers: owe }] }]);
   for (let i = 0; i < 40 && !line.pushes.length; i++) await wait(100); await wait(500);
-  assert.deepStrictEqual(line.pushes.map(x => [x.to, x.text]), [['U-ma', '【たびわり】熱海の精算ができました。ディーさんに 2,000円 を送ってください。']], 'only the friend without the app notification gets a LINE message');
+  assert.deepStrictEqual(line.pushes.map(x => [x.to, x.text]), [['U-ma', '【たびわり】熱海の精算が確定しました。ディーさんに 2,000円 を送ってください。']], 'only the friend without the app notification gets a LINE message');
   assert.ok(/^[0-9a-f-]{36}$/.test(line.pushes[0].retryKey), 'a retry key makes a repeated request harmless');
   assert.strictEqual(take(dC).length, 1, 'シー got the app notification'); assert.ok(!line.pushes.some(x => x.to === 'U-mc'), 'and no second one by LINE');
   await ops(U, [{ kind: 'insert', table: 'settlements', rows: [{ id: 'q1', n: 1, at: '2026-11-20', total: 3500, transfers: owe }] }]); await wait(700); assert.strictEqual(line.pushes.length, 1, 'not sent twice');
