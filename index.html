@@ -1045,7 +1045,7 @@ async function ntfOff(){
   if (sub){ try { await Line.pushUnsubscribe(sub.endpoint); } catch(e){} await sub.unsubscribe(); }
   return 'off';
 }
-const KIND_JA = { eve: '前日の通知', daily: '記録のし忘れ', settle: '精算', over: '今日の使いすぎ' };
+const KIND_JA = { eve: '前日の通知', daily: '記録のし忘れ', settle: '精算', over: '今日の使いすぎ', sv7: '積立（1週間前）', sv1: '積立（前日）' };
 const jstText = ms => new Date(ms + 9 * 3600 * 1000).toISOString().slice(5, 16).replace('-', '/').replace('T', ' ');
 /* The person's own side of the settlement notices: is the official account a friend, is the switch on, which member of which shared trip they are. */
 function reachLines(r){
@@ -1721,6 +1721,7 @@ function viewSheet(){
       '<div class="sechd">写真</div><div class="list">' + row('image', 'LINEの写真を、友だちに見せる', '同じ旅行の友だちの画面に、あなたのLINEの写真が出ます。止めると、頭文字のアイコンになります。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.pic !== false) + '" aria-label="LINEの写真を、友だちに見せる" data-a="pic-toggle"></button>') + '</div>' +
       (s.ntf && s.ntf !== 'hidden' ? '<div class="sechd">通知</div><div class="list">' + row('bell', 'この端末に通知する', ntfSub, sw) +
         (s.ntf === 'on' || s.ntf === 'off' ? row('coin', '精算のお知らせ', '精算ができたときと、支払いがあったときに、お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.settle !== false) + '" aria-label="精算のお知らせ" data-a="settle-toggle"></button>') : '') +
+        (s.ntf === 'on' || s.ntf === 'off' ? row('coin', '積立のお知らせ', '出発の1週間前と前日に、あなたの積立の、あと何円かをお知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.sv !== false) + '" aria-label="積立のお知らせ" data-a="sv-toggle"></button>') : '') +
         (s.ntf === 'on' || s.ntf === 'off' ? row('send', '立て替えのお知らせ', '友だちが払ったとき、あなたの分をお知らせします。1日に5通までです。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.adv === true) + '" aria-label="立て替えのお知らせ" data-a="adv-toggle"></button>') : '') +
         (s.ntf === 'on' || s.ntf === 'off' ? row('alert', '今日の使いすぎのお知らせ', '旅行中、今日の支出が1日の目安を超えたら、1日に1回お知らせします。', '<button class="sw" role="switch" aria-checked="' + (lineAcct.user.over !== false) + '" aria-label="今日の使いすぎのお知らせ" data-a="over-toggle"></button>') : '') +
         row('pulse', 'お知らせの届き方を調べる', s.reach ? s.reach.map(l => esc(l)).join('<br>') : '公式LINEの友だち状態や、この旅行での登録を確認します。', smallBtn('ntf-reach', '調べる', s.reaching), 'sub-row') +
@@ -2197,6 +2198,12 @@ document.addEventListener('click', e => {
   else if (a === 'pic-toggle'){
     const next = lineAcct.user.pic === false;
     Line.pushSettingPic(next).then(() => { lineAcct.user.pic = next; if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = ''; render(); } },
+      er => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = er && er.status ? Line.errText(er) : '設定を保存できませんでした。もう一度お試しください。'; render(); } });
+    return;
+  }
+  else if (a === 'sv-toggle'){
+    const next = lineAcct.user.sv === false;
+    Line.pushSettingSv(next).then(() => { lineAcct.user.sv = next; if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = ''; render(); } },
       er => { if (ui.sheet && ui.sheet.type === 'line-account'){ ui.sheet.err = er && er.status ? Line.errText(er) : '設定を保存できませんでした。もう一度お試しください。'; render(); } });
     return;
   }

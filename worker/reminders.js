@@ -2,6 +2,8 @@
      eve    the evening (from 18:00 Japan time) before the trip starts
      daily  during the trip, from 20:00, when nothing has been logged for today yet
      settle the morning (from 10:00) after the trip ends, if there were expenses
+     sv7    10:00 or later, 7 days before a shared trip starts: how much is left of the person's own saving goal
+     sv1    12:00 or later, the day before: the same
    A (person, trip, kind, day) is claimed in D1 before sending, so it goes out once even if the job runs again. */
 import { sha256hex } from './util.js';
 import { open } from './seal.js';
@@ -13,7 +15,7 @@ const ymd = d => d.toISOString().slice(0, 10);
 
 export function jstParts(nowMs) {
   const j = new Date(nowMs + 9 * 3600 * 1000);   // shift so the UTC getters read Japan time
-  return { today: ymd(j), tomorrow: ymd(new Date(j.getTime() + 86400000)), yesterday: ymd(new Date(j.getTime() - 86400000)), hour: j.getUTCHours() };
+  return { today: ymd(j), tomorrow: ymd(new Date(j.getTime() + 86400000)), in7: ymd(new Date(j.getTime() + 7 * 86400000)), yesterday: ymd(new Date(j.getTime() - 86400000)), hour: j.getUTCHours() };
 }
 export function dueKinds(trip, t, ex) {
   const kinds = [];
@@ -24,6 +26,10 @@ export function dueKinds(trip, t, ex) {
   }
   if (t.hour >= 20 && trip.start <= t.today && t.today <= trip.end && ex.onToday === 0) kinds.push('daily');
   if (t.hour >= 10 && trip.end === t.yesterday && ex.total > 0) kinds.push('settle');
+  if (ex.sv && ex.sv.left > 0) {   // the person's own saving: only for a shared trip where we know which member they are; nothing when the goal is reached
+    if (t.hour >= 10 && trip.start === t.in7) kinds.push('sv7');
+    if (t.hour >= 12 && trip.start === t.tomorrow) kinds.push('sv1');
+  }
   return kinds;
 }
 const isDay = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -39,7 +45,7 @@ async function findDue(env, t, userIds, all = false) {
     if (item.deleted && !all) continue;   // deleted on the device: no reminders
     const src = item.kind === 'shared' ? item : item.trip;
     if (!src || !isDay(src.start) || !isDay(src.end) || typeof src.name !== 'string') continue;
-    if (!all && !(src.start === t.tomorrow || (src.start <= t.today && t.today <= src.end) || src.end === t.yesterday)) continue;
+    if (!all && !(src.start === t.tomorrow || src.start === t.in7 || (src.start <= t.today && t.today <= src.end) || src.end === t.yesterday)) continue;
     if (!all && trips.some(x => x.userId === r.user_id && x.name === src.name && x.start === src.start && x.end === src.end)) continue;   // the same trip saved twice: one reminder
     trips.push({ userId: r.user_id, tripId: r.trip_id, name: src.name, start: src.start, end: src.end, deleted: !!item.deleted,
       hash: item.kind === 'shared' && typeof item.token === 'string' ? await sha256hex(item.token) : null,
@@ -50,15 +56,23 @@ async function findDue(env, t, userIds, all = false) {
     const q = await DB.prepare('SELECT e.trip_id, COUNT(*) AS total, SUM(e.spent_on = ?1) AS on_today, SUM(e.amount) AS sum_all, SUM(CASE WHEN e.spent_on = ?1 THEN e.amount ELSE 0 END) AS sum_today, (SELECT budget FROM trips WHERE id = e.trip_id) AS budget FROM expenses e WHERE e.trip_id IN (SELECT value FROM json_each(?2)) GROUP BY e.trip_id').bind(t.today, JSON.stringify(hashes)).all();
     for (const r of q.results) counts[r.trip_id] = { total: r.total, onToday: r.on_today || 0, sumAll: r.sum_all || 0, sumToday: r.sum_today || 0, budget: r.budget || 0 };
   }
-  const offOver = all ? new Set() : new Set((await DB.prepare('SELECT id FROM users WHERE over_notif = 0').all()).results.map(r => r.id));   // people who turned 今日の使いすぎのお知らせ off
+  const svOf = new Map();   // "trip|user" -> { left }: own saving only (the member this person is linked to), for trips starting in a week or tomorrow
+  const svHashes = trips.filter(x => x.hash && (x.start === t.in7 || x.start === t.tomorrow)).map(x => x.hash);
+  if (svHashes.length) {
+    const q = await DB.prepare('SELECT l.trip_id, l.user_id, COALESCE(s.amount, 0) AS saved, (SELECT budget FROM trips WHERE id = l.trip_id) AS budget, (SELECT COUNT(*) FROM members WHERE trip_id = l.trip_id) AS n FROM member_links l LEFT JOIN savings s ON s.trip_id = l.trip_id AND s.member_id = l.member_id WHERE l.trip_id IN (SELECT value FROM json_each(?1))').bind(JSON.stringify(svHashes)).all();
+    for (const r of q.results) if (r.budget > 0 && r.n > 0) svOf.set(r.trip_id + '|' + r.user_id, { left: Math.max(0, Math.ceil(r.budget / r.n) - r.saved) });
+  }
+  const offOver = all ? new Set() : new Set((await DB.prepare('SELECT id FROM users WHERE over_notif = 0').all()).results.map(r => r.id));
+  const offSv = all ? new Set() : new Set((await DB.prepare('SELECT id FROM users WHERE sv_notif = 0').all()).results.map(r => r.id));   // people who turned 積立のお知らせ off   // people who turned 今日の使いすぎのお知らせ off
   const due = [];
   for (const x of trips) {
     if (x.unreadable) { due.push(x); continue; }
     const amt = e => (e && Number.isFinite(e.amount) ? e.amount : 0);
     const ex = x.hash ? (counts[x.hash] || { total: 0, onToday: 0, sumAll: 0, sumToday: 0, budget: 0 }) : { total: x.local.length, onToday: x.local.filter(e => e && e.date === t.today).length, sumAll: x.local.reduce((a, e) => a + amt(e), 0), sumToday: x.local.filter(e => e && e.date === t.today).reduce((a, e) => a + amt(e), 0), budget: Number.isInteger(x.budget) ? x.budget : 0 };
+    if (x.hash) ex.sv = svOf.get(x.hash + '|' + x.userId) || null;
     const kinds = dueKinds(x, t, ex);
     if (all) due.push({ u: x.userId, t: x.tripId, name: x.name, start: x.start, end: x.end, kinds: x.deleted ? [] : kinds, shared: !!x.hash, expenses: ex.total, deleted: !!x.deleted });
-    else for (const kind of kinds) { if (kind === 'over' && offOver.has(x.userId)) continue; due.push({ u: x.userId, t: x.tripId, k: kind, name: x.name, x: kind === 'over' ? { today: ex.sumToday, per: ex.per } : undefined }); }
+    else for (const kind of kinds) { if (kind === 'over' && offOver.has(x.userId)) continue; if ((kind === 'sv7' || kind === 'sv1') && offSv.has(x.userId)) continue; due.push({ u: x.userId, t: x.tripId, k: kind, name: x.name, x: kind === 'over' ? { today: ex.sumToday, per: ex.per } : kind === 'sv7' || kind === 'sv1' ? { left: ex.sv.left } : undefined }); }
   }
   return due;
 }
