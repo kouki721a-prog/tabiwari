@@ -64,6 +64,8 @@ try {
   await Bp.p.click('[data-a=tab][data-t=exp]'); await see(Bp.p, '第1回で精算済み');
   await addExpense(Bp.p, 700, 'おみやげ代'); await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, '第2回の精算');
   await A.p.click('[data-a=tab][data-t=exp]'); await see(A.p, 'おみやげ代');
+  // 変更履歴: B recorded it, so A sees who recorded it (through the shared server)
+  await A.p.locator('[data-a=edit-exp]', { hasText: 'おみやげ代' }).click(); await A.p.waitForSelector('.elog'); { const t = await A.p.innerText('.elog'); assert.ok(t.includes('けんたが') && t.includes('記録'), 'A sees who recorded it: ' + t); } await A.p.click('[data-a=close-sheet]');
   // pull down at the top of the list: the arrow shows, and the other person's new record comes in
   await addExpense(Bp.p, 300, 'ひっぱり代');
   { const shown = await A.p.evaluate(() => { const el = document.querySelector('.scroll .item') || document.querySelector('.scroll'), mk = y => new Touch({ identifier: 4, target: el, clientX: 200, clientY: y }), fire = (type, y) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(y)], changedTouches: [mk(y)] })); fire('touchstart', 200); fire('touchmove', 230); fire('touchmove', 300); const s = !!document.getElementById('ptr'); fire('touchend', 300); return s; });

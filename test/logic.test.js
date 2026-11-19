@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {noteUrl, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -325,3 +325,11 @@ assert.strictEqual(L.noteUrl('（https://example.com/x）'), 'https://example.co
 for (const bad of ['現金でOK', 'PayPay：kouki-0101', 'http://example.com/x', 'javascript:alert(1)', 'HTTP://example.com', 'ftp://example.com', 'https://', 'https://user:pw@example.com/x', 'https://evil@example.com', 'https://localhost/x', '//example.com/x', 'data:text/html,https', '', null, undefined])
   assert.strictEqual(L.noteUrl(bad), '', 'no link for: ' + bad);
 assert.strictEqual(L.noteUrl('x'.repeat(10) + 'https://a.example/' + 'y'.repeat(300)), '', 'a very long one is not linked');
+
+// 変更履歴: 何が変わったら「変更」か。前の値は、お金の側（金額・払った人・割る人）だけを覚える
+{ const a = { title: '夕食', amount: 3000, payer: 'a', cat: 'food', date: '2026-11-19', split: ['a', 'b'] };
+  assert.strictEqual(L.expenseChanged(a, { ...a }), false, 'nothing changed');
+  for (const ch of [{ title: '昼食' }, { amount: 3500 }, { payer: 'b' }, { cat: 'gift' }, { date: '2026-11-20' }, { split: ['a'] }, { parts: { a: 3, b: 2 } }, { fixed: { a: 1000 } }]) assert.strictEqual(L.expenseChanged(a, { ...a, ...ch }), true, JSON.stringify(ch));
+  assert.deepStrictEqual(L.prevOf({ ...a, title: 'x', parts: { a: 3 } }), { amount: 3000, payer: 'a', split: ['a', 'b'] }, 'only the money side');
+  const sp = a.split; const p = L.prevOf(a); sp.push('c'); assert.deepStrictEqual(p.split, ['a', 'b'], 'a copy, not a reference'); }
+console.log('expense log logic tests passed');

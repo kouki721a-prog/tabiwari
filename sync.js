@@ -26,6 +26,11 @@
         out.expenses[e.id] = { id: e.id, trip_id: t.id, title: e.title || '', amount: e.amount, payer: e.payer, cat: e.cat, spent_on: e.date, split: e.split.slice(), settle_id: e.settleId || null };
         if (e.fixed) out.expenses[e.id].fixed = Object.assign({}, e.fixed);   // 金額の指定: only when set, like the weights
         if (e.parts) out.expenses[e.id].parts = Object.assign({}, e.parts);   // only when set, so rows of trips saved before weights existed still compare equal
+        if (e.author) out.expenses[e.id].author = e.author;   // 変更履歴: only when set, so rows saved before it existed still compare equal (an older server / app never sees them)
+        if (e.madeAt) out.expenses[e.id].made_at = e.madeAt;
+        if (e.editor) out.expenses[e.id].editor = e.editor;
+        if (e.editedAt) out.expenses[e.id].edited_at = e.editedAt;
+        if (e.prev) out.expenses[e.id].prev = { amount: e.prev.amount, payer: e.prev.payer, split: e.prev.split.slice() };
       });
       (t.settlements || []).forEach(function (st, i) {
         out.settlements[t.id + '|' + st.id] = { id: st.id, trip_id: t.id, n: st.n != null ? st.n : i + 1, at: st.at, total: st.total || 0,
@@ -75,7 +80,7 @@
       var members = (r.trip_members || []).slice().sort(function (a, b) { return a.position - b.position || (a.id < b.id ? -1 : 1); })
         .map(function (m) { return { id: m.id, name: m.name, pos: m.position, userId: m.user_id || undefined, pending: m.status !== 'joined', note: m.note || undefined }; });
       var expenses = (r.expenses || []).slice().sort(function (a, b) { return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : (a.id < b.id ? -1 : 1); })
-        .map(function (e) { var x = { id: e.id, title: e.title, amount: e.amount, payer: e.payer, cat: e.cat, date: e.spent_on, split: e.split }; if (e.settle_id) x.settleId = e.settle_id; if (e.parts) x.parts = e.parts; if (e.fixed) x.fixed = e.fixed; return x; });
+        .map(function (e) { var x = { id: e.id, title: e.title, amount: e.amount, payer: e.payer, cat: e.cat, date: e.spent_on, split: e.split }; if (e.settle_id) x.settleId = e.settle_id; if (e.parts) x.parts = e.parts; if (e.fixed) x.fixed = e.fixed; if (e.author) x.author = e.author; if (e.made_at) x.madeAt = e.made_at; if (e.editor) x.editor = e.editor; if (e.edited_at) x.editedAt = e.edited_at; if (e.prev) x.prev = e.prev; return x; });
       var settlements = (r.settlements || []).slice().sort(function (a, b) { return a.n - b.n || (a.id < b.id ? -1 : 1); })
         .map(function (st) { return { id: st.id, n: st.n, at: st.at, total: st.total || 0, transfers: st.transfers || [] }; });
       var adjustments = (r.adjustments || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : (a.id < b.id ? -1 : 1); })
