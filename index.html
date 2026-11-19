@@ -1304,7 +1304,7 @@ function viewHomeEmpty(){
   const stages = [['1', '出発前', 'みんなで積立', 'ひとりずつ、あといくらかが見えます。出発が近づくと、お知らせも届きます。', 'save', '積立の画面。みんなの積立が16,000円。', 222],
     ['2', '旅行中', '今日の目安と、ひとことの記録', '今日あといくら使えるかが分かります。「夕食 2000円」と書くだけで、記録できます。', 'exp', '今日の目安が12,000円。ひとことで記録する欄。', 266],
     ['3', '旅行後', '割り勘は、自動で精算', '誰が誰にいくらかを、自動で計算します。払う人には、お知らせが届きます。', 'settle', '精算の画面。あおいさん 8,367円、けんたさん 6,766円。', 224]];
-  const feats = [['一部の人だけの割り勘', '「この2人だけ」の支払いも、正しく。'], ['割合・金額の指定', '子どもは0.5倍、など。'], ['レシートの写真', '店名と合計を、読み取ります。'], ['受け取りの確認', '「払った」「受け取った」を、お互いに。'], ['変更の履歴', '誰がいつ変えたかが、残ります。'], ['まとめ画像', '旅の終わりに、レシート風の画像に。']];
+  const feats = [['一部の人だけの割り勘', '「この2人だけ」の支払いも、正しく。'], ['割合・金額の指定', '食べた量や飲んだ量に合わせて、多め・少なめに。'], ['レシートの写真', '店名と合計を、読み取ります。'], ['受け取りの確認', '「払った」「受け取った」を、お互いに。'], ['変更の履歴', '誰がいつ変えたかが、残ります。'], ['まとめ画像', '旅の終わりに、レシート風の画像に。']];
   const steps = ['旅行をつくる（名前・日付・予算・メンバー）', '共有リンクを、LINEで友だちに送る', '旅行中は、払った人が記録する', '最後に「精算」を開いて、表示のとおりに送金する'];
   const faq = [['料金は、かかりますか？', '無料で使えます。'], ['登録やインストールは、必要ですか？', '要りません。ブラウザで開くだけです。ホーム画面に追加すると、すぐ開けて、お知らせも届きます。'], ['お金を、アプリで送れますか？', '送れません。記録と計算だけです。送金は、いつものやり方で。'], ['データは、どこに保存されますか？', 'この端末に保存されます。LINEでログインすると、バックアップされて、端末を替えても戻せます。']];
   let line = '';
@@ -1902,7 +1902,7 @@ function fixedNote(t, d){   // the line under the rows: how much is left for the
 function partsBlock(t, d, s){
   if (d.split.length < 2) return '';
   const on = !!cleanParts(d.parts, d.split) || Object.keys(d.fixed || {}).length > 0, a = parseYen(d.amount);
-  let h = '<button class="link" data-a="parts-toggle" aria-expanded="' + !!s.partsOpen + '" style="width:auto;padding:8px 0;margin-top:2px">' + (s.partsOpen ? '割合・金額をとじる' : on ? '割合・金額を変えています（変える）' : '割合・金額を変える（子どもは0.5倍など）') + '</button>';
+  let h = '<button class="link" data-a="parts-toggle" aria-expanded="' + !!s.partsOpen + '" style="width:auto;padding:8px 0;margin-top:2px">' + (s.partsOpen ? '割合・金額をとじる' : on ? '割合・金額を変えています（変える）' : '割合・金額を変える（多め・少なめなど）') + '</button>';
   if (!s.partsOpen) return h;
   const ids = t.members.map(m => m.id).filter(id => d.split.indexOf(id) >= 0), shares = splitFor(d, a, ids);
   return h + '<div class="parts">' + ids.map(id => { const n = (d.parts && d.parts[id]) || 2, sh = shares.filter(x => x[0] === id)[0], nm = esc(nameOf(t, id));
