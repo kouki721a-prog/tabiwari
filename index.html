@@ -368,6 +368,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .toast button{margin-left:14px;color:#fff;text-decoration:underline;font-weight:700;font-size:calc(14px*var(--ts))}
 .toast{display:flex;align-items:center;white-space:nowrap;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 100px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:99px;font-size:calc(14px*var(--ts));font-weight:500;z-index:40}
 .tsize{display:flex;gap:8px;flex-wrap:wrap}.tsize .lc{font-size:calc(14px*var(--ts));padding:8px 14px}.tsize .lc[aria-pressed=true]{border-color:var(--sun);background:var(--sun);color:var(--sun-ink);font-weight:700}
+.chgtag{display:inline-block;margin-left:6px;padding:1px 7px;border:1px solid var(--line);border-radius:99px;font-size:calc(10.5px*var(--ts));font-weight:500;color:var(--sub);vertical-align:middle}.elog{margin:12px 2px 0;font-size:calc(12.5px*var(--ts));line-height:1.75;color:var(--sub)}.elog b{color:var(--ink);font-weight:600}
 .hint{margin:6px 4px 8px;font-size:calc(12.5px*var(--ts));line-height:1.55;color:var(--sub);display:flex;justify-content:space-between;align-items:center;gap:8px}.hint .link{width:auto;flex:none;padding:6px 8px;font-size:calc(12.5px*var(--ts));font-weight:700;color:var(--ink)}
 .swp{position:relative;overflow:hidden;border-top:1px solid var(--line)}.swp:first-child{border-top:0}.swp .item{border-top:0;background:var(--card);position:relative;z-index:1;transition:transform .18s ease-out}.swp.open .item{transform:translateX(-84px)}
 .swp-del{position:absolute;right:0;top:0;bottom:0;width:84px;background:#d4372f;color:#fff;font-weight:700;font-size:calc(15px*var(--ts));display:grid;place-items:center;padding:0}
@@ -655,6 +656,9 @@ function sanitizeTrip(raw, newId){
     var x = { id: e.id, title: S(e.title, 100), amount: e.amount, payer: e.payer, cat: e.cat, date: e.date, split: split };
     var pp = cleanParts(e.parts, split), ff = cleanFixed(e.fixed, split, e.amount); if (pp) x.parts = pp; if (ff) x.fixed = ff;
     if (typeof e.settleId === 'string' && sids[e.settleId]) x.settleId = e.settleId;
+    if (typeof e.author === 'string' && ids[e.author]) x.author = e.author; if (INT(e.madeAt, 1, 1e14)) x.madeAt = e.madeAt;   // 変更履歴
+    if (typeof e.editor === 'string' && ids[e.editor]) x.editor = e.editor; if (INT(e.editedAt, 1, 1e14)) x.editedAt = e.editedAt;
+    if (e.prev && typeof e.prev === 'object' && INT(e.prev.amount, 1, 1e9) && ids[e.prev.payer]){ var ps = (Array.isArray(e.prev.split) ? e.prev.split : []).filter(function(q){ return ids[q]; }).slice(0, 12); if (ps.length) x.prev = { amount: e.prev.amount, payer: e.prev.payer, split: ps }; }
     return split.length ? x : null; }).filter(Boolean);
   var adjustments = (Array.isArray(raw.adjustments) ? raw.adjustments : []).slice(0, 2000).map(function(a){
     if (!a || !ID(a.id) || !D(a.at) || !a.nets || typeof a.nets !== 'object') return null;
@@ -735,6 +739,13 @@ function noteUrl(note){
   var m = /https:\/\/[^\s<>"'`\u3000「」『』、。，．）)]+/.exec(String(note == null ? '' : note)); if (!m) return '';
   try { var u = new URL(m[0]); return u.protocol === 'https:' && u.hostname && u.hostname.indexOf('.') > 0 && !u.username && !u.password && m[0].length <= 200 ? u.href : ''; } catch(e){ return ''; }
 }
+/* 変更履歴: did an edit change anything the history cares about (what, how much, who paid, who shares, the date)? */
+function expenseChanged(a, b){
+  return a.title !== b.title || a.amount !== b.amount || a.payer !== b.payer || a.cat !== b.cat || a.date !== b.date || a.split.join() !== b.split.join() ||
+    JSON.stringify(a.parts || null) !== JSON.stringify(b.parts || null) || JSON.stringify(a.fixed || null) !== JSON.stringify(b.fixed || null);
+}
+/* what to remember about the values before a change: the money side only (amount, who paid, who shares) */
+function prevOf(old){ return { amount: old.amount, payer: old.payer, split: old.split.slice() }; }
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -1456,10 +1467,27 @@ function delExpense(did){   // delete one expense (the difference of a closed ro
     if (adj) tt.adjustments = (tt.adjustments || []).filter(a => a.id !== adj.id);   // undoing the deletion also takes the difference back
     save(); render(); flash('元に戻しました'); });
 }
+/* 変更履歴: who recorded / last changed an expense and when. "Who" is the member this device is signed in as (the share link picks it; it is not a login), so it is a note for the group, not proof */
+const stampNew = (t, e) => { e.author = meId(t); e.madeAt = Date.now(); return e; };
+const stampEdit = (t, x, old) => { if (!expenseChanged(old, x)) return; x.editor = meId(t); x.editedAt = Date.now(); x.prev = prevOf(old); };
+const logTime = ms => { const d = new Date(ms), z = n => String(n).padStart(2, '0'); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); };
+function expLog(t, e){
+  if (!e.author && !e.editor) return '';
+  const nm = id => id ? esc(nameOf(t, id)) : '不明';
+  let h = e.author ? '<b>' + nm(e.author) + '</b>が ' + (e.madeAt ? logTime(e.madeAt) + ' に' : '') + '記録' : '';
+  if (e.editor){
+    const p = e.prev, parts = [];
+    if (p && p.amount !== e.amount) parts.push(yen(p.amount));
+    if (p && p.payer !== e.payer) parts.push('払った人 ' + nm(p.payer));
+    if (p && p.split.join() !== e.split.join()) parts.push('割る人 ' + p.split.map(i => esc(nameOf(t, i))).join('・'));
+    h += (h ? '<br>' : '') + '<b>' + nm(e.editor) + '</b>が ' + (e.editedAt ? logTime(e.editedAt) + ' に' : '') + '変更' + (parts.length ? '<br>　前：' + parts.join('・') : '');
+  }
+  return '<div class="elog">' + h + '</div>';
+}
 function expRow(t, e, inRound){
   const c = CAT[e.cat] || CAT.other, swp = !isSettled(t, e);   // an unsettled row can be swiped left to delete (a settled one is deleted from its edit sheet, which explains the difference)
   const row = '<button class="item' + (ui.fresh && ui.fresh[e.id] ? ' fresh' : '') + '" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
-    '<div class="grow"><div class="t">' + esc(e.title || c[2]) + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
+    '<div class="grow"><div class="t">' + esc(e.title || c[2]) + (e.editor ? '<span class="chgtag">変更あり</span>' : '') + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
     (e.fixed ? '金額を指定して割り勘' : e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (!inRound && isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
     '<div class="amt">' + yen(e.amount) + '</div></button>';
   return swp ? '<div class="swp' + (ui.swp === e.id ? ' open' : '') + '" data-swp="' + e.id + '">' + row + '<button class="swp-del" data-a="swipe-del" data-id="' + e.id + '" aria-label="「' + esc(e.title || c[2]) + '」を削除">削除</button></div>' : row;
@@ -1666,7 +1694,7 @@ function viewSheet(){
       (alone ? '<div class="alone"><b>友だちを招待すると、割り勘できます。</b><div class="sub sm">いまは、あなたの分として記録されます。</div><button class="btn line sm" data-a="invite" data-id="' + t.id + '">友だちを招待する</button></div>' :
         '<span class="lab">誰が払った？</span><div class="chips">' + t.members.map(m => chip(d.payer === m.id, 'pick-payer', m.id, av(t, m.id) + esc(m.name))).join('') + '</div>' +
         '<span class="lab">誰の分？</span><div class="chips">' + chip(d.all, 'split-all', '', '全員', true) +
-        t.members.map(m => chip(!d.all && d.split.indexOf(m.id) >= 0, 'toggle-split', m.id, av(t, m.id) + esc(m.name))).join('') + '</div>' + partsBlock(t, d, s));
+        t.members.map(m => chip(!d.all && d.split.indexOf(m.id) >= 0, 'toggle-split', m.id, av(t, m.id) + esc(m.name))).join('') + '</div>' + partsBlock(t, d, s)) + (oldE ? expLog(t, oldE) : '');
     foot = err + (s.confirmSettled ? '<div class="panel" style="margin:0 0 8px"><b>精算済みの支出を変更します。</b><div class="sub sm">変更の差額が、第' + nextNo + '回の精算に入ります。よろしいですか？</div></div>' : '') +
       '<button class="btn" data-a="save-exp"' + (canSave ? '' : ' disabled') + '>' + (s.confirmSettled ? '変更する' : s.editId ? '保存する' : '記録する') + '</button>' + (s.confirmSettled ? '<button class="link" data-a="settled-cancel">やめる</button>' : '') +
       (s.editId ? (s.confirmDel ? '<div style="margin-top:8px">' + (closedNo ? '<div class="sub sm" style="margin-bottom:6px">第' + closedNo + '回で精算済みです。削除すると、差額が第' + nextNo + '回の精算に入ります。</div>' : '') + '<button class="btn bad" data-a="del-exp">本当に削除する</button></div>' : '<button class="link bad" data-a="ask-del">この支出を削除</button>') : '');
@@ -1924,7 +1952,7 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   t.members.forEach(m => { if (left.indexOf(m.id) >= 0 && fx[m.id] === undefined && r.weights[m.name] && wp[m.id] === undefined){ wp[m.id] = r.weights[m.name]; said.push(m.name + ' ' + partLabel(r.weights[m.name])); } });
   r.excluded.forEach(n => said.push(n + 'なし'));
   const pp = cleanParts(wp, rec.split.slice()), full = {}; if (pp){ rec.split.forEach(id => { full[id] = wp[id] || 2; }); const fp = cleanParts(full, rec.split); if (fp) rec.parts = fp; }
-  const before = catSums(t); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render();
+  const before = catSums(t); stampNew(t, rec); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render();
   const cn = capNotice(t, before);
   flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
 });
@@ -2366,7 +2394,7 @@ document.addEventListener('click', e => {
   else if (a === 'import-csv'){ readSheet(); const f = document.getElementById('csv-file'); if (f){ f.value = ''; f.click(); } return; }
   else if (a === 'csv-import-go'){
     const add = s.res.add, tid = t.id, n = add.length, ids = {}; add.forEach(e => { ids[e.id] = 1; });
-    t.expenses = t.expenses.concat(add); save(); ui.sheet = null; ui.tab = 'exp'; render();
+    add.forEach(e => stampNew(t, e)); t.expenses = t.expenses.concat(add); save(); ui.sheet = null; ui.tab = 'exp'; render();
     flash(n + '件を取り込みました', () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(e => !ids[e.id]); save(); render(); flash('取り込みを取り消しました'); });
     return;
   }
@@ -2442,11 +2470,11 @@ document.addEventListener('click', e => {
         const x = t.expenses.filter(q => q.id === s.editId)[0], old = JSON.parse(JSON.stringify(x));
         const moneyChanged = old.amount !== rec.amount || old.payer !== rec.payer || old.split.join() !== rec.split.join() || JSON.stringify(old.parts || null) !== JSON.stringify(rec.parts || null) || JSON.stringify(old.fixed || null) !== JSON.stringify(rec.fixed || null);
         if (isSettled(t, old) && moneyChanged && !s.confirmSettled){ s.confirmSettled = true; render(); return; }   // closed round: ask first
-        Object.assign(x, rec); if (!rec.parts) delete x.parts; if (!rec.fixed) delete x.fixed;
+        Object.assign(x, rec); if (!rec.parts) delete x.parts; if (!rec.fixed) delete x.fixed; stampEdit(t, x, old);
         const adj = expenseAdjustment(t, old, x, uid(), '「' + (rec.title || (CAT[rec.cat] || CAT.other)[2]) + '」の変更', todayStr());
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }
-      else { const ne = Object.assign({ id: uid() }, rec); t.expenses.push(ne); ui.fresh = { [ne.id]: 1 }; lsSet('tabiwari.last.' + t.id, JSON.stringify({ payer: ne.payer, split: ne.split })); }
+      else { const ne = stampNew(t, Object.assign({ id: uid() }, rec)); t.expenses.push(ne); ui.fresh = { [ne.id]: 1 }; lsSet('tabiwari.last.' + t.id, JSON.stringify({ payer: ne.payer, split: ne.split })); }
       const wasEdit = !!s.editId; save(); ui.sheet = null; render(); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
     }
   }
@@ -2501,7 +2529,7 @@ document.addEventListener('click', e => {
       ui.sheet = { type: 'exp', err: '', editId: null, partsOpen: !!rec.fixed, data: { amount: String(rec.amount), title: rec.title, cat: rec.cat, payer: rec.payer, all: rec.split.length === t.members.length, split: rec.split.slice(), date: rec.date, parts: {},
         fixed: rec.fixed ? Object.fromEntries(Object.keys(rec.fixed).map(k => [k, String(rec.fixed[k])])) : {} } };
     } else {
-      const tid = t.id, before = catSums(t), fulls = take.map(rec => Object.assign({ id: uid() }, rec)); fulls.forEach(f => t.expenses.push(f)); ui.fresh = {}; fulls.forEach(f => { ui.fresh[f.id] = 1; }); ui.sheet = null; ui.quick = ''; save(); render();
+      const tid = t.id, before = catSums(t), fulls = take.map(rec => stampNew(t, Object.assign({ id: uid() }, rec))); fulls.forEach(f => t.expenses.push(f)); ui.fresh = {}; fulls.forEach(f => { ui.fresh[f.id] = 1; }); ui.sheet = null; ui.quick = ''; save(); render();
       const cn = capNotice(t, before), one = take[0], total = take.reduce((x, r) => x + r.amount, 0);
       flash((take.length > 1 ? take.length + '件（合わせて ' + yen(total) + '）' : (one.title || (CAT[one.cat] || CAT.other)[2]) + ' ' + yen(one.amount)) + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; const ids = fulls.map(f => f.id); tt.expenses = tt.expenses.filter(q => ids.indexOf(q.id) < 0); save(); render(); });
       return;

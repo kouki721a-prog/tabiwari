@@ -420,6 +420,30 @@ try {
     { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=終了した旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
+  // 支出ごとの変更履歴（B）: 記録した人・日時、最後に変えた人・日時、直前の値（金額・払った人・割る人）。一覧に「変更あり」の印。何も変えずに保存したら、増えない
+  { const c18 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c18.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      if (!localStorage.getItem('tabiwari.v1')) localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
+        members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]');
+    await q.click('.fab, [data-a=add-exp]'); await q.waitForSelector('#f-amount'); await q.fill('#f-amount', '3000'); await q.click('[data-a=save-exp]'); await q.waitForSelector('.item[data-a=edit-exp]');
+    const ex = () => q.evaluate(() => JSON.parse(JSON.stringify(state.trips[0].expenses[0])));
+    let e = await ex(); assert.strictEqual(e.author, 'a', 'recorded by the member of this device'); assert.ok(e.madeAt > 1e12 && e.madeAt <= Date.now(), 'and when'); assert.strictEqual(e.editor, undefined); assert.strictEqual(await q.locator('.chgtag').count(), 0, 'no mark yet');
+    await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('.elog'); { const t = await q.innerText('.elog'); assert.ok(t.includes('こうきが') && t.includes('記録') && !t.includes('変更'), 'the sheet tells who recorded it: ' + t); }
+    await q.click('[data-a=save-exp]'); await q.waitForTimeout(200); e = await ex(); assert.strictEqual(e.editor, undefined, 'saving without a change adds nothing');
+    await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('#f-amount'); await q.fill('#f-amount', '3500'); await q.click('[data-a=save-exp]'); await q.waitForTimeout(200);
+    e = await ex(); assert.deepStrictEqual([e.editor, e.prev], ['a', { amount: 3000, payer: 'a', split: ['a', 'b'] }]); assert.ok(e.editedAt >= e.madeAt);
+    assert.strictEqual(await q.locator('.item[data-a=edit-exp] .chgtag').count(), 1, 'the row carries a small 変更あり mark');
+    await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('.elog'); { const t = await q.innerText('.elog'); assert.ok(t.includes('こうきが') && t.includes('記録') && t.includes('変更') && t.includes('前：3,000円'), 'the sheet shows the change: ' + t); }
+    await q.fill('#f-title', '夕食です'); await q.click('[data-a=save-exp]'); await q.waitForTimeout(200); e = await ex(); assert.deepStrictEqual(e.prev, { amount: 3500, payer: 'a', split: ['a', 'b'] }, 'only the last change is remembered');
+    await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('.elog'); assert.ok(!(await q.innerText('.elog')).includes('前：'), 'a change that did not touch the money side shows no "前"');
+    await q.click('[data-a=close-sheet]');
+    // somebody else changed who paid (as a synced trip would bring it)
+    await q.evaluate(() => { const x = state.trips[0].expenses[0]; x.editor = 'b'; x.editedAt = Date.now(); x.payer = 'b'; x.prev = { amount: 3500, payer: 'a', split: ['a'] }; render(); }); await q.waitForSelector('.item[data-a=edit-exp]');
+    await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('.elog'); { const t = await q.innerText('.elog'); assert.ok(t.includes('あおいが') && t.includes('払った人 こうき') && t.includes('割る人 こうき'), 'who / what: ' + t); }
+    assert.strictEqual(await q.evaluate(() => sanitizeTrip(JSON.parse(JSON.stringify(state.trips[0])), 'n').expenses[0].prev.payer), 'a', 'a backup / restore keeps the history');
+    assert.strictEqual(await q.evaluate(() => { const t = JSON.parse(JSON.stringify(state.trips[0])); t.expenses[0].author = 'zzz'; t.expenses[0].prev = { amount: 0, payer: 'a', split: ['a'] }; const r = sanitizeTrip(t, 'n').expenses[0]; return JSON.stringify([r.author, r.prev]); }), '[null,null]', 'garbage in the history is dropped');
+    assert.deepStrictEqual(qerrs, []); await c18.close(); }
   // 記録タブの予算カード: 主役は1つ（旅行中=今日の目安／準備中=積立／終了=使った合計）、バーは1本、カテゴリの内訳は1行にたたむ（押すとバーとチップが開く。絞り込み中は開いたまま）
   { const c17 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c17.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');

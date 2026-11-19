@@ -121,3 +121,19 @@ console.log('sync tests passed');
   const old = S.assemble([{ id: 't', name: 'n', start_date: '2026-11-09', end_date: '2026-11-10', budget: 1, owner: null, trip_members: [], expenses: [], paid: [], savings: [] }]); assert.deepStrictEqual(old[0].received, {}, 'a server answer without it is fine');
 }
 console.log('received sync tests passed');
+
+// 変更履歴（誰が・いつ記録／変更したか）: rows carry it only when set; an app / server that never heard of it still compares equal
+{ const base = { id: 't', name: 'n', start: '2026-11-09', end: '2026-11-10', budget: 1, paid: {}, savings: {}, members: [{ id: 'a', name: 'あ' }, { id: 'b', name: 'い' }],
+    expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', date: '2026-11-09', split: ['a', 'b'] }] };
+  const logged = JSON.parse(JSON.stringify(base)); Object.assign(logged.expenses[0], { author: 'a', madeAt: 1700000000000, editor: 'b', editedAt: 1700000100000, prev: { amount: 2500, payer: 'a', split: ['a'] } });
+  const f = S.flatten([logged]).expenses.e1 || S.flatten([logged]).expenses; const row = Object.values(S.flatten([logged]).expenses)[0];
+  assert.deepStrictEqual([row.author, row.made_at, row.editor, row.edited_at, row.prev], ['a', 1700000000000, 'b', 1700000100000, { amount: 2500, payer: 'a', split: ['a'] }]);
+  assert.strictEqual(Object.keys(Object.values(S.flatten([base]).expenses)[0]).includes('author'), false, 'no history, no fields (rows saved before it existed compare equal)');
+  assert.deepStrictEqual(S.diff(S.flatten([base]), S.flatten([logged])).map(o => o.table + ':' + o.kind), ['expenses:update'], 'adding the history to an expense is one update');
+  const rows = [{ id: 't', name: 'n', start_date: '2026-11-09', end_date: '2026-11-10', budget: 1, owner: null, trip_members: [{ id: 'a', name: 'あ', position: 0, user_id: null, status: 'joined' }, { id: 'b', name: 'い', position: 1, user_id: null, status: 'joined' }],
+    expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', spent_on: '2026-11-09', split: ['a', 'b'], settle_id: null, parts: null, fixed: null, author: 'a', made_at: 1700000000000, editor: 'b', edited_at: 1700000100000, prev: { amount: 2500, payer: 'a', split: ['a'] }, created_at: 1 }], paid: [], savings: [] }];
+  const back = S.assemble(rows); assert.deepStrictEqual([back[0].expenses[0].author, back[0].expenses[0].madeAt, back[0].expenses[0].editor, back[0].expenses[0].editedAt, back[0].expenses[0].prev.amount], ['a', 1700000000000, 'b', 1700000100000, 2500]);
+  assert.strictEqual(S.diff(S.flatten(back), S.flatten(S.assemble(rows))).length, 0, 'no phantom diff after a refresh');
+  rows[0].expenses[0].author = null; rows[0].expenses[0].made_at = null; rows[0].expenses[0].editor = null; rows[0].expenses[0].edited_at = null; rows[0].expenses[0].prev = null;
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(S.assemble(rows)[0].expenses[0], 'author'), false, 'a server answer without a history gives an expense without one'); }
+console.log('expense log sync tests passed');

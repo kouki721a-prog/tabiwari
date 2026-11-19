@@ -29,6 +29,11 @@ const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prep
   .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN parts TEXT').run().catch(() => { /* the column already exists */ }))   // per-person weights of an expense (JSON, NULL = equal)
   .then(() => env.DB.prepare('ALTER TABLE members ADD COLUMN note TEXT').run().catch(() => { /* the column already exists */ }))   // how a member wants to be paid (free text, 60 chars)
   .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN fixed TEXT').run().catch(() => { /* the column already exists */ }))   // exact amounts for some people of an expense (JSON, NULL = none)
+  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN author TEXT').run().catch(() => { /* the column already exists */ }))   // 変更履歴 (who / when recorded, who / when last changed, the values before that change as JSON)
+  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN made_at INTEGER').run().catch(() => { /* the column already exists */ }))
+  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN editor TEXT').run().catch(() => { /* the column already exists */ }))
+  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN edited_at INTEGER').run().catch(() => { /* the column already exists */ }))
+  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN prev TEXT').run().catch(() => { /* the column already exists */ }))
   .then(() => env.DB.prepare('ALTER TABLE trips ADD COLUMN caps TEXT').run().catch(() => { /* the column already exists */ }))   // limits per category (JSON, NULL = none)
   .then(() => env.DB.prepare('ALTER TABLE users ADD COLUMN settle_notif INTEGER NOT NULL DEFAULT 1').run().catch(() => { /* the column already exists */ }))   // 精算のお知らせ on/off per account
   .then(() => Promise.all(['over_notif INTEGER NOT NULL DEFAULT 1', 'pic_share INTEGER NOT NULL DEFAULT 1', 'friend_flag INTEGER NOT NULL DEFAULT 0', 'friend_changed INTEGER', 'friend_checked_at INTEGER', 'adv_notif INTEGER NOT NULL DEFAULT 0', 'sv_notif INTEGER NOT NULL DEFAULT 1'].map(c => env.DB.prepare('ALTER TABLE users ADD COLUMN ' + c).run().catch(() => { /* already there */ }))))   // official-account friend state, saved at login
@@ -45,6 +50,7 @@ const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !N
 /* weights of an expense (units of half: 1 = 0.5x ... 6 = 3x): null/absent, or an object over people who share it */
 const validParts = (p, split) => p == null || (typeof p === 'object' && !Array.isArray(p) && Object.keys(p).length >= 1 && Object.keys(p).length <= 12 && Object.keys(p).every(k => split.indexOf(k) >= 0 && isInt(p[k], 1, 6)));
 /* fixed amounts of an expense (金額の指定): null/absent, or whole yen for people who share it; they must leave something for the others (or add up to the amount when everybody is fixed) */
+const validPrev = (p, split) => p == null || (typeof p === 'object' && !Array.isArray(p) && isInt(p.amount, 1, 1e9) && isId(p.payer) && Array.isArray(p.split) && p.split.length >= 1 && p.split.length <= 12 && p.split.every(isId));
 const validFixed = (f, split, amount) => { if (f == null) return true; if (typeof f !== 'object' || Array.isArray(f)) return false; const ks = Object.keys(f);
   if (ks.length < 1 || ks.length > 12 || !ks.every(k => split.indexOf(k) >= 0 && isInt(f[k], 0, 1e9))) return false;
   const sum = ks.reduce((a, k) => a + f[k], 0); return sum <= amount && (ks.length < split.length || sum === amount); };
@@ -62,7 +68,10 @@ const CLEAN = {
     return isId(r.id) && isStr(title, 100) && isInt(r.amount, 1, 1e9) && isId(r.payer) && CATS.has(r.cat) && isDate(r.spent_on) &&
       Array.isArray(r.split) && r.split.length >= 1 && r.split.length <= 12 && r.split.every(isId)
       && (r.settle_id == null || isId(r.settle_id)) && validParts(r.parts, r.split) && validFixed(r.fixed, r.split, r.amount)
-      ? { id: r.id, title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: r.split, settle_id: r.settle_id == null ? null : r.settle_id, has_settle: 'settle_id' in r, parts: r.parts == null ? null : r.parts, has_parts: 'parts' in r, fixed: r.fixed == null ? null : r.fixed, has_fixed: 'fixed' in r } : null; },
+      && (r.author == null || isId(r.author)) && (r.editor == null || isId(r.editor)) && (r.made_at == null || isInt(r.made_at, 0, 1e14)) && (r.edited_at == null || isInt(r.edited_at, 0, 1e14)) && validPrev(r.prev)
+      ? { id: r.id, title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: r.split, settle_id: r.settle_id == null ? null : r.settle_id, has_settle: 'settle_id' in r, parts: r.parts == null ? null : r.parts, has_parts: 'parts' in r, fixed: r.fixed == null ? null : r.fixed, has_fixed: 'fixed' in r,
+        author: r.author == null ? null : r.author, made_at: r.made_at == null ? null : r.made_at, editor: r.editor == null ? null : r.editor, edited_at: r.edited_at == null ? null : r.edited_at, prev: r.prev == null ? null : { amount: r.prev.amount, payer: r.prev.payer, split: r.prev.split },
+        has_log: ['author', 'made_at', 'editor', 'edited_at', 'prev'].some(k => k in r) } : null; },
   settlements: r => isId(r.id) && isInt(r.n, 1, 100000) && isDate(r.at) && isInt(r.total == null ? 0 : r.total, 0, 1e11) &&
     Array.isArray(r.transfers) && r.transfers.length <= 100 && r.transfers.every(x => x && isId(x.from) && isId(x.to) && isInt(x.amount, 1, 1e9))
     ? { id: r.id, n: r.n, at: r.at, total: r.total == null ? 0 : r.total, transfers: r.transfers.map(x => ({ from: x.from, to: x.to, amount: x.amount })) } : null,
@@ -105,7 +114,7 @@ async function getTrip(env, id, rev) {
   if (rev && Number(rev) === tr.rev) return reply({ unchanged: true, rev: tr.rev });
   const [m, e, p, rc, s, st, ad] = await env.DB.batch([
     env.DB.prepare('SELECT id,name,position,note FROM members WHERE trip_id=? ORDER BY position, id').bind(id),
-    env.DB.prepare('SELECT id,title,amount,payer,cat,spent_on,split,settle_id,parts,fixed,created_at FROM expenses WHERE trip_id=? ORDER BY created_at, id').bind(id),
+    env.DB.prepare('SELECT id,title,amount,payer,cat,spent_on,split,settle_id,parts,fixed,author,made_at,editor,edited_at,prev,created_at FROM expenses WHERE trip_id=? ORDER BY created_at, id').bind(id),
     env.DB.prepare('SELECT key FROM paid WHERE trip_id=?').bind(id),
     env.DB.prepare('SELECT key FROM received WHERE trip_id=?').bind(id),
     env.DB.prepare('SELECT member_id,amount FROM savings WHERE trip_id=?').bind(id),
@@ -115,7 +124,7 @@ async function getTrip(env, id, rev) {
   // same shape the app's Sync.assemble() already reads
   return reply({ rev: tr.rev, trip: { id, name: tr.name, start_date: tr.start_date, end_date: tr.end_date, budget: tr.budget, caps: tr.caps ? JSON.parse(tr.caps) : null, owner: null,
     trip_members: m.results.map(r => ({ id: r.id, name: r.name, position: r.position, note: r.note || '', user_id: null, status: 'joined' })),
-    expenses: e.results.map(r => ({ id: r.id, title: r.title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: JSON.parse(r.split), settle_id: r.settle_id || null, parts: r.parts ? JSON.parse(r.parts) : null, fixed: r.fixed ? JSON.parse(r.fixed) : null, created_at: r.created_at })),
+    expenses: e.results.map(r => ({ id: r.id, title: r.title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: JSON.parse(r.split), settle_id: r.settle_id || null, parts: r.parts ? JSON.parse(r.parts) : null, fixed: r.fixed ? JSON.parse(r.fixed) : null, author: r.author || null, made_at: r.made_at || null, editor: r.editor || null, edited_at: r.edited_at || null, prev: r.prev ? JSON.parse(r.prev) : null, created_at: r.created_at })),
     settlements: st.results.map(r => ({ id: r.id, n: r.n, at: r.at, total: r.total, transfers: JSON.parse(r.transfers) })),
     adjustments: ad.results.map(r => ({ id: r.id, settle_id: r.settle_id || null, nets: JSON.parse(r.nets), note: r.note, at: r.at })),
     paid: p.results.map(r => ({ trip_id: id, key: r.key })), received: rc.results.map(r => ({ trip_id: id, key: r.key })), savings: s.results.map(r => ({ trip_id: id, member_id: r.member_id, amount: r.amount })) } });
@@ -145,9 +154,9 @@ async function applyOps(env, req, id, ctx) {
   const S = [], P = s => DB.prepare(s);
   if (ins.trips) { const t = ins.trips[0]; S.push(P('INSERT OR IGNORE INTO trips(id,name,start_date,end_date,budget,rev,created_at,updated_at,caps) VALUES (?,?,?,?,?,1,?,?,?)').bind(id, t.name, t.start_date, t.end_date, t.budget, now, now, t.caps ? J(t.caps) : null)); }
   if (ins.members) S.push(P(`INSERT OR IGNORE INTO members(trip_id,id,name,position,note) SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.name'), json_extract(value,'$.position'), NULLIF(json_extract(value,'$.note'), '') FROM json_each(?2)`).bind(id, J(ins.members)));
-  if (ins.expenses) S.push(P(`INSERT OR IGNORE INTO expenses(trip_id,id,title,amount,payer,cat,spent_on,split,settle_id,parts,fixed,created_at)
+  if (ins.expenses) S.push(P(`INSERT OR IGNORE INTO expenses(trip_id,id,title,amount,payer,cat,spent_on,split,settle_id,parts,fixed,author,made_at,editor,edited_at,prev,created_at)
       SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.title'), json_extract(value,'$.amount'), json_extract(value,'$.payer'), json_extract(value,'$.cat'),
-             json_extract(value,'$.spent_on'), json_extract(value,'$.split'), json_extract(value,'$.settle_id'), json_extract(value,'$.parts'), json_extract(value,'$.fixed'), ?3 * 1000 + CAST(key AS INTEGER) FROM json_each(?2)`).bind(id, J(ins.expenses), now));
+             json_extract(value,'$.spent_on'), json_extract(value,'$.split'), json_extract(value,'$.settle_id'), json_extract(value,'$.parts'), json_extract(value,'$.fixed'), json_extract(value,'$.author'), json_extract(value,'$.made_at'), json_extract(value,'$.editor'), json_extract(value,'$.edited_at'), json_extract(value,'$.prev'), ?3 * 1000 + CAST(key AS INTEGER) FROM json_each(?2)`).bind(id, J(ins.expenses), now));
   if (ins.settlements) S.push(P(`INSERT OR IGNORE INTO settlements(trip_id,id,n,at,total,transfers) SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.n'), json_extract(value,'$.at'), json_extract(value,'$.total'), json_extract(value,'$.transfers') FROM json_each(?2)`).bind(id, J(ins.settlements)));
   if (ins.adjustments) S.push(P(`INSERT OR IGNORE INTO adjustments(trip_id,id,settle_id,nets,note,at) SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.settle_id'), json_extract(value,'$.nets'), json_extract(value,'$.note'), json_extract(value,'$.at') FROM json_each(?2)`).bind(id, J(ins.adjustments)));
   if (ins.paid) S.push(P(`INSERT OR IGNORE INTO paid(trip_id,key) SELECT ?1, json_extract(value,'$.key') FROM json_each(?2)`).bind(id, J(ins.paid)));
@@ -158,10 +167,16 @@ async function applyOps(env, req, id, ctx) {
   if (upd.expenses) S.push(P(`UPDATE expenses SET title=j.title, amount=j.amount, payer=j.payer, cat=j.cat, spent_on=j.spent_on, split=j.split,
       settle_id = CASE WHEN j.has_settle = 1 THEN j.settle_id ELSE expenses.settle_id END,   -- an older app that does not know about rounds must not wipe it
       parts = CASE WHEN j.has_parts = 1 THEN j.parts ELSE expenses.parts END,                 -- nor weights
-      fixed = CASE WHEN j.has_fixed = 1 THEN j.fixed ELSE expenses.fixed END                  -- nor fixed amounts
+      fixed = CASE WHEN j.has_fixed = 1 THEN j.fixed ELSE expenses.fixed END,                 -- nor fixed amounts
+      author = CASE WHEN j.has_log = 1 THEN j.author ELSE expenses.author END,                -- nor who recorded / changed it (the history)
+      made_at = CASE WHEN j.has_log = 1 THEN j.made_at ELSE expenses.made_at END,
+      editor = CASE WHEN j.has_log = 1 THEN j.editor ELSE expenses.editor END,
+      edited_at = CASE WHEN j.has_log = 1 THEN j.edited_at ELSE expenses.edited_at END,
+      prev = CASE WHEN j.has_log = 1 THEN j.prev ELSE expenses.prev END
       FROM (SELECT json_extract(value,'$.id') AS id, json_extract(value,'$.title') AS title, json_extract(value,'$.amount') AS amount, json_extract(value,'$.payer') AS payer,
                    json_extract(value,'$.cat') AS cat, json_extract(value,'$.spent_on') AS spent_on, json_extract(value,'$.split') AS split,
-                   json_extract(value,'$.settle_id') AS settle_id, json_extract(value,'$.has_settle') AS has_settle, json_extract(value,'$.parts') AS parts, json_extract(value,'$.has_parts') AS has_parts, json_extract(value,'$.fixed') AS fixed, json_extract(value,'$.has_fixed') AS has_fixed FROM json_each(?2)) AS j
+                   json_extract(value,'$.settle_id') AS settle_id, json_extract(value,'$.has_settle') AS has_settle, json_extract(value,'$.parts') AS parts, json_extract(value,'$.has_parts') AS has_parts, json_extract(value,'$.fixed') AS fixed, json_extract(value,'$.has_fixed') AS has_fixed,
+                   json_extract(value,'$.author') AS author, json_extract(value,'$.made_at') AS made_at, json_extract(value,'$.editor') AS editor, json_extract(value,'$.edited_at') AS edited_at, json_extract(value,'$.prev') AS prev, json_extract(value,'$.has_log') AS has_log FROM json_each(?2)) AS j
       WHERE expenses.trip_id=?1 AND expenses.id=j.id`).bind(id, J(upd.expenses)));
   if (upd.members) S.push(P(`UPDATE members SET note = NULLIF(j.note, '')
       FROM (SELECT json_extract(value,'$.id') AS id, json_extract(value,'$.note') AS note, json_extract(value,'$.has_note') AS has_note FROM json_each(?2)) AS j

@@ -65,6 +65,17 @@ try {
   assert.strictEqual(r.status, 200);
   g = await call(A, 'GET', '/api/trip');
   assert.deepStrictEqual([g.body.trip.expenses.length, g.body.trip.trip_members.length, g.body.trip.paid.length, g.body.trip.savings[0].amount], [1, 1, 0, 7000]);
+  // 変更履歴（author / made_at / editor / edited_at / prev）: stored, returned, kept when an older app edits the expense without them, refused when malformed
+  { const exp = (extra = {}) => ({ id: 'elog', title: '夕食', amount: 3000, payer: 'm1', cat: 'food', spent_on: '2026-11-18', split: ['m1'], ...extra });
+    r = await ops(A, [{ kind: 'insert', table: 'expenses', rows: [exp({ author: 'm1', made_at: 1700000000000 })] }]); assert.strictEqual(r.status, 200);
+    g = await call(A, 'GET', '/api/trip'); let x = g.body.trip.expenses.find(q => q.id === 'elog'); assert.deepStrictEqual([x.author, x.made_at, x.editor, x.edited_at, x.prev], ['m1', 1700000000000, null, null, null]);
+    r = await ops(A, [{ kind: 'update', table: 'expenses', row: exp({ amount: 3500, author: 'm1', made_at: 1700000000000, editor: 'm1', edited_at: 1700000100000, prev: { amount: 3000, payer: 'm1', split: ['m1'] } }) }]); assert.strictEqual(r.status, 200);
+    g = await call(A, 'GET', '/api/trip'); x = g.body.trip.expenses.find(q => q.id === 'elog'); assert.deepStrictEqual([x.amount, x.editor, x.edited_at, x.prev], [3500, 'm1', 1700000100000, { amount: 3000, payer: 'm1', split: ['m1'] }]);
+    r = await ops(A, [{ kind: 'update', table: 'expenses', row: exp({ amount: 4000 }) }]); assert.strictEqual(r.status, 200);   // an older app: no history fields at all
+    g = await call(A, 'GET', '/api/trip'); x = g.body.trip.expenses.find(q => q.id === 'elog'); assert.deepStrictEqual([x.amount, x.author, x.editor, x.prev && x.prev.amount], [4000, 'm1', 'm1', 3000], 'an older app\'s edit does not wipe the history');
+    for (const bad of [{ author: 5 }, { made_at: -1 }, { edited_at: 'x' }, { prev: { amount: 0, payer: 'm1', split: ['m1'] } }, { prev: { amount: 5, payer: 'm1', split: [] } }, { prev: [1] }, { editor: 'bad id!' }])
+      assert.strictEqual((await ops(A, [{ kind: 'update', table: 'expenses', row: exp(bad) }])).status, 400, 'refused: ' + JSON.stringify(bad));
+    assert.strictEqual((await ops(A, [{ kind: 'delete', table: 'expenses', row: { id: 'elog' } }])).status, 200); }
   // 受け取った（received）: stored like paid, returned, taken back; an older app that never sends it changes nothing
   r = await ops(A, [{ kind: 'insert', table: 'received', rows: [{ key: 'm2-m1-1800' }, { key: 'm2-m1-1800' }] }]); assert.strictEqual(r.status, 200);
   g = await call(A, 'GET', '/api/trip'); assert.deepStrictEqual(g.body.trip.received.map(x => x.key), ['m2-m1-1800'], 'returned once (a repeated insert is harmless)');
