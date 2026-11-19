@@ -420,6 +420,20 @@ try {
     { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=終了した旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
+  // 共有していない旅行の精算タブ: 「共有すると、精算のお知らせが、LINEに届きます」の1行（共有していて・2人以上で・終わっていない旅行だけ）
+  { const c13 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c13.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [],
+        members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'b', cat: 'food', date: t, split: ['a', 'b'] }] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.noteRow');
+    assert.ok((await q.textContent('main, body')).includes('共有すると、精算のお知らせが、LINEに届きます'), 'an unshared trip with friends is told how to get the notices');
+    // (the share server is not there in this test, so a "shared" trip would be dropped by a render: ask the function directly)
+    const hint = patch => q.evaluate(p => shareHint({ ...JSON.parse(JSON.stringify(state.trips[0])), ...p }), patch);
+    assert.ok((await hint({})).includes('共有すると、精算のお知らせ'), 'the function gives the line for an unshared trip');
+    assert.strictEqual(await hint({ share: { token: 'T'.repeat(40) } }), '', 'a shared trip: no hint');
+    assert.strictEqual(await hint({ members: [{ id: 'a', name: 'こうき', pos: 0 }] }), '', 'alone: no hint');
+    assert.strictEqual(await hint({ start: '2026-01-10', end: '2026-01-10' }), '', 'a finished trip: no hint');
+    assert.deepStrictEqual(qerrs, []); await c13.close(); }
   // 精算がぜんぶ済んだ旅行: まとめ画像のすすめ（旅行が終わっていて、全部の送金が済みのときだけ。「あとで」で、その旅行は静かになる）
   { const c12 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c12.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     const mk = (end, paid) => `localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: '${end}', end: '${end}', budget: 50000, paid: ${paid}, savings: {}, adjustments: [],
