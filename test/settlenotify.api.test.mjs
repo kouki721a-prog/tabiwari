@@ -91,6 +91,12 @@ try {
   await ops(T, [{ kind: 'delete', table: 'paid', row: { key: 'm-kenta-m-aoi-3500' } }]); await ops(T, [{ kind: 'insert', table: 'paid', rows: [{ key: 'm-kenta-m-aoi-3500' }] }]);
   await wait(600); assert.strictEqual(take(dAoi).length, 0, 'un-checking and checking again does not repeat it');
 
+  // 受け取った: the receiver confirmed -> who paid is told (once); un-checking and checking again does not repeat it
+  await ops(T, [{ kind: 'insert', table: 'received', rows: [{ key: 'm-kenta-m-aoi-3500' }] }]);
+  const kr = await waitFor(dKenta); assert.strictEqual(kr.length, 1, JSON.stringify(kr)); assert.strictEqual(kr[0].body, 'あおいさんが 3,500円 の受け取りを確認しました。'); assert.strictEqual(kr[0].title, '精算のお知らせ');
+  assert.strictEqual(take(dAoi).length, 0, 'the receiver is not told about her own confirmation');
+  await ops(T, [{ kind: 'delete', table: 'received', row: { key: 'm-kenta-m-aoi-3500' } }]); await ops(T, [{ kind: 'insert', table: 'received', rows: [{ key: 'm-kenta-m-aoi-3500' }] }]); await wait(600); assert.strictEqual(take(dKenta).length, 0, 'once per transfer');
+
   // みく turns notifications on later: reachable now, and the 2-day reminder (settled 11-20, so 11-22 from 10:00) goes to her only (けんた already paid)
   await sub(cMiku, dMiku); assert.deepStrictEqual(await reach(), ['m-aoi', 'm-kenta', 'm-miku']);
   assert.strictEqual((await run('2026-11-22T00:30:00Z')).again || 0, 0, '09:30 in Japan: too early');   // JST 09:30

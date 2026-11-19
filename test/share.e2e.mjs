@@ -75,6 +75,15 @@ try {
   await Bp.p.click('[data-a=tab][data-t=settle]'); await Bp.p.click('.noteRow'); await Bp.p.fill('#f-note', '現金でOK'); await Bp.p.click('[data-a=note-save]'); await see(Bp.p, '受け取り方を書きました');
   await Bp.p.waitForFunction(() => document.body.innerText.indexOf('同期待ち') < 0, null, { timeout: 12000 });
   await refresh(A.p); await A.p.click('[data-a=tab][data-t=settle]'); await see(A.p, 'さんの受け取り方：現金でOK');
+  // 受け取りの確認: whoever owes marks it paid; the receiver sees "言っています" and confirms; the payer then sees it confirmed (through the shared server)
+  { await A.p.click('[data-a=tab][data-t=settle]'); await Bp.p.click('[data-a=tab][data-t=settle]'); await A.p.waitForSelector('[data-a=toggle-paid]');
+    const key = await A.p.getAttribute('[data-a=toggle-paid]', 'data-k'), ma = await A.p.evaluate(() => meId(trip())), payer = key.replace(/^\d+:/, '').startsWith(ma + '-') ? A : Bp, receiver = payer === A ? Bp : A;
+    await payer.p.click('[data-a=toggle-paid][data-k="' + key + '"]'); await payer.p.waitForFunction(() => document.body.innerText.indexOf('同期待ち') < 0, null, { timeout: 12000 });
+    await refresh(receiver.p); await receiver.p.click('[data-a=tab][data-t=settle]'); try { await receiver.p.waitForSelector('.rline .rbtn', { timeout: 5000 }); } catch (e) { console.log('DEBUG', key, ma, payer === A ? 'A pays' : 'B pays', await receiver.p.evaluate(() => JSON.stringify({ me: meId(trip()), paid: trip().paid, rl: [...document.querySelectorAll('.rline')].map(x => x.innerText), xf: [...document.querySelectorAll('.xfer')].map(x => x.innerText.replace(/\n+/g, '|')) }))); throw e; } assert.ok((await receiver.p.innerText('.rline')).includes('払ったと言っています'));
+    await receiver.p.click('.rline .rbtn'); await receiver.p.waitForFunction(() => document.body.innerText.indexOf('同期待ち') < 0, null, { timeout: 12000 });
+    await refresh(payer.p); await payer.p.click('[data-a=tab][data-t=settle]'); await see(payer.p, '受け取り確認済み'); assert.strictEqual(await payer.p.locator('[data-a=toggle-recv]').count(), 0, 'the payer cannot confirm for the receiver');
+    await payer.p.click('[data-a=toggle-paid][data-k="' + key + '"]'); await payer.p.waitForFunction(() => document.body.innerText.indexOf('同期待ち') < 0, null, { timeout: 12000 });   // back to the start for the rest of the test
+    await refresh(receiver.p); await receiver.p.click('[data-a=tab][data-t=settle]'); await receiver.p.waitForFunction(() => !document.querySelector('.rline'), null, { timeout: 8000 }); }
   await A.p.click('[data-a=tab][data-t=exp]'); await Bp.p.click('[data-a=tab][data-t=exp]');
 
   // ---------- offline edits wait, then go out when the connection returns

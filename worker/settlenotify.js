@@ -10,6 +10,7 @@ const lineApi = env => env.LINE_API_BASE || 'https://api.line.me';   // outgoing
 const yen = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
 export const messages = {
   settle: (trip, to, amount) => ({ title: '精算のお知らせ', body: trip + 'の精算が確定しました。' + to + 'さんに ' + yen(amount) + ' を送ってください。' }),
+  received: (to, amount) => ({ title: '精算のお知らせ', body: to + 'さんが ' + yen(amount) + ' の受け取りを確認しました。' }),
   paid: (from, amount) => ({ title: '支払いのお知らせ', body: from + 'さんが ' + yen(amount) + ' を支払いました。' }),
   advance: (trip, payer, amount, share) => ({ title: '立て替えのお知らせ', body: trip + '：' + payer + 'さんが ' + yen(amount) + ' を立て替えました。あなたの分は ' + yen(share) + ' です。' }),
   again: (trip, to, amount) => ({ title: '精算のお知らせ', body: trip + 'の精算の、' + to + 'さんへの ' + yen(amount) + ' は、お済みですか。' })
@@ -112,7 +113,7 @@ export async function deliver(env, tripId, events, nowSec = Math.floor(Date.now(
 /* After a write to a shared trip: a new round -> tell who owes; a new "paid" mark -> tell who is owed. */
 export async function notifyOps(env, tripId, ins) {
   const adv = (ins.expenses || []).length >= 1 && ins.expenses.length <= 5 ? ins.expenses.filter(e => e && !e.settle_id && e.amount > 0 && Array.isArray(e.split)) : [];   // a bulk write (first sync, import) is not an advance
-  if (!(ins.settlements && ins.settlements.length) && !(ins.paid && ins.paid.length) && !adv.length) return 0;
+  if (!(ins.settlements && ins.settlements.length) && !(ins.paid && ins.paid.length) && !(ins.received && ins.received.length) && !adv.length) return 0;
   const [tr, ms] = await Promise.all([env.DB.prepare('SELECT name FROM trips WHERE id = ?1').bind(tripId).first(), env.DB.prepare('SELECT id, name FROM members WHERE trip_id = ?1').bind(tripId).all()]);
   if (!tr) return 0;
   const name = id => { const m = ms.results.find(x => x.id === id); return m ? m.name : '誰か'; }, ids = ms.results.map(m => m.id), ev = [];
@@ -121,6 +122,7 @@ export async function notifyOps(env, tripId, ins) {
     const sh = splitShares(x.amount, x.split, x.id, x.parts || null, x.fixed || null);
     for (const [mid, amt] of sh) if (mid !== x.payer && amt > 0 && ids.indexOf(mid) >= 0) ev.push({ member: mid, kind: 'a:' + x.id, msg: messages.advance(tr.name, name(x.payer), x.amount, amt) });
   }
+  for (const p of ins.received || []) { const k = parsePaidKey(p.key, ids); if (k) ev.push({ member: k.from, kind: 'rc:' + p.key, msg: messages.received(name(k.to), k.amount) }); }   // the receiver confirmed: tell who paid
   for (const p of ins.paid || []) { const k = parsePaidKey(p.key, ids); if (k) ev.push({ member: k.to, kind: 'p:' + p.key, msg: messages.paid(name(k.from), k.amount) }); }
   return deliver(env, tripId, ev);
 }

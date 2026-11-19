@@ -2,12 +2,12 @@
    Pure functions; tested in test/sync.test.js. Used by share.js's callers in index.html (the server side is worker/index.js). */
 (function (root) {
   'use strict';
-  var ORDER = ['trips', 'members', 'expenses', 'settlements', 'adjustments', 'paid', 'savings'];
-  var KEYS = { trips: ['id'], members: ['id'], expenses: ['id'], settlements: ['trip_id', 'id'], adjustments: ['trip_id', 'id'], paid: ['trip_id', 'key'], savings: ['trip_id', 'member_id'] };
+  var ORDER = ['trips', 'members', 'expenses', 'settlements', 'adjustments', 'paid', 'received', 'savings'];
+  var KEYS = { trips: ['id'], members: ['id'], expenses: ['id'], settlements: ['trip_id', 'id'], adjustments: ['trip_id', 'id'], paid: ['trip_id', 'key'], received: ['trip_id', 'key'], savings: ['trip_id', 'member_id'] };
   /* settlements are written once; an adjustment only ever gets its settle_id filled in (when a round is confirmed) */
-  var UPDATABLE = { trips: true, expenses: true, savings: true, adjustments: true, members: true, paid: false, settlements: false };
+  var UPDATABLE = { trips: true, expenses: true, savings: true, adjustments: true, members: true, paid: false, received: false, settlements: false };
 
-  function empty() { return { trips: {}, members: {}, expenses: {}, settlements: {}, adjustments: {}, paid: {}, savings: {} }; }
+  function empty() { return { trips: {}, members: {}, expenses: {}, settlements: {}, adjustments: {}, paid: {}, received: {}, savings: {} }; }
 
   /* app state (trips[]) -> row maps keyed by primary key */
   function flatten(trips) {
@@ -35,6 +35,7 @@
         out.adjustments[t.id + '|' + a.id] = { id: a.id, trip_id: t.id, settle_id: a.settleId || null, nets: Object.assign({}, a.nets), note: a.note || '', at: a.at };
       });
       Object.keys(t.paid || {}).forEach(function (k) { if (t.paid[k]) out.paid[t.id + '|' + k] = { trip_id: t.id, key: k }; });
+      Object.keys(t.received || {}).forEach(function (k) { if (t.received[k]) out.received[t.id + '|' + k] = { trip_id: t.id, key: k }; });   // the receiver's "受け取った" (an older app never sends this table)
       Object.keys(t.savings || {}).forEach(function (mid) {
         if (ids[mid]) out.savings[t.id + '|' + mid] = { trip_id: t.id, member_id: mid, amount: t.savings[mid] };
       });
@@ -79,10 +80,11 @@
         .map(function (st) { return { id: st.id, n: st.n, at: st.at, total: st.total || 0, transfers: st.transfers || [] }; });
       var adjustments = (r.adjustments || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : (a.id < b.id ? -1 : 1); })
         .map(function (a) { return { id: a.id, settleId: a.settle_id || null, nets: a.nets || {}, note: a.note || '', at: a.at }; });
-      var paid = {}, savings = {};
+      var paid = {}, received = {}, savings = {};
       (r.paid || []).forEach(function (p) { paid[p.key] = true; });
+      (r.received || []).forEach(function (p) { received[p.key] = true; });
       (r.savings || []).forEach(function (s) { savings[s.member_id] = s.amount; });
-      return { id: r.id, name: r.name, start: r.start_date, end: r.end_date, budget: r.budget, caps: r.caps || undefined, owner: r.owner, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, savings: savings };
+      return { id: r.id, name: r.name, start: r.start_date, end: r.end_date, budget: r.budget, caps: r.caps || undefined, owner: r.owner, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, received: received, savings: savings };
     });
   }
 
