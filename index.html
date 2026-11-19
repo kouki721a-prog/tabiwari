@@ -156,36 +156,36 @@ html,body{overscroll-behavior-x:none}
 .exp0{padding:6px 12px 0;white-space:nowrap}.exp0 b{display:block;font-size:calc(16px*var(--ts));margin-bottom:2px}.exp0 span{display:block;font-size:calc(14px*var(--ts))}.exp0 .btn{width:min(100%,280px);margin:16px auto 0;padding:13px 18px;font-size:calc(15px*var(--ts))}
 .mem-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
 .mem-row .btn.sm{width:auto;flex:none;padding:7px 14px;font-size:calc(14px*var(--ts));border-radius:12px}
-.home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
-.home0>*{flex:none}
-.home0-intro{text-align:center;color:var(--sub);font-size:min(14px, calc((100vw - 36px) / 27.5));line-height:1.6;padding:18px 0 16px;white-space:nowrap}
-.home0-tags{text-align:center;color:var(--ink);font-size:calc(13px*var(--ts));margin:-6px 0 12px;white-space:nowrap}
-.home0-note-sub{color:var(--sub);font-size:calc(11.5px*var(--ts));margin-top:3px}
-.home0-steps span:not(.n){line-height:1.45}
-.home0-note{border:1px solid var(--line);border-radius:14px;padding:9px 12px;font-size:calc(12.5px*var(--ts));line-height:1.5;color:var(--ink);margin:0 2px 8px}.home0-note b{display:block}
-.home0-intro b{display:block;color:var(--ink);font-size:min(20px, calc((100vw - 36px) / 16.5));white-space:nowrap;font-weight:700;margin-bottom:4px}
-@media (max-height:700px){.home0-intro{padding:8px 0 10px}.home0-steps{gap:10px;padding:10px 4px}.home0 .legal{margin-top:8px}.home0.sa .home0-steps{padding:10px 4px 0;gap:10px}.home0.sa .home0-intro{padding:2px 0 8px}.home0.sa>.home0-mid{padding-bottom:4px}}
-.home0-steps{list-style:none;margin:0;padding:0;flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:18px 4px}
-.home0-steps li{display:flex;gap:14px;align-items:center}
-.home0-steps .n{width:32px;height:32px;border-radius:50%;background:var(--soft);color:var(--ink);font-weight:700;display:grid;place-items:center;flex:none}
-.home0-steps b{display:block;font-size:calc(15px*var(--ts))}.home0-steps span:not(.n){display:block;color:var(--sub);font-size:calc(13px*var(--ts))}
 .home1{touch-action:pan-y;display:flex;flex-direction:column;min-height:calc(100vh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}
 @supports (height:100dvh){.home1{min-height:calc(100dvh - 92px - env(safe-area-inset-top) - env(safe-area-inset-bottom) * .5)}}
 .home1-foot{margin-top:auto;padding-top:16px}
 .foot1{text-align:center;white-space:nowrap}.foot1 button{color:var(--sub);text-decoration:underline;font:inherit;padding:8px 0}.foot1 a{display:inline-block;padding:8px 0}
 .btn.inv{margin-top:8px;padding:10px 14px;font-size:calc(14px*var(--ts));border-radius:14px}
 .btn.inv.join{margin-top:14px;color:var(--sub);font-weight:500;border-style:dashed}
-.home0-mid,.home0-bottom{display:contents}   /* in the browser the two groups are transparent: the layout is the one with the steps stretching */
-/* opened from the home screen: no banner space to fill, so the buttons and steps sit close together, centred between the title and the LINE row; LINE and the legal links stay at the bottom */
-.home0.sa>.home0-mid{display:flex;flex-direction:column;flex:1 0 auto;justify-content:center;padding-bottom:8px}
-.home0.sa>.home0-bottom{display:block}
-.home0.sa .home0-steps{flex:none;padding:18px 4px 0;gap:14px}
-/* short screens (after the base rules above, so these win): a tighter note; the smallest phones drop the steps (the heading and the note say it already) */
-@media (max-height:700px){.home0-tags{margin:-2px 0 8px}.home0-note{font-size:calc(12px*var(--ts));padding:7px 10px;line-height:1.45;margin-bottom:6px}}
-@media (max-height:660px){.home0-steps{gap:8px;padding:4px 4px}.home0-intro{padding:4px 0 6px}.home0-tags{margin:-2px 0 6px}}
-@media (max-height:600px){.home0-steps{display:none}}
-.home0.t1 .install .howto{display:none}.home0.t1 .home0-intro{padding:6px 0 8px}.home0.t2 .home0-lead{display:none}.home0.t3 .home0-steps span:not(.n){display:none}.home0.t3 .home0-steps{gap:8px;padding:6px 4px}.home0.t4 .home0-steps{display:none}.home0.t5 .home0-tags{display:none}
-.home0.sa .home0-intro{padding-top:6px}
+.home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
+.home0>*{flex:none}
+/* the first page (no trip yet): a page to read, not one screen. Hero, the three moments with real screens, the settle-up features, notifications, how to start, FAQ. */
+.lp-hero{text-align:center;padding:22px 0 8px}
+.lp-eyebrow{display:inline-block;font-size:calc(12px*var(--ts));color:var(--sub);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:3px 12px}
+.lp-h{font-size:calc(27px*var(--ts));line-height:1.4;margin:14px 0 10px;font-weight:700}.lp-h em{font-style:normal;background:linear-gradient(transparent 62%,rgba(255,200,61,.55) 62%)}
+.lp-lead{color:var(--sub);font-size:calc(14px*var(--ts));line-height:1.7;margin:0 0 18px}
+.home0-tags{text-align:center;color:var(--ink);font-size:calc(13px*var(--ts));margin:12px 0 0;white-space:nowrap}
+.lp-flow{list-style:none;display:flex;gap:6px;margin:22px 0 0;padding:0}.lp-flow li{flex:1;background:var(--navy);color:#fff;border-radius:14px;padding:10px 4px;font-size:calc(12px*var(--ts));line-height:1.35}.lp-flow b{display:block;font-size:calc(14px*var(--ts));color:var(--sun)}
+.lp-sec{padding:30px 0 4px}.lp-sec h2{font-size:calc(20px*var(--ts));margin:0 0 6px;text-align:center;font-weight:700}.lp-sub{font-size:calc(13px*var(--ts));color:var(--sub);text-align:center;margin:0 0 16px}
+.lp-stage{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px;margin-bottom:12px}.lp-stage small{color:var(--sub);font-size:calc(12px*var(--ts));display:flex;align-items:center;gap:6px}
+.lp-stage .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--sun);color:var(--sun-ink);font-weight:700;font-size:12px}
+.lp-stage h3{margin:2px 0 4px;font-size:calc(17px*var(--ts))}.lp-stage p{margin:0 0 10px;font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.6}
+.lp-stage img{display:block;width:100%;height:auto;border-radius:12px;background:#eef2f7}
+.lp-feat{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lp-feat div{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px}.lp-feat b{display:block;font-size:calc(14px*var(--ts));margin-bottom:2px}.lp-feat span{display:block;font-size:calc(12px*var(--ts));color:var(--sub);line-height:1.55}
+.lp-note{border-radius:20px;padding:14px 16px;margin-bottom:10px;background:var(--card);border:1px solid var(--line)}.lp-note>b{font-size:calc(13px*var(--ts))}
+.lp-note.line{background:rgba(6,199,85,.09);border-color:rgba(6,199,85,.3)}.lp-note.line>b{color:var(--good)}
+.lp-bub{background:var(--card);border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:calc(13px*var(--ts));line-height:1.6;margin-top:8px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.lp-steps{list-style:none;margin:0;padding:0}.lp-steps li{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);font-size:calc(14px*var(--ts));line-height:1.6}
+.lp-steps .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-weight:700}
+.lp-faq details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;font-size:calc(14px*var(--ts))}.lp-faq summary{font-weight:600;cursor:pointer}.lp-faq p{margin:6px 0 0;color:var(--sub);font-size:calc(13px*var(--ts));line-height:1.6}
+.lp-cta{padding:24px 0 4px}
+.home0-note-sub{color:var(--sub);font-size:calc(11.5px*var(--ts));margin-top:3px}
+.home0-note{border:1px solid var(--line);border-radius:14px;padding:9px 12px;font-size:calc(12.5px*var(--ts));line-height:1.5;color:var(--ink);margin:14px 2px 8px}.home0-note b{display:block}
 .home0-line{display:flex;flex-direction:column;gap:6px;padding:0 2px}
 .home0-line .sub{text-align:center}
 .home0 .legal{margin-top:12px}
@@ -1224,15 +1224,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
-  fitHome0();
 }
-/* The first screen must fit on one page, whatever the phone, the browser's toolbars or the banner above it: while it does not, it gives up the least important things in turn (t1 the banner's how-to line / t2 the one-line lead under the heading / t3 the step descriptions / t4 the steps / t5 the ✓ line). */
-function fitHome0(){
-  const h = document.querySelector('.home0'); if (!h) return;
-  h.classList.remove('t1', 't2', 't3', 't4', 't5');
-  for (const c of ['t1', 't2', 't3', 't4', 't5']){ if (h.scrollHeight <= h.clientHeight + 1) break; h.classList.add(c); }
-}
-window.addEventListener('resize', fitHome0);
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
 function slidePage(st, ms){
@@ -1305,17 +1297,33 @@ async function makeRecap(t){
   const icon = await new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = 'icons/icon-192.png'; });
   return new Promise(r => recapCanvas(d, icon).toBlob(r, 'image/png'));
 }
+const APP_NAME = 'Tabiflow';
 const brandRow = () => '<div class="brandrow"><h1 class="brand">Tabiflow</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 function viewHomeEmpty(){
-  const steps = [['出発前は、積立', 'ひとりずつ、あといくらかが見えます。'], ['旅行中は、1日の目安', '今日あといくら使えるかが分かります。'], ['旅行後は、通知つきの精算', '割り勘は自動。払う人にお知らせが届きます。']];
+  const flow = [['出発前', '積立'], ['旅行中', '1日の目安・割り勘'], ['旅行後', '通知つきの精算']];
+  const stages = [['1', '出発前', 'みんなで積立', 'ひとりずつ、あといくらかが見えます。出発が近づくと、お知らせも届きます。', 'save', '積立の画面。みんなの積立が16,000円。', 222],
+    ['2', '旅行中', '今日の目安と、ひとことの記録', '今日あといくら使えるかが分かります。「夕食 2000円」と書くだけで、記録できます。', 'exp', '今日の目安が12,000円。ひとことで記録する欄。', 266],
+    ['3', '旅行後', '割り勘は、自動で精算', '誰が誰にいくらかを、自動で計算します。払う人には、お知らせが届きます。', 'settle', '精算の画面。あおいさん 8,367円、けんたさん 6,766円。', 224]];
+  const feats = [['一部の人だけの割り勘', '「この2人だけ」の支払いも、正しく。'], ['割合・金額の指定', '食べた量や飲んだ量に合わせて、多め・少なめに。'], ['レシートの写真', '店名と合計を、読み取ります。'], ['受け取りの確認', '「払った」「受け取った」を、お互いに。'], ['変更の履歴', '誰がいつ変えたかが、残ります。'], ['まとめ画像', '旅の終わりに、レシート風の画像に。']];
+  const steps = ['旅行をつくる（名前・日付・予算・メンバー）', '共有リンクを、LINEで友だちに送る', '旅行中は、払った人が記録する', '最後に「精算」を開いて、表示のとおりに送金する'];
+  const faq = [['料金は、かかりますか？', '無料で使えます。'], ['登録やインストールは、必要ですか？', '要りません。ブラウザで開くだけです。ホーム画面に追加すると、すぐ開けて、お知らせも届きます。'], ['お金を、アプリで送れますか？', '送れません。記録と計算だけです。送金は、いつものやり方で。'], ['データは、どこに保存されますか？', 'この端末に保存されます。LINEでログインすると、バックアップされて、端末を替えても戻せます。']];
   let line = '';
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line">' + (isStandalone() ? '<div class="sub sm">LINEでログインすると、通知とバックアップを使えます。</div>' : '') + '<button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
-  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + '<div class="home0-mid">' + remoteCard() + installBanner() +
-    '<div class="home0-intro"><b>旅行のお金の不安を、なくす</b><span class="home0-lead">貯める、使いすぎない、払う。1つのアプリで。</span></div><div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div>' +
-    '<button class="btn" data-a="new">旅行をつくる</button>' +
-    '<button class="btn line" data-a="join-paste" style="margin-top:10px">友だちに招待された方は、こちら</button>' +
-    '<ol class="home0-steps" aria-label="使い方">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><b>' + x[0] + '</b><span>' + x[1] + '</span></div></li>').join('') + '</ol></div>' +
+  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + remoteCard() + installBanner() +
+    '<div class="lp-hero"><span class="lp-eyebrow">友だち・カップルの国内旅行に</span><h2 class="lp-h">旅のお金を、<br><em>前から後まで</em>、ひとつに。</h2><p class="lp-lead">積立、旅行中の1日の目安、割り勘、精算まで。<br>お知らせつきで、お金の不安をなくします。</p>' +
+    '<button class="btn" data-a="new">旅行をつくる</button><button class="btn line" data-a="join-paste" style="margin-top:10px">友だちに招待された方は、こちら</button>' +
+    '<div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div>' +
+    '<ol class="lp-flow" aria-label="旅の流れ">' + flow.map(x => '<li><b>' + x[0] + '</b>' + x[1] + '</li>').join('') + '</ol></div>' +
+    '<section class="lp-sec"><h2>旅の流れに、そのまま</h2><p class="lp-sub">3つの場面を、ひとつのアプリでつなぎます。</p>' +
+      stages.map(x => '<div class="lp-stage"><small><span class="n" aria-hidden="true">' + x[0] + '</span>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div>').join('') + '</section>' +
+    '<section class="lp-sec"><h2>割り勘が、ラクになるところ</h2><p class="lp-sub">もめやすい所を、ていねいに。</p><div class="lp-feat">' + feats.map(x => '<div><b>' + x[0] + '</b><span>' + x[1] + '</span></div>').join('') + '</div></section>' +
+    '<section class="lp-sec"><h2>お知らせで、忘れない</h2><p class="lp-sub">アプリを開かなくても、気づけます。</p>' +
+      '<div class="lp-note line"><b>LINEの公式アカウントから（精算の確定・立て替え）</b><div class="lp-bub">【' + APP_NAME + '】熱海の精算が確定しました。けんたさんに 2,000円 を送ってください。</div></div>' +
+      '<div class="lp-note"><b>アプリの通知（積立・記録のし忘れ）</b><div class="lp-bub">箱根まで、あと7日です。あなたの積立は、あと 16,667円 で目標です。</div></div></section>' +
+    '<section class="lp-sec"><h2>はじめ方</h2><ol class="lp-steps">' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
+    '<section class="lp-sec lp-faq"><h2>よくある質問</h2>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</section>' +
+    '<div class="lp-cta"><button class="btn" data-a="new">旅行をつくる</button></div>' +
     '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。（ログインなしでも使えます）<div class="home0-note-sub">ログインしていないと、スマホを替えたときや、閲覧履歴を消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>';
 }
 /* the one line on a home card that says what to do next */
@@ -1894,7 +1902,7 @@ function fixedNote(t, d){   // the line under the rows: how much is left for the
 function partsBlock(t, d, s){
   if (d.split.length < 2) return '';
   const on = !!cleanParts(d.parts, d.split) || Object.keys(d.fixed || {}).length > 0, a = parseYen(d.amount);
-  let h = '<button class="link" data-a="parts-toggle" aria-expanded="' + !!s.partsOpen + '" style="width:auto;padding:8px 0;margin-top:2px">' + (s.partsOpen ? '割合・金額をとじる' : on ? '割合・金額を変えています（変える）' : '割合・金額を変える（子どもは0.5倍など）') + '</button>';
+  let h = '<button class="link" data-a="parts-toggle" aria-expanded="' + !!s.partsOpen + '" style="width:auto;padding:8px 0;margin-top:2px">' + (s.partsOpen ? '割合・金額をとじる' : on ? '割合・金額を変えています（変える）' : '割合・金額を変える（多め・少なめなど）') + '</button>';
   if (!s.partsOpen) return h;
   const ids = t.members.map(m => m.id).filter(id => d.split.indexOf(id) >= 0), shares = splitFor(d, a, ids);
   return h + '<div class="parts">' + ids.map(id => { const n = (d.parts && d.parts[id]) || 2, sh = shares.filter(x => x[0] === id)[0], nm = esc(nameOf(t, id));

@@ -17,18 +17,18 @@ try {
   const ctx = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await ctx.newPage();
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   await p.setViewportSize({ width: 390, height: 780 });
-  await p.goto('http://localhost:8797/'); await see(p, '旅行のお金の不安を、なくす');
+  await p.goto('http://localhost:8797/'); await see(p, '前から後まで');
   // the splash is plain HTML that is there before any script runs, and it is gone once the first screen is drawn
   assert.ok((await (await fetch('http://localhost:8797/')).text()).includes('<div id="splash"'), 'the splash is in the page itself'); await p.waitForFunction(() => !document.getElementById('splash'), null, { timeout: 3000 });
-  // the first screen: one screen without scrolling; main button right under the intro, then "join by link", the 3 steps, and the legal links at the very bottom
-  { const y = sel => p.$eval(sel, e => e.getBoundingClientRect().top);
-    const m = await p.$eval('.home0', e => ({ s: e.scrollHeight, c: e.clientHeight }));
-    assert.ok(m.s <= m.c + 1, 'the first screen needs no scrolling: ' + JSON.stringify(m));
-    const [intro, make, join, steps, legal] = [await y('.home0-intro'), await y('.home0 [data-a=new]'), await y('.home0 [data-a=join-paste]'), await y('.home0-steps'), await y('.home0 .legal')];
-    assert.ok(intro < make && make < join && join < steps && steps < legal, JSON.stringify({ intro, make, join, steps, legal }));
-    assert.ok(await p.$eval('.home0-intro', e => e.textContent.includes('貯める、使いすぎない、払う。1つのアプリで。') && e.scrollWidth <= e.clientWidth), 'the intro sentence fits on one line');
-    assert.strictEqual(await p.$$eval('.home0-intro', els => { const r = document.createRange(), n = els[0].lastChild; r.selectNodeContents(n); return r.getClientRects().length; }), 1, 'one line of text');
-    assert.strictEqual(await p.locator('.home0-steps li').count(), 3); assert.strictEqual(await p.locator('.fab').count(), 0, 'no floating button on the first screen');
+  // the first page (no trip yet) is a page to read: the hero with both buttons, the three moments with real screens, the features, notifications, how to start, FAQ, the second button, and the legal links at the very bottom
+  { const y = sel => p.$eval(sel, e => e.getBoundingClientRect().top + document.querySelector('.home0').scrollTop);
+    const [h, make, join, flow, stages, feats, steps, faq, make2, legal] = [await y('.lp-h'), await y('.home0 [data-a=new]'), await y('.home0 [data-a=join-paste]'), await y('.lp-flow'), await y('.lp-stage'), await y('.lp-feat'), await y('.lp-steps'), await y('.lp-faq'), await y('.lp-cta [data-a=new]'), await y('.home0 .legal')];
+    assert.ok(h < make && make < join && join < flow && flow < stages && stages < feats && feats < steps && steps < faq && faq < make2 && make2 < legal, JSON.stringify({ h, make, join, flow, stages, feats, steps, faq, make2, legal }));
+    assert.strictEqual(await p.locator('.lp-stage').count(), 3); assert.strictEqual(await p.locator('.lp-flow li').count(), 3); assert.strictEqual(await p.locator('.lp-steps li').count(), 4); assert.strictEqual(await p.locator('.lp-faq details').count(), 4);
+    assert.ok(await p.$eval('.home0-tags', e => e.scrollWidth <= e.clientWidth), 'the ✓ line fits on one line');
+    assert.ok(await p.$eval('.home0', e => e.scrollWidth <= e.clientWidth + 1), 'nothing runs sideways');
+    for (const n of ['save', 'exp', 'settle']) assert.ok(await p.$eval('.lp-stage img[src$="/' + n + '.png"]', i => { i.loading = 'eager'; return i.complete || new Promise(r => { i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false); }); }), 'the picture ' + n + ' loads');
+    assert.strictEqual(await p.locator('.fab').count(), 0, 'no floating button on the first page');
     assert.ok(await p.$eval('.home0-line', () => false).catch(() => true), 'no LINE login row without the server'); }
   await p.click('[data-a=new]'); await p.fill('#d-name', '箱根'); await p.fill('#d-budget', '100000');
   assert.strictEqual(await p.inputValue('#d-me'), '', 'your name starts empty');
@@ -168,7 +168,7 @@ try {
 
   // undo after deleting a whole trip
   await p.click('[data-a=settings]'); await p.click('[data-a=ask-del-trip]'); await p.click('[data-a=del-trip]');
-  await see(p, '旅行を削除しました'); await see(p, '旅行のお金の不安を、なくす');
+  await see(p, '旅行を削除しました'); await see(p, '前から後まで');
   await p.click('[data-a=undo]'); await see(p, '元に戻しました'); await see(p, '箱根');
   assert.strictEqual(await p.locator('h1').count(), 1, 'the home page has one level-1 heading'); assert.ok(/箱根/.test(await p.textContent('.trip .sr') + await p.textContent('.trip')) && /メンバー：あおい/.test(await p.textContent('.trip .sr')));
   await p.click('.trip'); await see(p, '夕食');
@@ -220,11 +220,11 @@ try {
     await p.goto('http://localhost:8797/'); await p.click('.trip'); await p.waitForSelector('#exp-list .sec h2');
     const r = await p.evaluate(async () => { const sc = document.querySelector('#app.fit>.scroll'), hs = [...document.querySelectorAll('#exp-list .sec>h2')]; sc.scrollTop = 520; await new Promise(r => setTimeout(r, 150)); return { top: sc.getBoundingClientRect().top, hs: hs.map(h => Math.round(h.getBoundingClientRect().top - sc.getBoundingClientRect().top)), st: sc.scrollTop }; });
     assert.ok(r.st > 300 && r.hs.some(v => v >= -1 && v <= 2), 'a date heading sits at the top of the scrolling list: ' + JSON.stringify(r)); await c.close(); }
-  { // the first screen fits on one page with the "add to the home screen" banner above it too, whatever the height (it gives things up in turn)
-    for (const [w, h] of [[390, 844], [390, 730], [390, 664], [375, 667], [360, 640], [320, 568]]){
+  { // the first page with the "add to the home screen" banner above it: it scrolls, nothing runs sideways, the banner and both buttons are there, on every phone size
+    for (const [w, h] of [[390, 844], [390, 664], [375, 667], [320, 568]]){
       const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: w, height: h } }), q = await c.newPage(); await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
-      const r = await q.evaluate(() => { const e = document.querySelector('.home0'); return { fit: e.scrollHeight <= e.clientHeight + 1, banner: !!document.querySelector('.install'), cls: e.className }; });
-      assert.ok(r.fit && r.banner, 'the first screen with the banner fits at ' + w + 'x' + h + ': ' + JSON.stringify(r)); await c.close();
+      const r = await q.evaluate(() => { const e = document.querySelector('.home0'); return { side: e.scrollWidth <= e.clientWidth + 1, banner: !!document.querySelector('.install'), btns: !!document.querySelector('.home0 [data-a=new]') && !!document.querySelector('.home0 [data-a=join-paste]'), tags: (t => t.scrollWidth <= t.clientWidth)(document.querySelector('.home0-tags')) }; });
+      assert.ok(r.side && r.banner && r.btns && r.tags, 'the first page at ' + w + 'x' + h + ': ' + JSON.stringify(r)); await c.close();
     } }
   { const q = await (await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 } })).newPage();
     await q.route('**/api/me', r => r.fulfill({ json: { login: true, user: null, push: null } }));
@@ -233,6 +233,7 @@ try {
       return { bg: c.backgroundColor, filter: c.filter, opacity: c.opacity, text: c.color, divider: im.borderRightColor, over: a.opacity, overColor: a.backgroundColor, overZ: a.zIndex, textZ: sp.zIndex, imgZ: im.zIndex }; });
     assert.deepStrictEqual([st.bg, st.filter, st.opacity, st.text, st.divider, st.over, st.overColor], ['rgb(6, 199, 85)', 'none', '1', 'rgb(255, 255, 255)', 'rgba(0, 0, 0, 0.08)', '0', 'rgb(0, 0, 0)'], JSON.stringify(st));
     assert.ok(Number(st.overZ) < Number(st.textZ) && Number(st.overZ) < Number(st.imgZ), 'the overlay sits under the text and logo: ' + JSON.stringify(st));
+    await q.$eval('.lineg', e => e.scrollIntoView({ block: 'center' })); await q.waitForTimeout(200);   // the first page scrolls: the login button is near its end
     const box = await q.$eval('.lineg', e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width - 20, y: r.y + r.height / 2 }; });
     await q.mouse.move(box.x, box.y); assert.strictEqual(await q.$eval('.lineg', e => getComputedStyle(e, '::after').opacity), '0', 'no hover shade');
     await q.mouse.down(); await q.waitForTimeout(100); assert.strictEqual(await q.$eval('.lineg', e => getComputedStyle(e, '::after').opacity), '0.3', 'pressed: black 30%'); await q.mouse.up(); }
@@ -270,14 +271,13 @@ try {
     q = await open('ios', { standalone: true, login: true, ntf: 'off' }); await see(q, '通知をオンにすると、前日のお知らせが届きます'); assert.strictEqual(await q.locator('[data-a=ntf-home]').count(), 1); assert.strictEqual(await q.locator('text=' + benefit).count(), 0);
     q = await open('ios', { standalone: true, login: true, ntf: 'on' }); assert.strictEqual(await q.locator('.install').count(), 0, 'notifications already on: nothing to show');
     q = await open('ios', { standalone: true, login: true, ntf: 'blocked' }); await see(q, '通知が許可されていません');
-    // opened from the home screen: the main group is packed and centred (no stretched gaps), LINE login and the legal links stay at the bottom, and it fits without scrolling even on a small iPhone
+    // opened from the home screen: the notification card (when it is needed) sits above the buttons, the LINE login row (when needed) and the legal links are at the very bottom, nothing runs sideways
     for (const [size, login, ntf] of [[{ width: 390, height: 780 }, false, null], [{ width: 375, height: 667 }, true, 'off'], [{ width: 375, height: 667 }, false, null]]) {
       q = await open('ios', { standalone: true, login, ntf, size });
-      const m = await q.evaluate(() => { const t = s => document.querySelector(s).getBoundingClientRect(), h = document.querySelector('.home0'), card = document.querySelector('.home0-mid .install');
-        return { fit: h.scrollHeight <= h.clientHeight + 1, joinToSteps: t('.home0-steps').top - t('[data-a=join-paste]').bottom, btnToJoin: t('[data-a=join-paste]').top - t('.home0 [data-a=new]').bottom, stepsToBottom: (document.querySelector('.home0-line') || document.querySelector('.legal')).getBoundingClientRect().top - t('.home0-steps').bottom,
-          legalAtBottom: h.getBoundingClientRect().bottom - t('.legal').bottom, cardAbove: card ? t('.home0 [data-a=new]').top - card.getBoundingClientRect().bottom : null, titleBeforeMid: t('.brand').bottom <= t('.home0-mid').top + 1 }; });
-      assert.ok(m.fit, 'fits without scrolling: ' + JSON.stringify(m)); assert.ok(m.joinToSteps <= 26 && m.btnToJoin <= 14, 'buttons and steps are packed together: ' + JSON.stringify(m));
-      assert.ok(m.legalAtBottom <= 24, 'the legal links stay at the bottom: ' + JSON.stringify(m)); assert.ok(m.titleBeforeMid && m.stepsToBottom >= 0, JSON.stringify(m));
+      const m = await q.evaluate(() => { const h = document.querySelector('.home0'), t = s => document.querySelector(s).getBoundingClientRect().top + h.scrollTop, card = document.querySelector('.home0 > .install');
+        return { side: h.scrollWidth <= h.clientWidth + 1, cardAbove: card ? t('.home0 [data-a=new]') - (card.getBoundingClientRect().bottom + h.scrollTop) : null, legalLast: t('.home0 .legal') > t('.lp-cta'), titleFirst: t('.brand') < t('.lp-h') };
+      });
+      assert.ok(m.side && m.legalLast && m.titleFirst, JSON.stringify(m));
       if (ntf === 'off'){ assert.ok(m.cardAbove > 0, 'the notification card sits above the buttons: ' + JSON.stringify(m)); assert.strictEqual(await q.locator('.install [data-a=ntf-home]').count(), 1); } }
     // the notification card goes away once notifications are on
     q = await open('ios', { standalone: true, login: true, ntf: 'off' }); await q.evaluate(() => { ntfState = async () => 'on'; ntfOn = async () => 'on'; });

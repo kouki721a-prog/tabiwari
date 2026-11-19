@@ -16,13 +16,15 @@ const device = async () => {
   return { ctx, p };
 };
 const see = (p, t, ms = 9000) => p.waitForSelector('text=' + t, { timeout: ms });
+const LOGIN_CARD = ':is(.home0-note, .install.col):has-text("LINEでログインすると")';   // the login card (the first page's FAQ has the same words, folded away, so a bare text match is not enough)
+const seeLogin = p => p.waitForSelector(LOGIN_CARD, { timeout: 9000 });
 const newTrip = async (p, name, me = 'あおい') => { await p.click('[data-a=new]'); await p.fill('#d-name', name); await p.fill('#d-budget', '30000'); if (await p.locator('[data-a=draft-me-edit]').count()) await p.click('[data-a=draft-me-edit]'); await p.fill('#d-me', me); await p.click('[data-a=save-trip]'); };   // signed in: your name is the LINE name until you change it
 const addExpense = async (p, amount, title) => { await p.click('[data-a=add-exp]'); await p.fill('#f-amount', String(amount)); await p.fill('#f-title', title); await p.click('[data-a=save-exp]'); await see(p, '記録しました'); };
 
 try {
   // ---------- device 1: two trips (one local, one shared), then log in
   const d1 = await device(); line.setIdentity('U-aoi', 'あおい（LINE）');
-  await d1.p.goto(base + '/'); await see(d1.p, 'LINEでログインすると');
+  await d1.p.goto(base + '/'); await seeLogin(d1.p);
   await newTrip(d1.p, 'ローカルの旅'); await addExpense(d1.p, 1500, 'ランチ'); await d1.p.click('[data-a=home]');
   await newTrip(d1.p, '共有の旅'); await addExpense(d1.p, 900, 'コーヒー');
   await d1.p.click('[data-a=settings]'); await d1.p.click('[data-a=share-start]'); await d1.p.waitForSelector('#s-sharelink', { timeout: 9000 }); await d1.p.click('[data-a=close-sheet]'); await d1.p.click('[data-a=home]');
@@ -32,11 +34,11 @@ try {
   await see(d1.p, 'LINEでログインしました'); await d1.p.waitForFunction(() => typeof lineAcct !== 'undefined' && lineAcct.user); assert.strictEqual(await d1.p.locator('text=でログイン中').count(), 0, 'the home page does not show the account line');
   await d1.p.click('[data-a=app-settings]'); await see(d1.p, '友だち追加する'); assert.strictEqual(await d1.p.getAttribute('a:has-text("友だち追加する")', 'href'), 'https://line.me/R/ti/p/%40896znnha', 'the official account friend-add link'); await d1.p.click('[data-a=close-sheet]');
   await d1.p.waitForFunction(() => lineAcct.count === 2, null, { timeout: 12000 });
-  assert.strictEqual(await d1.p.locator('text=LINEでログインすると').count(), 0, 'the login card goes away');
+  assert.strictEqual(await d1.p.locator(LOGIN_CARD).count(), 0, 'the login card goes away');
 
   // ---------- device 2: LINE opens in a *different* browser (what happens in an iPhone home-screen app); the app still gets logged in
   const d2 = await device(); const other = await device();
-  await d2.p.goto(base + '/'); await see(d2.p, 'LINEでログインすると');
+  await d2.p.goto(base + '/'); await seeLogin(d2.p);
   const attempt = await d2.p.evaluate(async () => { const a = await Line.begin(); localStorage.setItem('tabiwari.lineattempt', JSON.stringify({ id: a.id, secret: a.secret, t: Date.now() })); return a; });
   await d2.p.evaluate(() => { linePoll(); }); await see(d2.p, 'LINEでのログインを待っています');
   await other.p.goto(base + attempt.url); await see(other.p, 'ログインできました');       // the "other browser" completes the login
@@ -76,18 +78,18 @@ try {
   await d4.p.click('[data-a=close-sheet]'); assert.strictEqual(await d4.p.locator('.trip').count(), 0, 'deleting from the backup does not touch the device');
 
   // ---------- logout, then delete the account on device 2: local trips stay
-  await d3.p.click('[data-a=app-settings]'); await d3.p.click('[data-a=line-account]'); await d3.p.click('[data-a=line-logout]'); await see(d3.p, 'ログアウトしました'); await see(d3.p, 'LINEでログインすると');
+  await d3.p.click('[data-a=app-settings]'); await d3.p.click('[data-a=line-account]'); await d3.p.click('[data-a=line-logout]'); await see(d3.p, 'ログアウトしました'); await seeLogin(d3.p);
   await d2.p.click('[data-a=app-settings]'); await d2.p.click('[data-a=line-account]'); await d2.p.click('[data-a=line-del-ask]'); await d2.p.click('[data-a=line-del-go]'); await see(d2.p, 'アカウントを削除しました');
-  await see(d2.p, 'LINEでログインすると'); await see(d2.p, 'ローカルの旅'); await see(d2.p, '共有の旅');
+  await seeLogin(d2.p); await see(d2.p, 'ローカルの旅'); await see(d2.p, '共有の旅');
   // device 1's session died with the account
-  await d1.p.reload(); await see(d1.p, 'LINEでログインすると');
+  await d1.p.reload(); await seeLogin(d1.p);
 
   // ---------- a trip deleted on the device is not offered again at the next login, and neither is a trip the device already has under another id
   line.setIdentity('U-new', '新人');
   const loginFlow = async d => { await d.p.click('[data-a=line-login]'); await d.p.waitForURL(/\/api\/auth\/line\/callback/); await see(d.p, 'ログインできました'); await d.p.click('a[href="/"]'); await d.p.waitForFunction(() => typeof lineAcct !== 'undefined' && lineAcct.user, null, { timeout: 12000 }); };   // (the "LINEでログインしました" toast is shown for 1.7 seconds only: waiting for the login itself does not miss it)
   const noRestoreSheet = async p => { await p.waitForTimeout(2500); assert.strictEqual(await p.locator('[data-a=bk-restore-go]').count(), 0, 'no restore offer'); };
   const backupHas = async (p, pred) => { for (let i = 0; i < 30; i++){ const items = await p.evaluate(async () => (await Line.backupGet()).items.map(x => ({ deleted: !!x.item.deleted, name: x.item.trip ? x.item.trip.name : x.item.name }))); if (pred(items)) return items; await p.waitForTimeout(500); } assert.fail('backup did not reach the expected state'); };
-  const e = await device(); await e.p.goto(base + '/'); await see(e.p, 'LINEでログインすると');
+  const e = await device(); await e.p.goto(base + '/'); await seeLogin(e.p);
   await newTrip(e.p, '消す旅'); await e.p.click('[data-a=home]'); await newTrip(e.p, '残す旅'); await e.p.click('[data-a=home]');
   await loginFlow(e); await e.p.waitForFunction(() => lineAcct.count === 2, null, { timeout: 12000 });
   await e.p.locator('.trip', { hasText: '消す旅' }).click(); await e.p.click('[data-a=settings]'); await e.p.click('[data-a=ask-del-trip]'); await e.p.click('[data-a=del-trip]'); await see(e.p, '旅行を削除しました');
@@ -101,7 +103,7 @@ try {
   await e.p.click('[data-a=bk-pick]'); await e.p.click('[data-a=bk-restore-go]'); await see(e.p, '1件を戻しました'); await see(e.p, '消す旅');
   await backupHas(e.p, it => it.every(x => !x.deleted));   // the next backup clears the mark
   // another device that already has "残す旅" (made there by itself, so a different id): no offer
-  const f = await device(); await f.p.goto(base + '/'); await see(f.p, 'LINEでログインすると'); await newTrip(f.p, '残す旅'); await f.p.click('[data-a=home]');
+  const f = await device(); await f.p.goto(base + '/'); await seeLogin(f.p); await newTrip(f.p, '残す旅'); await f.p.click('[data-a=home]');
   await loginFlow(f); await see(f.p, 'バックアップから戻す');
   await f.p.waitForSelector('[data-a=bk-restore-go]'); const offered = await f.p.$$eval('.sheet .item .t', els => els.map(x => x.textContent));
   assert.deepStrictEqual(offered.sort(), ['残す旅', '消す旅'].sort());
@@ -111,8 +113,8 @@ try {
 
   // ---------- a trip made on another device shows up (card on the home screen) when this device opens or comes back to the app; "later" is remembered
   line.setIdentity('U-sync', '同期さん');
-  const g = await device(); await g.p.goto(base + '/'); await see(g.p, 'LINEでログインすると'); await loginFlow(g); await noRestoreSheet(g.p);
-  const h = await device(); await h.p.goto(base + '/'); await see(h.p, 'LINEでログインすると'); await newTrip(h.p, '箱根'); await h.p.click('[data-a=home]'); await loginFlow(h);
+  const g = await device(); await g.p.goto(base + '/'); await seeLogin(g.p); await loginFlow(g); await noRestoreSheet(g.p);
+  const h = await device(); await h.p.goto(base + '/'); await seeLogin(h.p); await newTrip(h.p, '箱根'); await h.p.click('[data-a=home]'); await loginFlow(h);
   await backupHas(h.p, it => it.some(x => x.name === '箱根'));
   const comeBack = p => p.evaluate(() => { checkRemote.t = 0; document.dispatchEvent(new Event('visibilitychange')); });
   await comeBack(g.p); await see(g.p, '別の端末の旅行が 1件あります');
@@ -125,7 +127,7 @@ try {
 
   // ---------- one trip the server refuses must not block the others, and the failure is shown (not silent)
   line.setIdentity('U-err', 'エラーさん');
-  const m = await device(); await m.p.goto(base + '/'); await see(m.p, 'LINEでログインすると'); await newTrip(m.p, 'ふつう'); await m.p.click('[data-a=home]');
+  const m = await device(); await m.p.goto(base + '/'); await seeLogin(m.p); await newTrip(m.p, 'ふつう'); await m.p.click('[data-a=home]');
   await m.p.evaluate(() => { state.trips.push({ id: 'big1', name: 'おおきい', start: '2026-11-10', end: '2026-11-11', budget: 1000, members: [{ id: 'a', name: 'あ' }], paid: {}, savings: {}, expenses: [{ id: 'e1', title: 'x'.repeat(250000), amount: 1, payer: 'a', cat: 'food', date: '2026-11-10', split: ['a'] }] }); persist(); render(); });
   await loginFlow(m); await backupHas(m.p, it => it.some(x => x.name === 'ふつう'));
   await m.p.waitForFunction(() => lineAcct.bkErr && lineAcct.bkErr.includes('おおきい'), null, { timeout: 12000 });
