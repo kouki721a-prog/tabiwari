@@ -1,4 +1,4 @@
-/* Row-level sync helpers for たびわり's shared trips: flatten a trip into rows, diff two snapshots into ops, assemble rows back into a trip.
+/* Row-level sync helpers for MEGURI's shared trips: flatten a trip into rows, diff two snapshots into ops, assemble rows back into a trip.
    Pure functions; tested in test/sync.test.js. Used by share.js's callers in index.html (the server side is worker/index.js). */
 (function (root) {
   'use strict';

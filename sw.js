@@ -1,5 +1,5 @@
 /* Offline cache for the app shell. Bump VERSION when any cached file changes. API calls are never cached. */
-const VERSION = 'tabiwari-v143';
+const VERSION = 'tabiwari-v144';
 const FILES = ['./', './index.html', './config.js', './sync.js', './share.js', './line.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/icon-maskable-512.png', './icons/line-login-icon.png'];
 const OPTIONAL = ['./terms.html', './privacy.html', './legal.css'];   // optional: a missing one must not break the install
@@ -29,7 +29,7 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data.json(); } catch (_) { d = { body: e.data ? e.data.text() : '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'たびわり', { body: d.body || '', icon: 'icons/icon-192.png', tag: d.tag, data: { url: d.url || './' } }));
+  e.waitUntil(self.registration.showNotification(d.title || 'MEGURI', { body: d.body || '', icon: 'icons/icon-192.png', tag: d.tag, data: { url: d.url || './' } }));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();

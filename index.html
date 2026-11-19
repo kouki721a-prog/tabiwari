@@ -3,26 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>たびわり</title>
+<title>MEGURI</title>
 <meta name="description" content="旅行のお金の不安をなくす、友だち・カップル向けの国内旅行アプリ。出発前の積立、旅行中の1日の目安、旅行後の通知つき精算まで、ひとつにつなぎます。">
 <!-- Shown when the link is shared (X, LINE, Instagram...). Absolute addresses are required: change them together with RECAP_SITE when the domain changes. -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="たびわり">
-<meta property="og:title" content="たびわり｜旅行のお金の不安を、なくす">
+<meta property="og:site_name" content="MEGURI">
+<meta property="og:title" content="MEGURI｜旅行のお金の不安を、なくす">
 <meta property="og:description" content="旅行のお金の不安をなくす、友だち・カップル向けの国内旅行アプリ。出発前の積立、旅行中の1日の目安、旅行後の通知つき精算まで、ひとつにつなぎます。">
 <meta property="og:url" content="https://tabiwari.tabiwari-app.workers.dev/">
 <meta property="og:image" content="https://tabiwari.tabiwari-app.workers.dev/icons/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="たびわり｜旅行のお金の不安を、なくす">
+<meta name="twitter:title" content="MEGURI｜旅行のお金の不安を、なくす">
 <meta name="twitter:description" content="旅行のお金の不安をなくす、友だち・カップル向けの国内旅行アプリ。出発前の積立、旅行中の1日の目安、旅行後の通知つき精算まで、ひとつにつなぎます。">
 <meta name="twitter:image" content="https://tabiwari.tabiwari-app.workers.dev/icons/og.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f2742">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="たびわり">
+<meta name="apple-mobile-web-app-title" content="MEGURI">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <!-- iPhone start-up images (made by icons/make-splash.js): the first screen when the app is opened from the home screen -->
@@ -418,7 +418,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 </style>
 </head>
 <body>
-<div id="splash" aria-hidden="true"><img src="icons/icon-192.png" alt="" width="96" height="96"><b>たびわり</b></div>
+<div id="splash" aria-hidden="true"><img src="icons/icon-192.png" alt="" width="96" height="96"><b>MEGURI</b></div>
 <main id="app"></main>
 <script src="config.js"></script>
 <script src="sync.js"></script>
@@ -887,7 +887,7 @@ function installBanner(){
   if (isStandalone()){
     if (lineAcct.user && lineAcct.push && lineAcct.ntfHome === 'off')
       return '<div class="install"><div class="grow"><b>通知をオンにすると、前日のお知らせが届きます。</b></div><button class="btn" data-a="ntf-home">通知をオンにする</button></div>';
-    if (lineAcct.user && lineAcct.ntfHome === 'blocked') return '<div class="install"><div class="grow sub sm">通知が許可されていません。端末の設定で、たびわりの通知を許可してください。</div></div>';
+    if (lineAcct.user && lineAcct.ntfHome === 'blocked') return '<div class="install"><div class="grow sub sm">通知が許可されていません。端末の設定で、MEGURIの通知を許可してください。</div></div>';
     return '';
   }
   if (inAppBrowser()){
@@ -1262,7 +1262,7 @@ function ghost(node, kind){   // a still copy of what has just gone, animated ou
 function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; ui.toastNew = true; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
 
 /* the first screen (no trips yet): one screen, no scrolling. Order: intro, the main button, join by link, the 3 steps, LINE login (small), legal links at the very bottom */
-const OA_URL = 'https://line.me/R/ti/p/%40896znnha';   // official account 「たびわり」 (@896znnha)
+const OA_URL = 'https://line.me/R/ti/p/%40896znnha';   // official account 「MEGURI」 (@896znnha)
 /* ---- trip recap image: drawn on a canvas on this device (nothing is uploaded) ---- */
 const RECAP_FONT = '-apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif';
 const RECAP_SITE = 'tabiwari.tabiwari-app.workers.dev';   // the public address printed small at the bottom of the picture
@@ -1287,7 +1287,7 @@ function recapCanvas(d, icon){
   g.lineTo(RX + RW, top + body); for (let k = n; k > 0; k--){ g.lineTo(RX + k * st - st / 2, top + body + 14); g.lineTo(RX + (k - 1) * st, top + body); } g.closePath(); g.fill();
   const dash = y => { g.save(); g.strokeStyle = 'rgba(14,34,56,.35)'; g.lineWidth = 3; g.setLineDash([12, 10]); g.beginPath(); g.moveTo(IN, y); g.lineTo(IN + IW, y); g.stroke(); g.restore(); };
   const row = (l, r, y, weight, px) => { font(weight, px); const rw = w(r), lw = w(l); text(l, IN, y, INK); text(r, IN + IW, y, INK, 'right'); g.save(); g.fillStyle = 'rgba(14,34,56,.35)'; for (let x = IN + lw + 18; x < IN + IW - rw - 18; x += 14) g.fillRect(x, y - 8, 4, 4); g.restore(); };
-  let y = top + 96; if (icon) g.drawImage(icon, W / 2 - 36, y - 66, 72, 72); y += 52; font(700, 34); text('たびわり　レシート', W / 2, y, INK, 'center');
+  let y = top + 96; if (icon) g.drawImage(icon, W / 2 - 36, y - 66, 72, 72); y += 52; font(700, 34); text('MEGURI　レシート', W / 2, y, INK, 'center');
   y += 74; font(700, 58); lines.forEach((l, i) => text(l, W / 2, y + i * 68, INK, 'center')); y += (lines.length - 1) * 68 + 54; font(400, 32); g.globalAlpha = .65; text(when, W / 2, y, INK, 'center'); g.globalAlpha = 1;
   y += 44; dash(y); y += 62; cats.forEach(k => { row(catName(k), yen(k.amount), y, 500, 40); y += ROW; });
   y -= 36; dash(y); y += 70; font(700, 48); text('合計', IN, y, INK); const tp = fit(yen(d.total), 700, 74, IW - 150, 40); font(700, tp); text(yen(d.total), IN + IW, y + 2, INK, 'right');
@@ -1305,7 +1305,7 @@ async function makeRecap(t){
   const icon = await new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = 'icons/icon-192.png'; });
   return new Promise(r => recapCanvas(d, icon).toBlob(r, 'image/png'));
 }
-const brandRow = () => '<div class="brandrow"><h1 class="brand">たびわり</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
+const brandRow = () => '<div class="brandrow"><h1 class="brand">MEGURI</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 function viewHomeEmpty(){
   const steps = [['出発前は、積立', 'ひとりずつ、あといくらかが見えます。'], ['旅行中は、1日の目安', '今日あといくら使えるかが分かります。'], ['旅行後は、通知つきの精算', '割り勘は自動。払う人にお知らせが届きます。']];
   let line = '';
@@ -1793,10 +1793,10 @@ function viewSheet(){
     body = (lineAcct.login ? sec('LINEアカウント') + '<div class="list">' + (lineAcct.user
         ? '<button class="item slim acc" data-a="line-account">' + meAv + '<div class="grow"><div class="t">' + esc(nm0) + '</div><div class="sub sm">バックアップ、通知、ログアウト</div></div>' + chev + '</button>'
         : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 20px 16px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
-      (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener">' + ico('userplus') + '<div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「たびわり」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
+      (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener">' + ico('userplus') + '<div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「MEGURI」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
       sec('文字の大きさ') + '<div class="list"><div class="item slim acc tsize" role="group" aria-label="文字の大きさ">' + [['1', '標準'], ['2', '少し大きく'], ['3', '大きく']].map(x => '<button type="button" class="lc" data-a="text-size" data-v="' + x[0] + '" aria-pressed="' + (textSize() === x[0]) + '">' + x[1] + '</button>').join('') + '</div></div>' +
       (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html">' + ico('doc') + '<div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
-      sec('このアプリについて') + '<div class="list"><div class="item slim acc"><span class="ico" aria-hidden="true"><img src="icons/icon-192.png" alt=""></span><div class="grow"><div class="t">たびわり</div><div class="sub sm">' + (s.ver ? '版 ' + esc(s.ver) : '旅行の予算管理と割り勘') + '</div></div></div></div>';
+      sec('このアプリについて') + '<div class="list"><div class="item slim acc"><span class="ico" aria-hidden="true"><img src="icons/icon-192.png" alt=""></span><div class="grow"><div class="t">MEGURI</div><div class="sub sm">' + (s.ver ? '版 ' + esc(s.ver) : '旅行の予算管理と割り勘') + '</div></div></div></div>';
     foot = '';
   }
   if (s.type === 'line-account'){
@@ -2397,7 +2397,7 @@ document.addEventListener('click', e => {
   else if (a === 'share-start'){ readSheet(); s.sharing = true; startShare(t).then(() => { if (ui.sheet) ui.sheet.sharing = false; render(); }); }
   else if (a === 'share-copy'){
     const url = Share.linkFor(t.share.token, location), text = '「' + t.name + '」の割り勘に参加してね。';
-    if (navigator.share){ navigator.share({ title: 'たびわり', text: text, url: url }).catch(() => {}); }
+    if (navigator.share){ navigator.share({ title: 'MEGURI', text: text, url: url }).catch(() => {}); }
     else { try { navigator.clipboard.writeText(text + '\n' + url).then(() => flash('コピーしました'), () => {}); } catch(err){} const el2 = document.getElementById('s-sharelink'); if (el2) el2.select(); }
     return;
   }
