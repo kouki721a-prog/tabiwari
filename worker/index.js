@@ -23,21 +23,28 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS hits (k TEXT NOT NULL, w INTEGER NOT NULL, n INTEGER NOT NULL, t INTEGER NOT NULL, PRIMARY KEY (k, w))`,
   ...ACCOUNT_SCHEMA
 ];
-let ready = null;   // schema is created on first use, so there is no separate migration step to run
-const ensure = env => ready || (ready = env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
-  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN settle_id TEXT').run().catch(() => { /* the column already exists */ }))   // which round of settlement an expense belongs to (NULL = not settled yet)
-  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN parts TEXT').run().catch(() => { /* the column already exists */ }))   // per-person weights of an expense (JSON, NULL = equal)
-  .then(() => env.DB.prepare('ALTER TABLE members ADD COLUMN note TEXT').run().catch(() => { /* the column already exists */ }))   // how a member wants to be paid (free text, 60 chars)
-  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN fixed TEXT').run().catch(() => { /* the column already exists */ }))   // exact amounts for some people of an expense (JSON, NULL = none)
-  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN author TEXT').run().catch(() => { /* the column already exists */ }))   // 変更履歴 (who / when recorded, who / when last changed, the values before that change as JSON)
-  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN made_at INTEGER').run().catch(() => { /* the column already exists */ }))
-  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN editor TEXT').run().catch(() => { /* the column already exists */ }))
-  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN edited_at INTEGER').run().catch(() => { /* the column already exists */ }))
-  .then(() => env.DB.prepare('ALTER TABLE expenses ADD COLUMN prev TEXT').run().catch(() => { /* the column already exists */ }))
-  .then(() => env.DB.prepare('ALTER TABLE trips ADD COLUMN caps TEXT').run().catch(() => { /* the column already exists */ }))   // limits per category (JSON, NULL = none)
-  .then(() => env.DB.prepare('ALTER TABLE users ADD COLUMN settle_notif INTEGER NOT NULL DEFAULT 1').run().catch(() => { /* the column already exists */ }))   // 精算のお知らせ on/off per account
-  .then(() => Promise.all(['over_notif INTEGER NOT NULL DEFAULT 1', 'pic_share INTEGER NOT NULL DEFAULT 1', 'friend_flag INTEGER NOT NULL DEFAULT 0', 'friend_changed INTEGER', 'friend_checked_at INTEGER', 'adv_notif INTEGER NOT NULL DEFAULT 0', 'sv_notif INTEGER NOT NULL DEFAULT 1'].map(c => env.DB.prepare('ALTER TABLE users ADD COLUMN ' + c).run().catch(() => { /* already there */ }))))   // official-account friend state, saved at login
-  .catch(e => { ready = null; throw e; }));
+/* Columns added after the first release (CREATE TABLE IF NOT EXISTS does not add columns to an existing table). The order is kept. */
+const ALTERS = [
+  ['expenses', 'settle_id TEXT'],   // which round of settlement an expense belongs to (NULL = not settled yet)
+  ['expenses', 'parts TEXT'],   // per-person weights of an expense (JSON, NULL = equal)
+  ['members', 'note TEXT'],   // how a member wants to be paid (free text, 60 chars)
+  ['expenses', 'fixed TEXT'],   // exact amounts for some people of an expense (JSON, NULL = none)
+  ['expenses', 'author TEXT'], ['expenses', 'made_at INTEGER'], ['expenses', 'editor TEXT'], ['expenses', 'edited_at INTEGER'], ['expenses', 'prev TEXT'],   // 変更履歴 (who / when recorded, who / when last changed, the values before that change as JSON)
+  ['trips', 'caps TEXT'],   // limits per category (JSON, NULL = none)
+  ['users', 'settle_notif INTEGER NOT NULL DEFAULT 1'],   // 精算のお知らせ on/off per account
+  ['users', 'over_notif INTEGER NOT NULL DEFAULT 1'], ['users', 'pic_share INTEGER NOT NULL DEFAULT 1'], ['users', 'friend_flag INTEGER NOT NULL DEFAULT 0'], ['users', 'friend_changed INTEGER'], ['users', 'friend_checked_at INTEGER'],   // official-account friend state, saved at login
+  ['users', 'adv_notif INTEGER NOT NULL DEFAULT 0'], ['users', 'sv_notif INTEGER NOT NULL DEFAULT 1']
+];
+/* The schema is made on first use. It is NOT redone at every cold start: that was ~40 database queries, and a free-plan Worker may make only ~50 per request, so a cold start
+   left too little for the request itself (sync failed). A fingerprint of SCHEMA + ALTERS is kept in meta; when it matches, one query is all a cold start costs. A changed list = a new fingerprint = the migration runs once. */
+const schemaVersion = (() => { const t = JSON.stringify([SCHEMA, ALTERS]); let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return 's' + h.toString(16); })();
+let ready = null;
+const ensure = env => ready || (ready = (async () => {
+  try { const r = await env.DB.prepare("SELECT v FROM meta WHERE k = 'schema_v'").first(); if (r && r.v === schemaVersion) return; } catch (e) { /* a new database: there is no meta table yet */ }
+  await env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)));
+  for (const [t, c] of ALTERS) await env.DB.prepare('ALTER TABLE ' + t + ' ADD COLUMN ' + c).run().catch(() => { /* the column already exists */ });
+  await env.DB.prepare("INSERT INTO meta(k, v) VALUES ('schema_v', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(schemaVersion).run();
+})().catch(e => { ready = null; throw e; }));
 
 const LIMITS = { members: 12, expenses: 2000, settlements: 100, adjustments: 2000, paid: 500, received: 500, body: 256 * 1024, opsPerRequest: 400 };
 const WRITES_PER_10MIN = 300, CREATES_PER_DAY = 20, RETENTION_DAYS = 400;

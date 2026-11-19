@@ -444,6 +444,18 @@ try {
     assert.strictEqual(await q.evaluate(() => sanitizeTrip(JSON.parse(JSON.stringify(state.trips[0])), 'n').expenses[0].prev.payer), 'a', 'a backup / restore keeps the history');
     assert.strictEqual(await q.evaluate(() => { const t = JSON.parse(JSON.stringify(state.trips[0])); t.expenses[0].author = 'zzz'; t.expenses[0].prev = { amount: 0, payer: 'a', split: ['a'] }; const r = sanitizeTrip(t, 'n').expenses[0]; return JSON.stringify([r.author, r.prev]); }), '[null,null]', 'garbage in the history is dropped');
     assert.deepStrictEqual(qerrs, []); await c18.close(); }
+  // 「同期待ち」が消えないとき: サーバーの答えの番号が、日付の横に出る（0 = 何も返ってこない）。直ったら消える
+  { const c19 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c19.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); let mode = 500;
+    await q.route('**/api/**', r => mode === 0 ? r.abort() : mode === 200 ? r.fulfill({ status: 200, json: { unchanged: true, rev: 1 } }) : r.fulfill({ status: mode, json: { error: 'x' } }));
+    await q.addInitScript(() => { const x = new Date(), t = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 'h'.repeat(64), name: '箱根', start: t, end: t, budget: 50000, paid: {}, savings: {}, settlements: [], adjustments: [], share: { token: 'T'.repeat(40), me: 'a', rev: 0, snap: { trips: {}, members: {}, expenses: {}, settlements: {}, adjustments: {}, paid: {}, received: {}, savings: {} }, dirty: false },
+        members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [{ id: 'e1', title: '夕食', amount: 3000, payer: 'a', cat: 'food', date: t, split: ['a', 'b'] }] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]');
+    await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => document.body.innerText.includes('同期待ち（500）'), null, { timeout: 8000 });
+    mode = 503; await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => document.body.innerText.includes('同期待ち（503）'), null, { timeout: 8000 });
+    mode = 0; await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => document.body.innerText.includes('同期待ち') && !/同期待ち（/.test(document.body.innerText), null, { timeout: 8000 });
+    mode = 200; await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => !document.body.innerText.includes('同期待ち'), null, { timeout: 8000 });
+    assert.deepStrictEqual(qerrs, []); await c19.close(); }
   // 記録タブの予算カード: 主役は1つ（旅行中=今日の目安／準備中=積立／終了=使った合計）、バーは1本、カテゴリの内訳は1行にたたむ（押すとバーとチップが開く。絞り込み中は開いたまま）
   { const c17 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c17.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');

@@ -4,8 +4,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-export async function startServer(port = 8788, vars = {}) {
-  const dir = mkdtempSync(path.join(tmpdir(), 'tabiwari-d1-'));
+export async function startServer(port = 8788, vars = {}, keepDir = null) {   // keepDir: reuse that database folder (a restart = a cold start on the same data)
+  const dir = keepDir || mkdtempSync(path.join(tmpdir(), 'tabiwari-d1-'));
   const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
   const varArgs = Object.entries(vars).flatMap(([k, v]) => ['--var', k + ':' + v]);
   const child = spawn('npx', ['--yes', 'wrangler@4', 'dev', '--local', '--port', String(port), '--persist-to', dir, ...varArgs], { cwd: root, stdio: 'ignore', detached: true });
@@ -15,5 +15,5 @@ export async function startServer(port = 8788, vars = {}) {
     await new Promise(r => setTimeout(r, 1000));
     if (i === 89) throw new Error('wrangler dev did not start');
   }
-  return { base, stop() { try { process.kill(-child.pid); } catch (e) {} rmSync(dir, { recursive: true, force: true }); } };
+  return { base, dir, stop(keep) { try { process.kill(-child.pid); } catch (e) {} if (!keep) rmSync(dir, { recursive: true, force: true }); } };
 }
