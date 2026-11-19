@@ -14,3 +14,13 @@ assert.strictEqual(light, dark, 'one image per colour scheme');
 const onDisk = fs.readdirSync(path.join(root, 'icons/splash')).filter(f => f.endsWith('.png')); assert.strictEqual(onDisk.length, tags.length, 'no image on disk that is not declared');
 assert.ok(/icons\/splash/.test(fs.readFileSync(path.join(root, 'scripts/build.js'), 'utf8')), 'the build copies them');
 console.log('splash tests passed');
+// The picture and text shown when the link is shared (Open Graph / Twitter card): absolute address, a 1200x630 PNG that the build copies.
+{
+  const og = k => (html.match(new RegExp('<meta property="og:' + k + '" content="([^"]+)"')) || [])[1];
+  assert.ok(/^https:\/\//.test(og('image')) && /^https:\/\//.test(og('url')), 'the share picture and address are absolute');
+  assert.ok(og('title') && og('description'), 'the share title and text are set');
+  assert.ok(/<meta name="twitter:card" content="summary_large_image">/.test(html), 'Twitter card');
+  const buf = fs.readFileSync(path.join(root, 'icons/og.png'));
+  assert.deepStrictEqual([buf.readUInt32BE(16), buf.readUInt32BE(20)], [1200, 630], 'og.png is 1200x630');
+  assert.ok(/icons\/og\.png/.test(fs.readFileSync(path.join(root, 'scripts/build.js'), 'utf8')), 'the build copies og.png');
+}
