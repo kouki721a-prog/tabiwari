@@ -24,7 +24,7 @@ try {
   { const y = sel => p.$eval(sel, e => e.getBoundingClientRect().top + document.querySelector('.home0').scrollTop);
     const [h, make, join, flow, stages, feats, steps, faq, make2, legal] = [await y('.lp-h'), await y('.home0 [data-a=new]'), await y('.home0 [data-a=join-paste]'), await y('.lp-rail'), await y('.lp-stage'), await y('.lp-feat'), await y('.lp-steps'), await y('.lp-faq'), await y('.lp-cta [data-a=new]'), await y('.home0 .legal')];
     assert.ok(h < make && make < join && join < flow && flow <= stages && stages < feats && feats < steps && steps < faq && faq < make2 && make2 < legal, JSON.stringify({ h, make, join, flow, stages, feats, steps, faq, make2, legal }));
-    assert.strictEqual(await p.locator('.lp-stage').count(), 3); assert.strictEqual(await p.locator('.lp-feat .ln').count(), 6); assert.strictEqual(await p.locator('.lp-tk').count(), 1, 'the sample ticket'); assert.strictEqual(await p.locator('.lp-steps li').count(), 4); assert.strictEqual(await p.locator('.lp-faq details').count(), 4);
+    assert.ok(await p.$eval('.lp-stage .n', n => n.getBoundingClientRect().left - 2 >= document.querySelector('.home0').getBoundingClientRect().left), 'the route dots are not cut off on the left (the ring is 2px wide)'); assert.strictEqual(await p.locator('.lp-stage').count(), 3); assert.strictEqual(await p.locator('.lp-feat .ln').count(), 6); assert.strictEqual(await p.locator('.lp-tk').count(), 1, 'the sample ticket'); assert.strictEqual(await p.locator('.lp-steps li').count(), 4); assert.strictEqual(await p.locator('.lp-faq details').count(), 4);
     assert.ok(await p.$eval('.home0-tags', e => e.scrollWidth <= e.clientWidth), 'the ✓ line fits on one line');
     assert.ok(await p.$eval('.home0', e => e.scrollWidth <= e.clientWidth + 1), 'nothing runs sideways');
     for (const n of ['save', 'exp', 'settle']) assert.ok(await p.$eval('.lp-stage img[src$="/' + n + '.png"]', i => { i.loading = 'eager'; return i.complete || new Promise(r => { i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false); }); }), 'the picture ' + n + ' loads');
@@ -327,11 +327,11 @@ try {
     await q.fill('#adm-token', 'good-passphrase'); await q.click('[data-a=adm-claim]'); await q.waitForSelector('.ct-done'); assert.ok((await sheetText(q)).includes('運営者として登録しました')); await q.context().close();
     q = await open({ hash: '#admin' }); await q.waitForSelector('.sheet'); assert.ok((await sheetText(q)).includes('LINEでログインしてから'), 'signed out: asked to sign in first'); await q.context().close();
   }
-  { // the first page with the "add to the home screen" banner above it: it scrolls, nothing runs sideways, the banner and both buttons are there, on every phone size
+  { // the first page with the "add to the home screen" banner above it: it scrolls, nothing runs sideways, the banner and both buttons are there, and 旅行をつくる is on the FIRST screen (no scrolling needed), on every phone size
     for (const [w, h] of [[390, 844], [390, 664], [375, 667], [320, 568]]){
       const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: w, height: h } }), q = await c.newPage(); await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
-      const r = await q.evaluate(() => { const e = document.querySelector('.home0'); return { side: e.scrollWidth <= e.clientWidth + 1, banner: !!document.querySelector('.install'), btns: !!document.querySelector('.home0 [data-a=new]') && !!document.querySelector('.home0 [data-a=join-paste]'), tags: (t => t.scrollWidth <= t.clientWidth)(document.querySelector('.home0-tags')) }; });
-      assert.ok(r.side && r.banner && r.btns && r.tags, 'the first page at ' + w + 'x' + h + ': ' + JSON.stringify(r)); await c.close();
+      const r = await q.evaluate(() => { const e = document.querySelector('.home0'); return { side: e.scrollWidth <= e.clientWidth + 1, banner: !!document.querySelector('.install'), btns: !!document.querySelector('.home0 [data-a=new]') && !!document.querySelector('.home0 [data-a=join-paste]'), cta: document.querySelector('.home0 [data-a=new]').getBoundingClientRect().bottom <= innerHeight, tags: (t => t.scrollWidth <= t.clientWidth)(document.querySelector('.home0-tags')) }; });
+      assert.ok(r.side && r.banner && r.btns && r.tags && r.cta, 'the first page at ' + w + 'x' + h + ': ' + JSON.stringify(r)); await c.close();
     } }
   { const q = await (await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 } })).newPage();
     await q.route('**/api/me', r => r.fulfill({ json: { login: true, user: null, push: null } }));

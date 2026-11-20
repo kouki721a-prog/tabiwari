@@ -168,11 +168,12 @@ html,body{overscroll-behavior-x:none}
 /* the first page (no trip yet): a page to read, not one screen. Hero, the three moments with real screens, the settle-up features, notifications, how to start, FAQ. */
 .lp-hero{padding:20px 0 6px;overflow-x:clip}
 .lp-eye{font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub);text-transform:uppercase}
-.lp-h{font-size:calc(31px*var(--ts));line-height:1.38;margin:8px 0 12px;font-weight:700}
-.lp-lead{color:var(--sub);font-size:calc(14px*var(--ts));line-height:1.75;margin:0 0 22px}
-.home0-tags{text-align:left;color:var(--sub);font-size:calc(12.5px*var(--ts));margin:12px 0 0;white-space:nowrap}
+.lp-h{font-size:min(calc(27px*var(--ts)),calc((100vw - 32px) / 13.6 * var(--ts)));line-height:1.4;margin:6px 0 10px;font-weight:700}.lp-br:first-of-type{display:none}   /* the first break is not needed: two lines on a normal phone */
+@media (max-height:640px){.lp-lead{display:none}.lp-h{margin-bottom:12px}}
+.lp-lead{color:var(--sub);font-size:calc(14px*var(--ts));line-height:1.7;margin:0 0 16px}
+.home0-tags{text-align:left;color:var(--sub);font-size:calc(12.5px*var(--ts));margin:12px 0 22px;white-space:nowrap}
 /* the sample trip ticket in the hero: cream paper, a perforation with a notch at both ends, a barcode, and a pressed stamp */
-.lp-tk{position:relative;background:var(--cream);color:var(--ink);border-radius:14px;margin:6px 0 22px;box-shadow:0 1px 0 var(--dash)}
+.lp-tk{position:relative;background:var(--cream);color:var(--ink);border-radius:14px;margin:6px 0 4px;box-shadow:0 1px 0 var(--dash)}
 .lp-tk-top{padding:16px 18px 14px}.lp-tk-hd{display:flex;justify-content:space-between;font-family:var(--mono);font-size:calc(10.5px*var(--ts));letter-spacing:.14em;color:var(--sub);margin-bottom:12px}
 .lp-tk-grid{display:grid;grid-template-columns:1fr auto;gap:12px 16px}.lp-tk small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.lp-tk b{font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums}
 .lp-tk-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -181,8 +182,8 @@ html,body{overscroll-behavior-x:none}
 .lp-tk-stamp{position:absolute;right:16px;top:-16px;width:60px;height:60px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:calc(24px*var(--ts));color:#0f2742;border:2.5px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(10deg);box-shadow:inset 0 0 0 3px rgba(255,255,255,.55)}.lp-tk-stamp:after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed #0f2742;opacity:.5}
 .lp-sec{padding:34px 0 4px}.lp-sec h2{font-size:calc(20px*var(--ts));margin:2px 0 6px;font-weight:700}.lp-sub{font-size:calc(13px*var(--ts));color:var(--sub);margin:0 0 14px}
 /* the route: a dashed line with a numbered stop for each moment of the trip */
-.lp-rail{position:relative;margin-top:16px;padding-left:38px}.lp-rail:before{content:"";position:absolute;left:11px;top:8px;bottom:8px;border-left:2px dashed var(--dash)}
-.lp-stage{position:relative;margin-bottom:26px}.lp-stage .n{position:absolute;left:-38px;top:0;width:24px;height:24px;border-radius:50%;background:var(--sun);color:var(--sun-ink);font-weight:700;font-size:12px;display:grid;place-items:center;border:2px solid var(--paper);box-shadow:0 0 0 2px var(--ink)}
+.lp-rail{position:relative;margin-top:16px;padding-left:42px}.lp-rail:before{content:"";position:absolute;left:14px;top:8px;bottom:8px;border-left:2px dashed var(--dash)}
+.lp-stage{position:relative;margin-bottom:26px}.lp-stage .n{position:absolute;left:-39px;top:0;width:24px;height:24px;border-radius:50%;background:var(--sun);color:var(--sun-ink);font-weight:700;font-size:12px;display:grid;place-items:center;border:2px solid var(--paper);box-shadow:0 0 0 2px var(--ink)}
 .lp-stage small{font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.12em;color:var(--sub)}.lp-stage h3{margin:2px 0 4px;font-size:calc(18px*var(--ts))}.lp-stage p{margin:0 0 10px;font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.6}
 .lp-stage img{display:block;width:100%;height:auto;border-radius:8px;background:var(--paper)}.lp-shot{background:var(--cream);border-radius:12px;padding:8px;box-shadow:0 1px 0 var(--dash)}
 /* the details: a receipt, a dotted leader between the name and its note */
@@ -1421,9 +1422,9 @@ function viewHomeEmpty(){
   const ticket = '<div class="lp-tk" aria-hidden="true"><div class="lp-tk-top"><div class="lp-tk-hd"><span>TRIP TICKET</span><span>SAMPLE</span></div><div class="lp-tk-grid"><div><small>行き先</small><b>箱根 1泊2日</b></div><div><small>日程</small><b>11/18 – 19</b></div><div><small>メンバー</small><b>あおい・けんた・みく</b></div><div><small>予算</small><b>80,000円</b></div></div></div>' +
     '<div class="lp-tk-bot"><div><small>1人あたり</small><b>26,667円</b></div><i class="lp-bars"></i></div><span class="lp-tk-stamp">初</span></div>';
   return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + remoteCard() + installBanner() +
-    '<div class="lp-hero' + hero.cls + '"' + hero.st + '><div class="lp-eye">Money · Before / During / After</div><h2 class="lp-h">旅のお金を、<br>前から後まで、<br>ひとつに。</h2><p class="lp-lead">積立、旅行中の1日の目安、割り勘、精算まで。<br>友だち・カップルの国内旅行のために。</p>' + ticket +
+    '<div class="lp-hero' + hero.cls + '"' + hero.st + '><div class="lp-eye">Money · Before / During / After</div><h2 class="lp-h">旅のお金を、<br class="lp-br">前から後まで、<br class="lp-br">ひとつに。</h2><p class="lp-lead">積立、旅行中の1日の目安、割り勘、精算まで。<br>友だち・カップルの国内旅行のために。</p>' +
     '<button class="btn" data-a="new">旅行をつくる</button><button class="btn line" data-a="join-paste" style="margin-top:10px">友だちに招待された方は、こちら</button>' +
-    '<div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div></div>' +
+    '<div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div>' + ticket + '</div>' +
     '<section class="lp-sec"><div class="lp-eye">Route</div><h2>旅の流れに、そのまま</h2><div' + lpRv('rail', 'lp-rail', true) + '>' +
       stages.map(x => '<div' + lpRv('st' + x[0], 'lp-stage') + '><span class="n" aria-hidden="true">' + x[0] + '</span><small>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><div class="lp-shot"><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div></div>').join('') + '</div></section>' +
     '<section class="lp-sec"><div class="lp-eye">Details</div><h2>割り勘の、明細</h2><div' + lpRv('feat', 'lp-feat') + '>' + feats.map(x => '<div class="ln"><b>' + x[0] + '</b><i></i><span>' + x[1] + '</span></div>').join('') + '</div></section>' +
