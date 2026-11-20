@@ -343,7 +343,7 @@ html,body{overscroll-behavior-x:none}
 .cat{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);font-weight:500;font-size:calc(11px*var(--ts));line-height:1.2;white-space:nowrap}
 .cat .tag{width:30px;height:30px;border-radius:10px;font-size:calc(14px*var(--ts))}
 .cat.on{border-color:var(--ink);border-width:2px}
-.err{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);padding:10px 12px;border-radius:12px;font-size:calc(14px*var(--ts));font-weight:500;margin-top:14px}
+.field.bad{border-color:var(--bad)}.ferr{color:var(--bad);font-size:calc(13px*var(--ts));margin:6px 2px 0}.err{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);padding:10px 12px;border-radius:12px;font-size:calc(14px*var(--ts));font-weight:500;margin-top:14px}
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 .two>*{min-width:0}
 input[type=date].field{min-width:0;max-width:100%;min-height:50px;-webkit-appearance:none;appearance:none;text-align:left;display:block}
@@ -1526,17 +1526,20 @@ function lineCard(){
   if (!lineAcct.user) return '<div class="install col"><div>LINEでログインすると、旅行をバックアップして、別の端末でも戻せます。<span class="sub sm" style="display:block;margin-top:2px">ログインしないと、端末を替えたときに、旅行は消えます。</span></div><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   return '';
 }
+/* a missing field in the new-trip form: a red frame and one line under that field (all missing fields at once) */
+const bad = (d, k) => d.errs && d.errs[k] ? ' bad' : '';
+const ferr = (d, k) => d.errs && d.errs[k] ? '<div class="ferr" id="e-' + k + '" role="alert">' + esc(d.errs[k]) + '</div>' : '';
 function viewNew(){
   const d = ui.draft;
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="戻る">' + icon('back') + '</button><h1>旅行をつくる</h1></div>';
-  h += '<div class="scroll"><label class="lab" for="d-name">旅行の名前</label><input class="field" id="d-name" type="text" data-draft="name" value="' + esc(d.name) + '" placeholder="例：箱根 紅葉旅行">' +
+  h += '<div class="scroll"><label class="lab" for="d-name">旅行の名前</label><input class="field' + bad(d, 'name') + '" id="d-name" type="text" data-draft="name" value="' + esc(d.name) + '" placeholder="例：箱根 紅葉旅行">' + ferr(d, 'name') +
     '<div class="two"><div><label class="lab" for="d-start">出発日</label><input class="field" id="d-start" type="date" data-draft="start" value="' + d.start + '"></div>' +
     '<div><label class="lab" for="d-end">帰着日</label><input class="field" id="d-end" type="date" data-draft="end" value="' + d.end + '"></div></div>' +
-    '<label class="lab" for="d-budget">全体の予算（円）</label><input class="field" id="d-budget" type="text" inputmode="numeric" data-draft="budget" value="' + esc(d.budget) + '" placeholder="例：50000">' +
+    '<label class="lab" for="d-budget">全体の予算（円）</label><input class="field' + bad(d, 'budget') + '" id="d-budget" type="text" inputmode="numeric" data-draft="budget" value="' + esc(d.budget) + '" placeholder="例：50000">' + ferr(d, 'budget') +
     '<div class="chips" style="margin-top:10px">' + [30000, 50000, 100000].map(n => '<button class="chip plain" data-a="preset" data-v="' + n + '">' + n.toLocaleString('ja-JP') + '</button>').join('') + '</div>' +
     (lineName() && !d.editMe && !d.me.trim()
       ? '<span class="lab">あなたの名前</span><button type="button" class="item slim acc melink" data-a="draft-me-edit" aria-label="あなたの名前を変える"><div class="grow"><b>' + esc(lineName()) + '</b> <span class="sub sm">（LINEの名前）</span></div><span class="sub sm">変える</span></button>'
-      : '<label class="lab" for="d-me">あなたの名前</label><input class="field" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">') +
+      : '<label class="lab" for="d-me">あなたの名前</label><input class="field' + bad(d, 'me') + '" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">' + ferr(d, 'me')) +
     (d.from ? '<div class="panel" style="margin-top:10px;padding:10px 12px;font-size:calc(13px*var(--ts))">「' + esc(d.from.name) + '」のメンバー（' + esc(d.from.names) + '）を、つくったあとの画面で、招待できます。</div>' : '') + '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあと、上の［＋招待］から誘えます。</div>' +
     (devOn() ? '<button class="link" data-a="make-demo" style="width:auto;padding:12px 0 0;font-size:calc(12px*var(--ts))">動作確認用に、3人のテスト旅行をつくる</button>' : '');
   if (d.err) h += '<div class="err" role="alert">' + esc(d.err) + '</div>';
@@ -1884,7 +1887,7 @@ function shareHint(t){
 }
 function noteRow(t){   // my own 受け取り方のメモ: where to send the money
   const mine = t.members.find(m => m.id === meId(t));
-  return '<button class="item slim acc noteRow" data-a="note-edit"><div class="grow">' + (mine && mine.note ? '自分の受け取り方：' + esc(mine.note) : '自分の受け取り方を書く') + '</div>' + icon('chev', 18) + '</button>';
+  return '<button class="item slim acc noteRow" data-a="note-edit"><div class="grow">' + (mine && mine.note ? '自分の受け取り方：' + esc(mine.note) : 'お金の受け取り方を書く（PayPayなど）') + '</div>' + icon('chev', 18) + '</button>';
 }
 /* the trip is over and every round is paid: suggest the recap picture once (the person can say 「あとで」, and it stays quiet for this trip) */
 const NUDGE_KEY = 'tabiwari.recapnudge';
@@ -1929,7 +1932,7 @@ function savePace(t, today){
 }
 function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length);
-  let h = '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2><div class="list">';
+  let h = '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2><div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。目標は、予算を人数で割った額です。</div><div class="list">';
   h += t.members.map(m => {
     const v = t.savings[m.id] || 0, p = Math.min(100, Math.round(v / target * 100)), done = v >= target;
     return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
@@ -2278,6 +2281,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
+  if (k && ui.draft && ui.draft.errs && ui.draft.errs[k]){ delete ui.draft.errs[k]; e.target.classList.remove('bad'); const m = document.getElementById('e-' + k); if (m) m.remove(); }
   if (e.target.getAttribute && e.target.getAttribute('data-fx') && ui.sheet && ui.sheet.type === 'exp'){ const d = ui.sheet.data; d.fixed = Object.assign({}, d.fixed, { [e.target.getAttribute('data-fx')]: e.target.value }); document.getElementById('f-hint').textContent = splitHint(d); updatePartAmounts(d); return; }
   if (e.target.id === 'f-amount' && ui.sheet){ const fa = fmtAmountInput(e.target.value); if (fa !== e.target.value) e.target.value = fa; ui.sheet.data.amount = fa; e.target.style.width = amtWidth(fa); const sb = document.querySelector('[data-a=save-exp]'); if (sb) sb.disabled = !(parseYen(e.target.value) > 0); document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); updatePartAmounts(ui.sheet.data); }
 });
@@ -2735,11 +2739,13 @@ document.addEventListener('click', e => {
   }
   else if (a === 'preset'){ ui.draft.budget = el.getAttribute('data-v'); }
   else if (a === 'save-trip'){
-    const d = ui.draft, b = parseYen(d.budget);
-    if (!d.name.trim()) d.err = '旅行の名前を入力してください。';
+    const d = ui.draft, b = parseYen(d.budget), errs = {};
+    d.err = ''; d.errs = null;
+    if (!d.name.trim()) errs.name = '旅行の名前を入力してください。';
+    if (!(b > 0)) errs.budget = '予算を、1以上の数字で入力してください。';
+    if (!d.me.trim() && !lineName()) errs.me = 'あなたの名前を入力してください。メンバーの一覧に、この名前で表示されます。';
+    if (Object.keys(errs).length){ d.errs = errs; setTimeout(() => { const f = document.querySelector('.field.bad'); if (f) f.scrollIntoView({ block: 'center' }); }, 0); }   // no focus: that would open the keyboard
     else if (d.end < d.start) d.err = '帰着日は、出発日と同じか、それ以降にしてください。';
-    else if (!(b > 0)) d.err = '予算を、1以上の数字で入力してください。';
-    else if (!d.me.trim() && !lineName()) d.err = 'あなたの名前を入力してください。メンバーの一覧に、この名前で表示されます。';
     else {
       const me = d.me.trim() || lineName(); state.me = me;
       const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, received: {}, savings: {}, settlements: [], adjustments: [],
