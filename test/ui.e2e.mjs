@@ -41,6 +41,7 @@ try {
   await p.click('[data-a=save-trip]'); await see(p, 'あなたの名前を入力してください'); assert.strictEqual(await p.locator('text=旅行をつくる').count() > 0, true, 'still on the create screen');
   await p.fill('#d-me', '   '); await p.click('[data-a=save-trip]'); await see(p, 'あなたの名前を入力してください');
   await p.fill('#d-me', 'あおい'); await p.click('[data-a=save-trip]');
+  assert.ok((await p.textContent('.sttxt small')).includes('記録すると、集まります'), 'no stamp yet: it says what to do'); assert.ok(!(await p.textContent('.sttxt small')).includes('つ ›'));
   await p.waitForSelector('.usage.thin'); assert.strictEqual(await p.$eval('.usage.thin', e => { const r = document.createRange(); r.selectNodeContents(e); return r.getClientRects().length; }), 1, 'the "set category limits" line in the budget card stays on one line (the arrow does not drop)');
   assert.ok(await p.$$eval('.tk-s .nb', es => es.length > 0 && es.every(e => { const r = document.createRange(); r.selectNodeContents(e); return r.getClientRects().length === 1; })), 'an amount in the ticket stub is never split across two lines (no lone 円)');
   const add = async (amount, title) => { await p.click('[data-a=add-exp]'); await p.fill('#f-amount', String(amount)); await p.fill('#f-title', title); await p.click('[data-a=save-exp]'); await see(p, title); };
