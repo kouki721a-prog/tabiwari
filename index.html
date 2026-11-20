@@ -1514,6 +1514,7 @@ function tripCard(t){
   return h;
 }
 /* the tab a trip opens on: where the trip is now (before: savings, during: the record, after: the settlement) */
+const TAB_ORDER = ['save', 'exp', 'settle'];   // left to right; a swipe right on the first one goes back to the home screen
 const phaseTab = t => { const s = status(t)[0]; return s === '準備中' ? 'save' : s === '終了' ? 'settle' : 'exp'; };
 const tripOrder = (a, b) => { const o = { '旅行中': 0, '準備中': 1, '終了': 2 }; return o[status(a)[0]] - o[status(b)[0]] || (a.start < b.start ? -1 : 1); };
 /* the home screen: two tabs at the top, always. 「これから・旅行中」 (and ended trips that still have money to settle) / 「終了した旅行」 (ended and settled, newest first).
@@ -2357,7 +2358,7 @@ function pageCtx(){
     return { kind: 'home', el, order: ['now', 'past'], cur: cur.getAttribute('data-v'), build: k => homeListHtml(k), commit: k => { ui.homeTab = k; } };
   }
   const t = ui.view === 'trip' ? trip() : null, el = t && document.querySelector('#app.fit>.scroll');
-  if (t && el) return { kind: 'trip', el, order: ['save', 'exp', 'settle'], cur: ui.tab, build: k => tabHtml(t, k), commit: k => { ui.tab = k; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; } };
+  if (t && el) return { kind: 'trip', el, order: TAB_ORDER, cur: ui.tab, build: k => tabHtml(t, k), commit: k => { ui.tab = k; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; } };
   return null;
 }
 function pgPeek(want){
@@ -2424,7 +2425,7 @@ document.addEventListener('touchcancel', () => pgFinish(true), { passive: true }
 let nb = null;
 document.addEventListener('touchstart', e => {
   if (nb) nbFinish(true); nb = null; const t = e.touches[0];
-  if (!(ui.view === 'new' || (ui.view === 'trip' && ui.tab === 'exp' && trip())) || ui.sheet || e.touches.length !== 1 || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select,.qchips,.swp.open')) return;
+  if (!(ui.view === 'new' || (ui.view === 'trip' && ui.tab === TAB_ORDER[0] && trip())) || ui.sheet || e.touches.length !== 1 || t.clientX < 24 || t.clientX > innerWidth - 24 || e.target.closest('input,textarea,select,.qchips,.swp.open')) return;
   nb = { x: t.clientX, y: t.clientY, on: false, dx: 0, t0: Date.now() };
 }, { passive: true });
 document.addEventListener('touchmove', e => {

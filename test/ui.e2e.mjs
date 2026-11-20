@@ -937,6 +937,19 @@ try {
     await f.click('[data-a=home]'); await f.waitForSelector('.trip'); await f.click('.trip'); await f.waitForSelector('.nav'); assert.strictEqual(await f.getAttribute('[data-a=tab][data-t=save]', 'aria-current'), 'page', 'opening it again: the savings tab');
     await cf.close(); }
 
+  // swiping with a real finger (touch events from the browser itself): right on 記録 goes to 積立 (not home); right on the first tab (積立) goes home; left goes the other way
+  { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', viewport: { width: 390, height: 780 } }), f = await cf.newPage(), cdp = await cf.newCDPSession(f); f.on('pageerror', e => errs.push(e.message));
+    const drag = async (x0, x1, y = 400) => { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] }); for (let k = 1; k <= 8; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + (x1 - x0) * k / 8, y }] }); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await f.waitForTimeout(700); };
+    const where = () => f.evaluate(() => ui.view + ':' + ui.tab);
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい');
+    await f.evaluate(() => { const s = addDays(todayStr(), 40); ui.draft.start = s; ui.draft.end = addDays(s, 3); render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('.nav');
+    await f.click('[data-a=tab][data-t=exp]'); await f.waitForTimeout(300); assert.strictEqual(await where(), 'trip:exp');
+    await drag(120, 330); assert.strictEqual(await where(), 'trip:save', 'right on 記録: the previous tab (積立), not the home screen');
+    await drag(330, 120); assert.strictEqual(await where(), 'trip:exp', 'left on 積立: 記録'); await drag(330, 120); assert.strictEqual(await where(), 'trip:settle', 'left on 記録: 精算');
+    await drag(120, 330); assert.strictEqual(await where(), 'trip:exp', 'right on 精算: 記録'); await drag(120, 330); assert.strictEqual(await where(), 'trip:save');
+    await drag(120, 330); assert.strictEqual(await where(), 'home:save', 'right on the first tab (積立): back to the home screen');
+    await cf.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
