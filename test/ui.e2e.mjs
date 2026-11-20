@@ -249,7 +249,7 @@ try {
       { id: 'e1', title: '新幹線', amount: 9800, payer: 'a', cat: 'transport', date: '2026-11-18', split: ['a', 'b', 'c'] }, { id: 'e2', title: 'ランチ', amount: 4200, payer: 'b', cat: 'food', date: '2026-11-18', split: ['a', 'b', 'c'] }] };
     const open = async (o = {}) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 }, reducedMotion: 'no-preference', ...o }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
       await q.addInitScript(tr => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [tr] })); localStorage.setItem('tabiwari.stampseen', JSON.stringify({ mm: ['transport', 'food', 'first', 'all'] })); }, seed);
-      await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.ticket.m'); await q.waitForTimeout(900); return q; };
+      await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.nav'); await q.click('[data-a=tab][data-t=exp]'); await q.waitForSelector('.ticket.m'); await q.waitForTimeout(900); return q; };
     const num = async (q, sel) => parseInt((await q.innerText(sel)).replace(/[^\d]/g, ''), 10);
     let q = await open(); const a0 = await num(q, '.ticket.m .t-amount'), bar0 = parseFloat(await q.$eval('.ticket.m .t-bar>i', e => e.style.width));
     await q.fill('#q-quick', 'お土産 3000円'); await q.press('#q-quick', 'Enter'); await q.waitForTimeout(180);
@@ -327,7 +327,7 @@ try {
       { id: 'e1', title: '新幹線', amount: 9800, payer: 'a', cat: 'transport', date: '2026-11-18', split: ['a', 'b', 'c'] }, { id: 'e2', title: 'ランチ', amount: 4200, payer: 'b', cat: 'food', date: '2026-11-18', split: ['a', 'b', 'c'] }, { id: 'e3', title: '旅館', amount: 36000, payer: 'c', cat: 'stay', date: '2026-11-18', split: ['a', 'b', 'c'] }] };
     const open = async (opts = {}, store = null, tr0 = seed) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 }, ...opts }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
       await q.addInitScript(([tr, st]) => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [tr] })); if (st != null) localStorage.setItem('tabiwari.stampseen', st); }, [tr0, store]);
-      await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.stbar'); return q; };
+      await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.nav'); if (!(await q.locator('.stbar').count())) await q.click('[data-a=tab][data-t=exp]'); await q.waitForSelector('.stbar'); return q; };   // a trip opens on its own stage (before: savings, after: settlement); the helper goes to the record tab
     let q = await open();
     assert.ok((await q.innerText('.stbar')).replace(/\s+/g, ' ').includes('スタンプ 6/10'), 'transport, stay, food, the first record, "everyone" and the savings = 6: ' + await q.innerText('.stbar'));
     await q.waitForTimeout(400); assert.strictEqual(await q.locator('.stpop').count(), 0, 'stamps that were already there do not pop when the trip is first opened');
@@ -361,7 +361,7 @@ try {
     assert.strictEqual(await q.locator('.stpop').count(), 0, 'reduce motion: no pop'); assert.ok(/スタンプ 7\/10/.test((await q.innerText('.stbar')).replace(/\s+/g, ' ')), 'but the count changed'); await q.context().close();
     // a trip with nothing recorded shows the row too, with none pressed
     { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 } }), z = await c.newPage(); await z.addInitScript(t => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [t] })); }, { ...seed, expenses: [], savings: {} });
-      await z.goto('http://localhost:8797/'); await z.click('.trip'); await z.waitForSelector('.stbar'); assert.ok(/スタンプ 0\/10/.test((await z.innerText('.stbar')).replace(/\s+/g, ' ')), 'none yet'); assert.strictEqual(await z.locator('.stbar .stp:not(.off)').count(), 0); await c.close(); }
+      await z.goto('http://localhost:8797/'); await z.click('.trip'); await z.waitForSelector('.nav'); if (!(await z.locator('.stbar').count())) await z.click('[data-a=tab][data-t=exp]'); await z.waitForSelector('.stbar'); assert.ok(/スタンプ 0\/10/.test((await z.innerText('.stbar')).replace(/\s+/g, ' ')), 'none yet'); assert.strictEqual(await z.locator('.stbar .stp:not(.off)').count(), 0); await c.close(); }
   }
   { // お問い合わせ (v147): the entrance in 設定, the form, what is sent, the errors, the operator's list and door
     const open = async ({ user = null, route = null, hash = '' } = {}) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 } }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message)); q.posts = [];
@@ -481,7 +481,7 @@ try {
     assert.strictEqual(await q.locator('.trip.now').count(), 1, 'only the running trip stands out'); assert.strictEqual(await q.$eval('.trip .bar>i', e => getComputedStyle(e).backgroundColor), 'rgb(255, 200, 61)', 'the bar is the yellow accent');
     // before the trip the cards show the savings: home card, trip card, and the pace on the savings tab
     { const soon = q.locator('.trip', { hasText: '準備中の旅' }); assert.ok((await soon.textContent()).includes('積立（目標 30,000円）') && (await soon.textContent()).includes('10,000円'));
-      assert.strictEqual(await soon.locator('.bar>i').evaluate(e => e.style.width), '33%', 'the bar shows the savings'); await soon.click(); await q.waitForSelector('.ticket.m');
+      assert.strictEqual(await soon.locator('.bar>i').evaluate(e => e.style.width), '33%', 'the bar shows the savings'); await soon.click(); await q.waitForSelector('.ticket.c'); assert.strictEqual(await q.getAttribute('[data-a=tab][data-t=save]', 'aria-current'), 'page', 'a trip before departure opens on the savings tab'); await q.click('[data-a=tab][data-t=exp]'); await q.waitForSelector('.ticket.m');
       { const tm = await q.innerText('.ticket.m'); assert.ok(tm.includes('積立') && tm.includes('10,000円') && tm.includes('33%') && tm.includes('予算') && tm.includes('30,000円'), 'detail card: ' + tm); } await q.click('[data-a=tab][data-t=save]'); await q.waitForSelector('.ticket.c');
       const sv = await q.textContent('.ticket.c'); assert.ok(sv.includes('出発まで あと3日') && sv.includes('あと 20,000円') && !sv.includes('1日 約'), sv);
       // the plan: under a week it is just what is missing; further away, a weekly amount; a reached target brings the plain explanation back
@@ -496,7 +496,7 @@ try {
       await q.click('[data-a=home]'); }
     // trip recap image: offered on a finished trip with expenses (and in the trip settings), made on the device as a 1080x1350 PNG
     await q.locator('.trip', { hasText: '旅行中の旅' }).click(); await q.waitForSelector('[data-a=add-exp]'); assert.strictEqual(await q.locator('[data-a=recap]').count(), 0, 'nothing recorded: no recap'); await q.click('[data-a=home]');
-    await q.locator('.trip', { hasText: '精算前の旅' }).click(); await q.waitForSelector('[data-a=recap]'); await q.click('.install [data-a=recap]'); await q.waitForSelector('.recap-img');
+    await q.locator('.trip', { hasText: '精算前の旅' }).click(); await q.waitForSelector('.nav'); await q.click('[data-a=tab][data-t=exp]'); await q.waitForSelector('[data-a=recap]'); await q.click('.install [data-a=recap]'); await q.waitForSelector('.recap-img');
     const dim = await q.$eval('.recap-img', im => im.decode().then(() => [im.naturalWidth, im.naturalHeight])); assert.deepStrictEqual(dim, [1080, 1920], 'recap image size');
     assert.ok(await q.locator('a[download="tabiwari-recap.png"], [data-a=recap-share]').count() >= 1, 'a way to save or share it'); await q.click('[data-a=close-sheet]');
     await q.click('[data-a=settings]'); assert.strictEqual(await q.locator('.sheet [data-a=recap]').count(), 1, 'also from the trip settings'); await q.click('[data-a=close-sheet]'); await c5.close(); }
@@ -599,10 +599,12 @@ try {
     // screens slide (forward in from the right, back from the left); inside a trip, swiping switches 記録 / 精算 / 積立
     { const swipe = (x0, x1) => q.evaluate(([a, c]) => { const el = document.querySelector('.scroll') || document.body, mk = x => new Touch({ identifier: 3, target: el, clientX: x, clientY: 300 }), fire = (type, x) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(x)], changedTouches: [mk(x)] })); fire('touchstart', a); fire('touchmove', c); fire('touchend', c); }, [x0, x1]), cur = () => q.$eval('.nav .tab[aria-current=page]', e => e.dataset.t);
       await q.waitForTimeout(450);   // a tap right after a swipe is ignored (the finger lifting)
-      await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); assert.ok(await q.$eval('#app', e => e.classList.contains('go-f')), 'opening a trip slides in from the right'); assert.strictEqual(await cur(), 'exp');
-      await swipe(300, 120); assert.strictEqual(await cur(), 'settle', 'swipe left: the next tab'); assert.strictEqual(await q.locator('.pg-old').count() >= 1, true, 'the list slides: the old page is a copy sliding away');
-      await swipe(300, 120); assert.strictEqual(await cur(), 'save'); await swipe(300, 120); assert.strictEqual(await cur(), 'save', 'nothing after the last tab');
-      await swipe(100, 280); assert.strictEqual(await cur(), 'settle', 'swipe right: the previous tab'); await swipe(100, 280); assert.strictEqual(await cur(), 'exp'); assert.strictEqual(await q.evaluate(() => { const el = document.querySelector('.scroll'), mk = y => new Touch({ identifier: 5, target: el, clientX: 200, clientY: y }), fire = (type, y) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(y)], changedTouches: [mk(y)] })); fire('touchstart', 200); fire('touchmove', 300); const s = !!document.getElementById('ptr'); fire('touchend', 300); return s; }), false, 'pulling down in a trip that is not shared does nothing');
+      await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); assert.ok(await q.$eval('#app', e => e.classList.contains('go-f')), 'opening a trip slides in from the right'); const first = await cur(); assert.ok(['save', 'exp', 'settle'].includes(first), 'a trip opens on its own stage');
+      await q.click('[data-a=tab][data-t=save]'); assert.strictEqual(await cur(), 'save'); await q.waitForTimeout(450);   // the order is 積立 / 記録 / 精算 (before, during, after)
+      await swipe(300, 120); assert.strictEqual(await cur(), 'exp', 'swipe left: the next tab'); assert.strictEqual(await q.locator('.pg-old').count() >= 1, true, 'the list slides: the old page is a copy sliding away');
+      await swipe(300, 120); assert.strictEqual(await cur(), 'settle'); await swipe(300, 120); assert.strictEqual(await cur(), 'settle', 'nothing after the last tab');
+      await swipe(100, 280); assert.strictEqual(await cur(), 'exp', 'swipe right: the previous tab'); await swipe(100, 280); assert.strictEqual(await cur(), 'save');
+      assert.strictEqual(await q.evaluate(() => { const el = document.querySelector('.scroll'), mk = y => new Touch({ identifier: 5, target: el, clientX: 200, clientY: y }), fire = (type, y) => el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [mk(y)], changedTouches: [mk(y)] })); fire('touchstart', 200); fire('touchmove', 300); const s = !!document.getElementById('ptr'); fire('touchend', 300); return s; }), false, 'pulling down in a trip that is not shared does nothing');
       // a swipe right on the first tab goes back to the home screen (the screen follows the finger; the home screen is behind it)
       await q.waitForTimeout(450); await swipe(100, 330); await q.waitForFunction(() => document.querySelector('#app .ut') && !document.querySelector('#app [data-a=add-exp]'), null, { timeout: 3000 });
       await q.waitForTimeout(450); await q.click('.trip'); await q.waitForSelector('[data-a=add-exp]'); await q.waitForTimeout(400);
@@ -658,7 +660,7 @@ try {
     await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
       localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: '2026-01-01', end: '2026-01-02', budget: 50000, paid: {}, savings: { a: 12000, b: 5000 }, settlements: [], adjustments: [],
         members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [] }] })); });
-    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.ticket.m');
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.nav'); await q.click('[data-a=tab][data-t=exp]'); await q.waitForSelector('.ticket.m');
     const day = n => q.evaluate(n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }, n);
     const setTrip = async (dStart, dEnd, budget, exps) => { const [st, en, d0, d1] = [await day(dStart), await day(dEnd), await day(-1), await day(0)]; await q.evaluate(([st, en, budget, exps, d0, d1]) => { const t = state.trips[0]; t.start = st; t.end = en; t.budget = budget; t.expenses = exps.map((e, i) => ({ id: 'e' + i, title: e[0], amount: e[1], payer: 'a', cat: e[2], date: e[3] === 0 ? d0 : d1, split: ['a', 'b'] })); ui.catF = null; ui.usageOpen = false; render(); }, [st, en, budget, exps, d0, d1]); await q.waitForSelector('.ticket.m'); };
     const card = () => q.innerText('.ticket.m');
@@ -919,6 +921,20 @@ try {
     await f.fill('#q-quick', '夕食 2000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(300);
     assert.strictEqual(await f.evaluate(() => window.__fly > 0), flies, motion + ': the receipt ' + (flies ? 'flies' : 'does not fly'));
     if (flies) { await f.waitForFunction(() => !document.querySelector('.fly'), null, { timeout: 3000 }); }
+    await cf.close(); }
+
+  // the tabs follow the trip: 積立 / 記録 / ＋ / 精算 / 設定. A trip made for a later date opens on the savings tab (with the first-steps card); once something was paid before departure the record tab's card shows what was spent
+  { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '300000'); await f.fill('#d-me', 'あおい');
+    await f.evaluate(() => { const s = addDays(todayStr(), 40); ui.draft.start = s; ui.draft.end = addDays(s, 3); render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('.nav');
+    assert.deepStrictEqual((await f.locator('.nav .tab').allTextContents()).map(x => x.trim()), ['積立', '記録', '精算', '設定'], 'the order: before, during, after');
+    assert.strictEqual(await f.getAttribute('[data-a=tab][data-t=save]', 'aria-current'), 'page', 'a trip for later opens on the savings tab'); assert.strictEqual(await f.locator('.coach').count(), 1, 'the first-steps card is there'); assert.strictEqual(await f.locator('.plan').count(), 1);
+    const navBox = async sel => (await f.locator(sel).boundingBox()).x; assert.ok(await navBox('[data-a=tab][data-t=save]') < await navBox('[data-a=tab][data-t=exp]') && await navBox('[data-a=tab][data-t=exp]') < await navBox('[data-a=add-exp]') && await navBox('[data-a=add-exp]') < await navBox('[data-a=tab][data-t=settle]'), 'left to right: 積立 記録 ＋ 精算');
+    await f.click('[data-a=tab][data-t=exp]'); await f.waitForSelector('#q-quick'); assert.ok((await f.innerText('.hint')).includes('旅行前の支払いも'), 'the record tab says a booking can be recorded');
+    assert.ok((await f.innerText('.ticket.m')).includes('積立'), 'nothing paid yet: the card shows the savings');
+    await f.fill('#q-quick', '宿 30000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(500);
+    { const card = await f.innerText('.ticket.m'); assert.ok(card.includes('旅行前の支出') && card.includes('30,000円') && card.includes('予算の残り') && card.includes('270,000円') && card.includes('積立'), 'paid before departure: ' + card); }
+    await f.click('[data-a=home]'); await f.waitForSelector('.trip'); await f.click('.trip'); await f.waitForSelector('.nav'); assert.strictEqual(await f.getAttribute('[data-a=tab][data-t=save]', 'aria-current'), 'page', 'opening it again: the savings tab');
     await cf.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);

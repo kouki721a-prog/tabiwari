@@ -1092,7 +1092,7 @@ async function startShare(t){
 }
 async function beginJoin(token){
   const id = await Share.sha256hex(token), have = state.trips.filter(x => x.id === id)[0];
-  if (have){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.resetScroll = true; render(); flash('この旅行には、すでに参加しています'); return null; }
+  if (have){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = phaseTab(state.trips.find(x => x.id === id)); ui.resetScroll = true; render(); flash('この旅行には、すでに参加しています'); return null; }
   const g = await Share.get(token);
   return { type: 'join-share', token: token, rev: g.rev, trip: Sync.assemble([g.trip])[0], pick: null, name: lineName(), err: '' };
 }
@@ -1108,7 +1108,7 @@ function openFromUrl(href){
   const id = u.searchParams.get('trip'); if (!id) return false;
   try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
   if (!state.trips.some(x => x.id === id)) return false;
-  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : 'exp'; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; ui.resetScroll = true; render(); return true;
+  ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = u.searchParams.get('tab') === 'settle' ? 'settle' : phaseTab(state.trips.find(x => x.id === id)); ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; ui.resetScroll = true; render(); return true;
 }
 function bootShare(){
   if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open) openFromUrl(e.data.open); });
@@ -1513,6 +1513,8 @@ function tripCard(t){
   if (t.members.length === 1) h += '<button class="btn line inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button>';   // only while I am the only member
   return h;
 }
+/* the tab a trip opens on: where the trip is now (before: savings, during: the record, after: the settlement) */
+const phaseTab = t => { const s = status(t)[0]; return s === '準備中' ? 'save' : s === '終了' ? 'settle' : 'exp'; };
 const tripOrder = (a, b) => { const o = { '旅行中': 0, '準備中': 1, '終了': 2 }; return o[status(a)[0]] - o[status(b)[0]] || (a.start < b.start ? -1 : 1); };
 /* the home screen: two tabs at the top, always. 「これから・旅行中」 (and ended trips that still have money to settle) / 「終了した旅行」 (ended and settled, newest first).
    An empty tab says so; with nothing in the first tab and ended trips in the second, the second opens by itself. */
@@ -1596,8 +1598,8 @@ function viewTrip(){
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
-  return h + '<nav class="nav"><div class="nav-in">' + tb('exp', 'list', '記録') + tb('settle', 'swap', '精算') +
-    '<button class="plus" data-a="add-exp" aria-label="支出を追加">' + icon('plus', 28) + '</button>' + tb('save', 'coin', '積立') +
+  return h + '<nav class="nav"><div class="nav-in">' + tb('save', 'coin', '積立') + tb('exp', 'list', '記録') +
+    '<button class="plus" data-a="add-exp" aria-label="支出を追加">' + icon('plus', 28) + '</button>' + tb('settle', 'swap', '精算') +
     '<button class="tab" data-a="settings" aria-label="設定">' + icon('sliders') + '設定</button></div></nav>';
 }
 
@@ -1618,13 +1620,16 @@ function budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct){
     if (over){ hl = '予算オーバー'; hv = money(-left); hn = true; fl = a[0].replace('1日あたりの目安', '今日の目安') + ' <b>' + money(a[1]) + '</b>'; }
     else { hl = a[0].replace('1日あたりの目安', '今日の目安'); hv = money(a[1]); fl = '予算の残り <b>' + money(left) + '</b>'; }
     rl = b[0]; rv = money(b[1]); rw = bWarn; fr = '予算 <span class="nb">' + money(t.budget) + '</span>';
+  } else if (st[0] === '準備中' && t.expenses.length){   // something was already paid (a booking): what was spent, and the savings in the foot
+    const lf = t.budget - sp; hl = '旅行前の支出'; hv = money(sp); rl = lf < 0 ? '予算オーバー' : '予算の残り'; rv = money(Math.abs(lf)); rw = lf < 0; barPct = Math.min(100, Math.round(sp / t.budget * 100)); barOver = lf < 0;
+    fl = '積立 <b>' + money(savedOf(t)) + '</b>'; fr = '予算 <span class="nb">' + money(t.budget) + '</span>';
   } else if (st[0] === '準備中'){
     hl = '積立'; hv = money(savedOf(t)); rl = '目標に対して'; rv = savedPct(t) + '%'; barPct = savedPct(t); barOver = false; fl = '予算 <b>' + money(t.budget) + '</b>'; fr = b[0] + ' <span class="nb">' + money(b[1]) + '</span>';
   } else {
     hl = a[0]; hv = money(a[1]); rl = b[0]; rv = money(b[1]); fl = (over ? '予算オーバー' : '予算の残り') + ' <b>' + money(Math.abs(left)) + '</b>'; fr = '予算 <span class="nb">' + money(t.budget) + '</span>';
   }
   return '<div class="ticket m stub"><div class="tk-l"><div class="t-top"><span class="t-label">' + hl + '</span><div class="t-amount ' + (hn ? 'neg' : '') + '">' + hv + '</div>' +
-    '<div class="t-bar ' + (barOver ? 'over' : '') + '" role="img" aria-label="' + (st[0] === '準備中' ? '積立は目標の ' : '予算の ') + barPct + '%"><i style="width:' + barPct + '%"></i></div>' +
+    '<div class="t-bar ' + (barOver ? 'over' : '') + '" role="img" aria-label="' + (st[0] === '準備中' && !t.expenses.length ? '積立は目標の ' : '予算の ') + barPct + '%"><i style="width:' + barPct + '%"></i></div>' +
     '<div class="t-foot"><span class="t-label">' + fl + '</span></div></div>' + usageFold(t) + '</div>' +
     '<div class="tk-s"><div><span class="t-label">' + rl + '</span><b class="' + (rw ? 'warn' : '') + '">' + rv + '</b></div><span class="t-label">' + fr + '</span></div></div>';
 }
@@ -1883,7 +1888,7 @@ const welcomeCard = t => lsGet('tabiwari.welcome.' + t.id) ? '<div class="instal
 const tabHtml = (t, k) => k === 'exp' ? tabExp(t) : k === 'settle' ? tabSettle(t) : tabSave(t);
 /* two small first-time lines (they go away by themselves): how to write the one-line entry, and that a row can be swiped left to delete */
 const HINT_SWIPE = 'tabiwari.hint.swipe';
-const quickHint = t => t.expenses.length < 3 ? '<div class="hint"><span>「夕食 2000円」のように書いて［記録］。レシートは、カメラの写真から。</span></div>' : '';
+const quickHint = t => t.expenses.length < 3 ? '<div class="hint"><span>' + (status(t)[0] === '準備中' ? '予約など、旅行前の支払いも、記録できます。<span class="nb">「宿 30000円」</span>のように書いて［記録］。' : '「夕食 2000円」のように書いて［記録］。レシートは、カメラの写真から。') + '</span></div>' : '';
 const swipeHint = t => !lsGet(HINT_SWIPE) && t.expenses.some(e => !isSettled(t, e)) ? '<div class="hint swiphint"><span>左にスワイプすると、支出を削除できます。</span><button class="link" data-a="hint-swipe-no">わかった</button></div>' : '';
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
@@ -1973,7 +1978,7 @@ function savePlanHtml(t, today){
 }
 function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length), plan = savePlanHtml(t, todayStr());
-  let h = '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。目標は、予算を人数で割った額です。</div>') + '<div class="list">';
+  let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。目標は、予算を人数で割った額です。</div>') + '<div class="list">';
   h += t.members.map(m => {
     const v = t.savings[m.id] || 0, p = Math.min(100, Math.round(v / target * 100)), done = v >= target;
     return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
@@ -2352,7 +2357,7 @@ function pageCtx(){
     return { kind: 'home', el, order: ['now', 'past'], cur: cur.getAttribute('data-v'), build: k => homeListHtml(k), commit: k => { ui.homeTab = k; } };
   }
   const t = ui.view === 'trip' ? trip() : null, el = t && document.querySelector('#app.fit>.scroll');
-  if (t && el) return { kind: 'trip', el, order: ['exp', 'settle', 'save'], cur: ui.tab, build: k => tabHtml(t, k), commit: k => { ui.tab = k; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; } };
+  if (t && el) return { kind: 'trip', el, order: ['save', 'exp', 'settle'], cur: ui.tab, build: k => tabHtml(t, k), commit: k => { ui.tab = k; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; } };
   return null;
 }
 function pgPeek(want){
@@ -2584,7 +2589,7 @@ document.addEventListener('click', e => {
 
   if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }   // the tab you were on stays (ui.homeTab)
   else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; }
-  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }
+  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = phaseTab(state.trips.find(x => x.id === id) || { start: todayStr(), end: todayStr() }); ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
     readSheet();   // keep what is typed in an open sheet
@@ -2748,7 +2753,7 @@ document.addEventListener('click', e => {
       jt.share = { token: s.token, me: null, rev: s.rev, snap: Sync.flatten([jt]), dirty: false };   // what the server has right now
       if (!me){ me = uid(); jt.members.push(Object.assign({ id: me, name: nm, pos: nextPos(jt) }, state.payNote ? { note: state.payNote } : {})); }
       if (!s.pick) lsSet('tabiwari.welcome.' + jt.id, '1');   // someone new: show the short guide once
-      jt.share.me = me; state.trips.push(jt); ui.sheet = null; ui.view = 'trip'; ui.tripId = jt.id; ui.tab = 'exp'; ui.resetScroll = true;
+      jt.share.me = me; state.trips.push(jt); ui.sheet = null; ui.view = 'trip'; ui.tripId = jt.id; ui.tab = phaseTab(jt); ui.resetScroll = true;
       save(); render(); flash('参加しました'); return;
     }
   }
@@ -2792,7 +2797,7 @@ document.addEventListener('click', e => {
       const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, received: {}, savings: {}, settlements: [], adjustments: [],
         members: [Object.assign({ id: uid(), name: me, pos: 0 }, state.payNote ? { note: state.payNote } : {})], expenses: [] };
       const next = !!d.from;
-      state.trips.push(nt); if (!next) lsSet(coachKey(nt), '1'); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
+      state.trips.push(nt); if (!next) lsSet(coachKey(nt), '1'); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = phaseTab(nt); ui.draft = null;
       if (next) setTimeout(() => { const b = document.querySelector('[data-a="invite"][data-id="' + nt.id + '"]'); if (b) b.click(); }, 0);   // opens the invite right away, for the same friends
     }
   }
