@@ -440,6 +440,12 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 #exp-list .sec>h2{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.04em;font-weight:500;color:var(--sub)}#exp-list .sec>h2 span{font-family:var(--mono);font-weight:500}
 #exp-list .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
 #exp-list .list .item,#exp-list .list>.item+.swp,#exp-list .list>.swp+.item{border-top:1.5px dashed var(--dash)}#exp-list .list>:first-child .item,#exp-list .list>.item:first-child{border-top:0}
+/* 旅のおつかれさま (v153): a trip-complete ticket, shown once per trip */
+.wr-ticket{position:relative;background:var(--cream);color:var(--ink);border-radius:16px;box-shadow:0 1px 0 var(--dash);margin-top:14px}.wr-top{padding:18px 18px 14px}
+.wr-eye{font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub)}.wr-name{font-size:calc(24px*var(--ts));font-weight:700;margin:6px 0 14px;overflow-wrap:anywhere}
+.wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
+.wr-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px}.wr-bot:before,.wr-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.wr-bot:before{left:0;border-radius:0 11px 11px 0}.wr-bot:after{right:0;border-radius:11px 0 0 11px}
+.wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
 /* stamps (v146): one accent colour (the yellow), navy ink; a little tilt so they look pressed by hand */
 .stp{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;position:relative;color:#0f2742;font-weight:700;font-size:calc(21px*var(--ts));border:2.5px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(var(--r,-6deg));box-shadow:inset 0 0 0 3px rgba(255,255,255,.55);flex:none}
 .stp:after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed #0f2742;opacity:.55}
@@ -452,6 +458,8 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .stpop{position:fixed;left:50%;top:38%;z-index:60;pointer-events:none;text-align:center;transform:translate(-50%,-50%) rotate(-8deg)}
 .stpop .stp{width:128px;height:128px;font-size:50px;border-width:4px;transform:none;margin:0 auto}.stpop .stp:after{inset:-12px;border-width:2px}
 .stpop-t{display:inline-block;margin-top:24px;background:var(--ink);color:var(--paper);border-radius:99px;padding:6px 16px;font-weight:600;font-size:15px;transform:rotate(8deg)}
+.stpop.big .stp{width:168px;height:168px;font-size:70px;border-width:5px}.stpop.big .stp:after{inset:-14px}.stpop.big .stpop-t{margin-top:30px;font-size:17px;padding:8px 20px}
+.stpop-ring{position:absolute;left:50%;top:50px;width:150px;height:150px;border-radius:50%;border:3px dashed var(--sun);pointer-events:none;transform:translate(-50%,-50%)}.stpop.big .stpop-ring{top:84px;width:200px;height:200px}
 /* お問い合わせ (v147) */
 .ct-note{font-size:calc(12px*var(--ts));color:var(--sub);line-height:1.6;margin-top:6px}
 .ct-check{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 12px;margin-top:14px;font-size:calc(13px*var(--ts));line-height:1.5;color:var(--ink)}
@@ -1311,7 +1319,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
-  stampWatch(); lpObserve(); motionMoney();
+  stampWatch(); lpObserve(); motionMoney(); wrapCheck();
 }
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
@@ -1771,13 +1779,31 @@ function stampBar(t){
   return '<button type="button" class="stbar" data-a="stamps-open" aria-label="旅のスタンプ。' + n + '個押されています。開く"><span class="strow" aria-hidden="true">' + show.map((x, i) => stampEl(x, true, i)).join('') + '</span>' +
     '<span class="sttxt"><b>スタンプ ' + n + '/' + all.length + '</b><small>' + (n >= all.length ? 'コンプリート ›' : 'あと' + (all.length - n) + 'つ ›') + '</small></span></button>';
 }
+/* the stamps that deserve more than a tap: everybody paid (済) and the savings reached the goal (積). They come first, the stamp is bigger, a ring spreads from it, and it says what happened. */
+const STAMP_BIG = { paid: 'みんなの精算が済みました', save: '積立が目標に届きました' }, STAMP_ORDER = ['paid', 'save', 'settle'];
 function stampPop(list){
   if (!calm() || !document.body.animate) return;   // "reduce motion": no pop (the count on the stamp row still changes)
-  const x = list[0], d = document.createElement('div'); d.className = 'stpop'; d.setAttribute('aria-hidden', 'true');
-  d.innerHTML = stampEl(x, false, 0).replace(' style="--r:-6deg"', '') + '<div class="stpop-t">' + esc(x.name) + 'のスタンプ' + (list.length > 1 ? ' ほか' + (list.length - 1) + 'つ' : '') + '</div>';
+  list = list.slice().sort((p, q) => { const i = STAMP_ORDER.indexOf(p.id), j = STAMP_ORDER.indexOf(q.id); return (i < 0 ? 9 : i) - (j < 0 ? 9 : j); });
+  const x = list[0], big = !!STAMP_BIG[x.id], d = document.createElement('div'); d.className = 'stpop' + (big ? ' big' : ''); d.setAttribute('aria-hidden', 'true');
+  d.innerHTML = (big ? '<i class="stpop-ring"></i>' : '') + stampEl(x, false, 0).replace(' style="--r:-6deg"', '') + '<div class="stpop-t">' + (big ? STAMP_BIG[x.id] : esc(x.name) + 'のスタンプ' + (list.length > 1 ? ' ほか' + (list.length - 1) + 'つ' : '')) + '</div>';
   document.body.appendChild(d);
-  const at = 'translate(-50%,-50%) ', a = d.animate([{ opacity: 0, transform: at + 'scale(1.9) rotate(-18deg)' }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .3 }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .78 }, { opacity: 0, transform: at + 'scale(.96) rotate(-8deg)' }], { duration: 1300, easing: 'cubic-bezier(.22,1,.36,1)' });
+  const ms = big ? 1900 : 1300, at = 'translate(-50%,-50%) ', a = d.animate([{ opacity: 0, transform: at + 'scale(1.9) rotate(-18deg)' }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: big ? .2 : .3 }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .8 }, { opacity: 0, transform: at + 'scale(.96) rotate(-8deg)' }], { duration: ms, easing: 'cubic-bezier(.22,1,.36,1)' });
+  const ring = d.querySelector('.stpop-ring'); if (ring) ring.animate([{ transform: 'translate(-50%,-50%) scale(.9)', opacity: .8 }, { transform: 'translate(-50%,-50%) scale(2.1)', opacity: 0 }], { duration: 900, delay: Math.round(ms * .2), easing: 'ease-out', fill: 'backwards' });
   a.onfinish = a.oncancel = () => d.remove();
+}
+function openRecap(t){
+  const cur = ui.sheet = { type: 'recap', url: null, file: null, err: '' }; render();
+  makeRecap(t).then(blob => { if (ui.sheet !== cur) return; if (!blob){ cur.err = 'まとめをつくれませんでした。支出を記録してから、もう一度お試しください。'; } else { cur.file = new File([blob], 'tabiwari-recap.png', { type: 'image/png' }); cur.url = URL.createObjectURL(blob); } render(); },
+    () => { if (ui.sheet === cur){ cur.err = 'まとめをつくれませんでした。もう一度お試しください。'; render(); } });
+}
+/* 旅のおつかれさま (v153): once per trip, when the app is opened after the trip has ended (within 14 days). Remembered on this device only. One per app visit. */
+const WRAP_SEEN = 'tabiwari.wrapseen', WRAP_DAYS = 14;
+function wrapCheck(){
+  if (ui.wrapDone || ui.sheet || ui.view !== 'home') return;
+  const today = todayStr(); let seen = {}; try { seen = JSON.parse(lsGet(WRAP_SEEN)) || {}; } catch(e){ seen = {}; }
+  const t = state.trips.find(x => status(x)[0] === '終了' && x.expenses.length > 0 && dayDiff(x.end, today) <= WRAP_DAYS && !seen[x.id]); if (!t) return;
+  ui.wrapDone = true;   // one per visit, even if it could not be shown right now
+  setTimeout(() => { if (ui.sheet || ui.view !== 'home' || !state.trips.includes(t)) return; seen[t.id] = 1; const ks = Object.keys(seen); ks.slice(0, Math.max(0, ks.length - 60)).forEach(k => delete seen[k]); lsSet(WRAP_SEEN, JSON.stringify(seen)); ui.sheet = { type: 'wrap', id: t.id }; render(); }, 700);
 }
 function stampWatch(){
   const t = trip(); if (!t) return;
@@ -2089,6 +2115,17 @@ function viewSheet(){
     else if (!lineAcct.user){ body = '<div class="sub" style="margin-top:14px">LINEでログインしてから、もう一度、このページを開いてください。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
     else { body = '<div class="sub" style="margin-top:10px">Cloudflare に登録した、運営者の合言葉を入れてください。このアカウントが、運営者になります。</div><input class="field" id="adm-token" type="password" autocomplete="off" autocapitalize="none" aria-label="運営者の合言葉" placeholder="合言葉" style="margin-top:14px">';
       foot = (s.err ? '<div class="err" role="alert" style="margin:0 0 8px">' + esc(s.err) + '</div>' : '') + '<button class="btn" data-a="adm-claim"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '確認しています…' : '運営者になる') + '</button><button class="link" data-a="close-sheet">やめる</button>'; }
+  }
+  if (s.type === 'wrap'){
+    const w = state.trips.find(x => x.id === s.id);
+    if (!w){ ttl = '旅のおつかれさま'; body = '<div class="empty">見つかりませんでした。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
+    else {
+      ttl = '旅のおつかれさま'; const d = recapData(w), all = stampsOf(w), md = x => Number(x.slice(5, 7)) + '/' + Number(x.slice(8, 10)), pending = settlePending(w), paidAll = all.find(x => x.id === 'paid').on;
+      body = '<div class="wr-ticket"><div class="wr-top"><div class="wr-eye">TRIP COMPLETE　' + md(w.start) + (w.end !== w.start ? ' – ' + md(w.end) : '') + '</div><div class="wr-name">' + esc(w.name) + '</div><div class="wr-grid"><div><small>合計</small><b>' + yen(d.total) + '</b></div><div><small>1人あたり</small><b>' + yen(d.per) + '</b></div></div></div>' +
+        '<div class="wr-bot"><small>スタンプ ' + all.filter(x => x.on).length + '/' + all.length + '</small><div class="wr-st">' + all.map((x, i) => stampEl(x, true, i)).join('') + '</div></div></div>' +
+        '<div class="wr-msg">' + (pending ? 'いい旅でしたか。精算が、まだ済んでいません。記録タブの「精算」から、確定できます。' : !paidAll ? 'いい旅でしたか。精算の確定は済んでいます。払い込みが、まだの人がいます。' : 'いい旅でしたか。精算も、すべて済んでいます。旅の思い出を、まとめ画像にできます。') + '</div>';
+      foot = (pending || !paidAll ? '<button class="btn" data-a="wrap-settle" data-id="' + esc(w.id) + '">精算をひらく</button>' : '<button class="btn" data-a="wrap-recap" data-id="' + esc(w.id) + '">まとめ画像をつくる</button>') + '<button class="link" data-a="close-sheet">あとで</button>';
+    }
   }
   if (s.type === 'stamps'){
     ttl = '旅のスタンプ'; const all = stampsOf(t), n = all.filter(x => x.on).length, md = d => Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
@@ -2513,12 +2550,7 @@ document.addEventListener('click', e => {
   else if (a === 'line-login'){ lineLogin(); return; }
   else if (a === 'line-cancel'){ lsSet(LINE_ATTEMPT, null); lineAcct.waiting = false; }
   else if (a === 'recap-nudge-no'){ let seen = []; try { seen = JSON.parse(lsGet(NUDGE_KEY)) || []; } catch(e){ /* none */ } seen.push(t.id); lsSet(NUDGE_KEY, JSON.stringify(seen.slice(-50))); render(); return; }
-  else if (a === 'recap'){
-    const cur = ui.sheet = { type: 'recap', url: null, file: null, err: '' }; render();
-    makeRecap(t).then(blob => { if (ui.sheet !== cur) return; if (!blob){ cur.err = 'まとめをつくれませんでした。支出を記録してから、もう一度お試しください。'; } else { cur.file = new File([blob], 'tabiwari-recap.png', { type: 'image/png' }); cur.url = URL.createObjectURL(blob); } render(); },
-      () => { if (ui.sheet === cur){ cur.err = 'まとめをつくれませんでした。もう一度お試しください。'; render(); } });
-    return;
-  }
+  else if (a === 'recap'){ openRecap(t); return; }
   else if (a === 'recap-share'){
     const f = s.file; if (!f) return;
     navigator.share({ files: [f], title: t.name + ' のまとめ' }).catch(er => { if (er && er.name !== 'AbortError' && ui.sheet && ui.sheet.type === 'recap'){ ui.sheet.err = '共有できませんでした。画像を長押しして、保存してください。'; render(); } });
@@ -2627,6 +2659,8 @@ document.addEventListener('click', e => {
     const inp = document.getElementById('adm-token'), tok = inp ? inp.value : ''; if (!tok || s.busy) return; s.busy = true; s.err = ''; const cur = s; render();
     ctCall('/api/admin/claim', { token: tok }).then(r => { if (ui.sheet !== cur) return; cur.busy = false; if (r.ok){ cur.done = true; if (lineAcct.user) lineAcct.user.admin = true; } else cur.err = r.status === 403 ? '合言葉が、違います。' : r.status === 429 ? '何度も間違えました。1時間ほど、あけてください。' : r.status === 503 ? 'サーバーに、運営者の合言葉が、まだ登録されていません。' : r.status === 401 ? 'LINEでログインしてから、もう一度お試しください。' : '確認できませんでした。もう一度お試しください。'; render(); }); return;
   }
+  else if (a === 'wrap-settle'){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'settle'; ui.resetScroll = true; }
+  else if (a === 'wrap-recap'){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.resetScroll = true; const wt = state.trips.find(x => x.id === id); if (wt){ openRecap(wt); return; } }
   else if (a === 'stamps-open'){ ui.sheet = { type: 'stamps' }; }
   else if (a === 'join-paste'){ ui.sheet = { type: 'join-paste', err: '', text: '', busy: false }; }
   else if (a === 'join-paste-go'){
