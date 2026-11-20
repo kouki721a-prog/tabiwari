@@ -24,7 +24,7 @@ try {
   { const y = sel => p.$eval(sel, e => e.getBoundingClientRect().top + document.querySelector('.home0').scrollTop);
     const [h, make, join, flow, stages, feats, steps, faq, make2, legal] = [await y('.lp-h'), await y('.home0 [data-a=new]'), await y('.home0 [data-a=join-paste]'), await y('.lp-rail'), await y('.lp-stage'), await y('.lp-feat'), await y('.lp-steps'), await y('.lp-faq'), await y('.lp-cta [data-a=new]'), await y('.home0 .legal')];
     assert.ok(h < make && make < join && join < flow && flow <= stages && stages < feats && feats < steps && steps < faq && faq < make2 && make2 < legal, JSON.stringify({ h, make, join, flow, stages, feats, steps, faq, make2, legal }));
-    assert.strictEqual(await p.locator('.lp-stage').count(), 3); assert.strictEqual(await p.locator('.lp-feat .ln').count(), 6); assert.strictEqual(await p.locator('.lp-tk').count(), 1, 'the sample ticket'); assert.strictEqual(await p.locator('.lp-steps li').count(), 4); assert.strictEqual(await p.locator('.lp-faq details').count(), 4);
+    assert.ok(await p.$eval('.lp-stage .n', n => n.getBoundingClientRect().left - 2 >= document.querySelector('.home0').getBoundingClientRect().left), 'the route dots are not cut off on the left (the ring is 2px wide)'); assert.strictEqual(await p.locator('.lp-stage').count(), 3); assert.strictEqual(await p.locator('.lp-feat .ln').count(), 6); assert.strictEqual(await p.locator('.lp-tk').count(), 1, 'the sample ticket'); assert.strictEqual(await p.locator('.lp-steps li').count(), 4); assert.strictEqual(await p.locator('.lp-faq details').count(), 4);
     assert.ok(await p.$eval('.home0-tags', e => e.scrollWidth <= e.clientWidth), 'the ✓ line fits on one line');
     assert.ok(await p.$eval('.home0', e => e.scrollWidth <= e.clientWidth + 1), 'nothing runs sideways');
     for (const n of ['save', 'exp', 'settle']) assert.ok(await p.$eval('.lp-stage img[src$="/' + n + '.png"]', i => { i.loading = 'eager'; return i.complete || new Promise(r => { i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false); }); }), 'the picture ' + n + ' loads');
@@ -97,7 +97,7 @@ try {
     await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('#f-amount'); assert.strictEqual((await on('[data-a=toggle-split]')).length, 2, 'editing keeps the two people'); assert.strictEqual((await on('[data-a=split-all]')).length, 0); }
 
   // rounds of settlement: confirm, later receipts form the next round, history, edits/deletes of a closed round add an adjustment to the current one
-  { const c3 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c3.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+  { const c3 = await b.newContext({ ...devices['iPhone 13'], reducedMotion: 'reduce', serviceWorkers: 'block' }), q = await c3.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { const d = new Date(), pad = n => (n < 10 ? '0' : '') + n, today = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()), ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }];
       localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [{ id: 't0', name: '箱根', start: today, end: today, budget: 100000, members: ms, paid: {}, savings: {},
         expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'a', cat: 'food', date: today, split: ['a', 'b'] }, { id: 'e2', title: '宿', amount: 6000, payer: 'a', cat: 'stay', date: today, split: ['a', 'b'] }] }] })); });
@@ -233,6 +233,29 @@ try {
     assert.ok(after.n >= seen && after.op === '1', 'the same parts stay shown after a re-draw: ' + JSON.stringify([seen, after])); await q.context().close();
     q = await mk({ reducedMotion: 'reduce' }); assert.strictEqual(await cs(q, '.lp-tk-stamp', 'animationName'), 'none', 'reduce motion: no animation'); assert.strictEqual(await cs(q, '.lp-stage >> nth=2', 'opacity').catch(() => '1'), '1', 'reduce motion: everything is shown'); await q.context().close();
   }
+  { // money motion (v152): numbers count to the new value, bars grow, a stub tears off when a round is confirmed; none of it with "reduce motion"
+    const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }];
+    const seed = { id: 'mm', name: '箱根', start: '2026-11-18', end: '2026-12-31', budget: 80000, members: ms, paid: {}, savings: {}, expenses: [
+      { id: 'e1', title: '新幹線', amount: 9800, payer: 'a', cat: 'transport', date: '2026-11-18', split: ['a', 'b', 'c'] }, { id: 'e2', title: 'ランチ', amount: 4200, payer: 'b', cat: 'food', date: '2026-11-18', split: ['a', 'b', 'c'] }] };
+    const open = async (o = {}) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 }, reducedMotion: 'no-preference', ...o }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
+      await q.addInitScript(tr => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [tr] })); localStorage.setItem('tabiwari.stampseen', JSON.stringify({ mm: ['transport', 'food', 'first', 'all'] })); }, seed);
+      await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.ticket.m'); await q.waitForTimeout(900); return q; };
+    const num = async (q, sel) => parseInt((await q.innerText(sel)).replace(/[^\d]/g, ''), 10);
+    let q = await open(); const a0 = await num(q, '.ticket.m .t-amount'), bar0 = parseFloat(await q.$eval('.ticket.m .t-bar>i', e => e.style.width));
+    await q.fill('#q-quick', 'お土産 3000円'); await q.press('#q-quick', 'Enter'); await q.waitForTimeout(180);
+    const mid = await num(q, '.ticket.m .t-amount'); await q.waitForTimeout(1000); const a1 = await num(q, '.ticket.m .t-amount');
+    assert.ok(a1 < a0 && mid < a0 && mid > a1, 'the number counts down on the way: ' + [a0, mid, a1]); assert.ok(a0 - a1 > 0, 'and ends on the new value');
+    assert.ok(parseFloat(await q.$eval('.ticket.m .t-bar>i', e => e.style.width)) > bar0, 'the bar ends longer'); assert.ok((await q.$eval('.ticket.m .t-bar>i', e => e.style.transition)).includes('width'), 'the bar grows (a transition), it does not jump');
+    // confirming a round: a stub tears off the ticket, then everything is back in place
+    await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('[data-a=settle-ask]'); await q.click('[data-a=settle-ask]'); await q.waitForSelector('[data-a=settle-go]'); await q.click('[data-a=settle-go]');
+    await q.waitForSelector('.tearoff', { timeout: 1500 }); assert.strictEqual(await q.getAttribute('.tearoff', 'aria-hidden'), 'true', 'the torn-off stub is only decoration');
+    await q.waitForFunction(() => !document.querySelector('.tearoff'), null, { timeout: 2500 }); await q.waitForTimeout(600);
+    assert.strictEqual(await q.$eval('.ticket.c, .ticket.m', e => e.style.clipPath), '', 'the ticket is whole again'); await q.context().close();
+    // reduce motion: the final numbers at once, no stub flying off
+    q = await open({ reducedMotion: 'reduce' }); const r0 = await num(q, '.ticket.m .t-amount'); await q.fill('#q-quick', 'お土産 3000円'); await q.press('#q-quick', 'Enter'); await q.waitForTimeout(120);
+    const rEarly = await num(q, '.ticket.m .t-amount'); await q.waitForTimeout(900); assert.ok(rEarly < r0 && rEarly === await num(q, '.ticket.m .t-amount'), 'reduce motion: the new number at once, no counting: ' + [r0, rEarly]);
+    await q.click('[data-a=tab][data-t=settle]'); await q.click('[data-a=settle-ask]'); await q.click('[data-a=settle-go]'); await q.waitForTimeout(300); assert.strictEqual(await q.locator('.tearoff').count(), 0, 'reduce motion: no stub'); await q.context().close();
+  }
   { // stamps (v146): the row on the record tab, the stamp book, the "pressed" moment (once per stamp), reduce motion, the recap
     const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }];
     const seed = { id: 'st', name: '箱根', start: '2026-11-18', end: '2026-11-19', budget: 80000, members: ms, paid: {}, savings: { a: 26667, b: 26667, c: 26667 }, expenses: [
@@ -304,11 +327,11 @@ try {
     await q.fill('#adm-token', 'good-passphrase'); await q.click('[data-a=adm-claim]'); await q.waitForSelector('.ct-done'); assert.ok((await sheetText(q)).includes('運営者として登録しました')); await q.context().close();
     q = await open({ hash: '#admin' }); await q.waitForSelector('.sheet'); assert.ok((await sheetText(q)).includes('LINEでログインしてから'), 'signed out: asked to sign in first'); await q.context().close();
   }
-  { // the first page with the "add to the home screen" banner above it: it scrolls, nothing runs sideways, the banner and both buttons are there, on every phone size
+  { // the first page with the "add to the home screen" banner above it: it scrolls, nothing runs sideways, the banner and both buttons are there, and 旅行をつくる is on the FIRST screen (no scrolling needed), on every phone size
     for (const [w, h] of [[390, 844], [390, 664], [375, 667], [320, 568]]){
       const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: w, height: h } }), q = await c.newPage(); await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
-      const r = await q.evaluate(() => { const e = document.querySelector('.home0'); return { side: e.scrollWidth <= e.clientWidth + 1, banner: !!document.querySelector('.install'), btns: !!document.querySelector('.home0 [data-a=new]') && !!document.querySelector('.home0 [data-a=join-paste]'), tags: (t => t.scrollWidth <= t.clientWidth)(document.querySelector('.home0-tags')) }; });
-      assert.ok(r.side && r.banner && r.btns && r.tags, 'the first page at ' + w + 'x' + h + ': ' + JSON.stringify(r)); await c.close();
+      const r = await q.evaluate(() => { const e = document.querySelector('.home0'); return { side: e.scrollWidth <= e.clientWidth + 1, banner: !!document.querySelector('.install'), btns: !!document.querySelector('.home0 [data-a=new]') && !!document.querySelector('.home0 [data-a=join-paste]'), cta: document.querySelector('.home0 [data-a=new]').getBoundingClientRect().bottom <= innerHeight, tags: (t => t.scrollWidth <= t.clientWidth)(document.querySelector('.home0-tags')) }; });
+      assert.ok(r.side && r.banner && r.btns && r.tags && r.cta, 'the first page at ' + w + 'x' + h + ': ' + JSON.stringify(r)); await c.close();
     } }
   { const q = await (await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 } })).newPage();
     await q.route('**/api/me', r => r.fulfill({ json: { login: true, user: null, push: null } }));
@@ -550,7 +573,7 @@ try {
     mode = 200; await q.evaluate(() => shareSync(trip())); await q.waitForFunction(() => !document.body.innerText.includes('同期待ち'), null, { timeout: 8000 });
     assert.deepStrictEqual(qerrs, []); await c19.close(); }
   // 記録タブの予算カード: 主役は1つ（旅行中=今日の目安／準備中=積立／終了=使った合計）、バーは1本、カテゴリの内訳は1行にたたむ（押すとバーとチップが開く。絞り込み中は開いたまま）
-  { const c17 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c17.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+  { const c17 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c17.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
       localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '箱根', start: '2026-01-01', end: '2026-01-02', budget: 50000, paid: {}, savings: { a: 12000, b: 5000 }, settlements: [], adjustments: [],
         members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], expenses: [] }] })); });
