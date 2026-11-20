@@ -909,6 +909,18 @@ try {
     await q.click('[data-a=ask-del-trip]'); await q.waitForSelector('[data-a=del-trip]'); await q.waitForTimeout(500); assert.strictEqual(await q.locator('.delrow').count(), 0, 'asking again: the red row gives way to the confirm button'); assert.strictEqual(await q.evaluate(() => state.trips.length), 2, 'nothing deleted yet'); { const f = await q.evaluate(() => { const b = document.querySelector('.sheet-body'), d = document.querySelector('[data-a=del-trip]').getBoundingClientRect(); return { fit: b.scrollHeight <= b.clientHeight + 1, sc: b.scrollHeight, cl: b.clientHeight, vh: innerHeight, bt: d.bottom, tp: d.top, inView: d.bottom <= innerHeight && d.top >= 0 }; }); assert.ok(f.fit && f.inView, 'the delete confirm fits one screen and its button is on screen: ' + JSON.stringify(f)); await q.click('[data-a=del-trip-cancel]'); await q.waitForSelector('[data-a=ask-del-trip]'); await q.click('[data-a=ask-del-trip]'); await q.waitForSelector('[data-a=del-trip]'); }
     assert.deepStrictEqual(qerrs, []); await c16.close(); }
 
+  // a recorded expense: a small receipt flies into the budget ticket (0.86 s, then gone). With "reduce motion" nothing flies. A pressed stamp (the first records) takes the stage alone.
+  for (const [motion, flies] of [['no-preference', true], ['reduce', false]]) {
+    const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '箱根'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい'); await f.click('[data-a=save-trip]');
+    await f.waitForSelector('#q-quick'); await f.fill('#q-quick', '夕食 1000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(400);   // the first record presses the first stamps
+    await f.waitForFunction(() => !document.querySelector('.stpop'), null, { timeout: 8000 });
+    await f.evaluate(() => { window.__fly = 0; new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList && n.classList.contains('fly')) window.__fly++; }))).observe(document.body, { childList: true }); });
+    await f.fill('#q-quick', '夕食 2000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(300);
+    assert.strictEqual(await f.evaluate(() => window.__fly > 0), flies, motion + ': the receipt ' + (flies ? 'flies' : 'does not fly'));
+    if (flies) { await f.waitForFunction(() => !document.querySelector('.fly'), null, { timeout: 3000 }); }
+    await cf.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
