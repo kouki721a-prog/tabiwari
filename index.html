@@ -449,6 +449,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ill{width:64px;height:64px;flex:none;color:var(--ink)}.ill.lg{width:92px;height:92px;display:block;margin:0 auto 8px}
 .lp-hd{display:flex;align-items:center;justify-content:space-between;gap:12px}.lp-hd .ill{width:58px;height:58px;margin-top:-6px}
 @media (max-height:800px){.exp0 .ill.lg{display:none}}   /* the record tab must fit on one page: on a normal phone the empty state keeps only its words */
+.coach{background:var(--cream);border:1.5px dashed var(--dash);border-radius:16px;padding:10px 14px 6px;margin:0 0 8px;font-size:calc(13px*var(--ts));line-height:1.6}.coach b{display:block;margin-bottom:2px}.coach ol{margin:0;padding-left:20px}.coach li{padding:1px 0}.coach .link{display:block;margin-left:auto;width:auto;padding:4px 0 6px;font-size:calc(13px*var(--ts))}
 /* stamps (v146): one accent colour (the yellow), navy ink; a little tilt so they look pressed by hand */
 .stp{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;position:relative;color:#0f2742;font-weight:700;font-size:calc(21px*var(--ts));border:2.5px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(var(--r,-6deg));box-shadow:inset 0 0 0 3px rgba(255,255,255,.55);flex:none}
 .stp:after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed #0f2742;opacity:.55}
@@ -1099,6 +1100,9 @@ window.addEventListener('online', () => { checkRemote(true); });
   window.addEventListener('online', () => shared().forEach(t => shareSync(t)));
 }
 /* ---- LINE login + backup (worker/account.js). Logging in is optional; sharing by link never needs it. ---- */
+/* developer shortcut (v155): open the address with #dev on the end once to show 「動作確認用に、3人のテスト旅行をつくる」 on this device. Hidden for everybody else. */
+if (location.hash === '#dev'){ lsSet('tabiwari.dev', '1'); try { history.replaceState(null, '', location.pathname + location.search); } catch(e){} }
+const devOn = () => lsGet('tabiwari.dev') === '1';
 const lineAcct = { login: false, user: null, waiting: false, count: null, last: null, push: null, remoteItems: [], bkErr: null };
 const LINE_ATTEMPT = 'tabiwari.lineattempt', BK_SIGS = 'tabiwari.bksigs';
 const sigOf = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return str.length + ':' + h; };
@@ -1530,8 +1534,8 @@ function viewNew(){
     (lineName() && !d.editMe && !d.me.trim()
       ? '<span class="lab">あなたの名前</span><button type="button" class="item slim acc melink" data-a="draft-me-edit" aria-label="あなたの名前を変える"><div class="grow"><b>' + esc(lineName()) + '</b> <span class="sub sm">（LINEの名前）</span></div><span class="sub sm">変える</span></button>'
       : '<label class="lab" for="d-me">あなたの名前</label><input class="field" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">') +
-    (d.from ? '<div class="panel" style="margin-top:10px;padding:10px 12px;font-size:calc(13px*var(--ts))">「' + esc(d.from.name) + '」のメンバー（' + esc(d.from.names) + '）を、つくったあとの画面で、招待できます。</div>' : '') + '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあとに、旅行の設定の「友だちと共有」から誘えます。</div>' +
-    '<button class="link" data-a="make-demo" style="width:auto;padding:12px 0 0;font-size:calc(12px*var(--ts))">動作確認用に、3人のテスト旅行をつくる</button>';
+    (d.from ? '<div class="panel" style="margin-top:10px;padding:10px 12px;font-size:calc(13px*var(--ts))">「' + esc(d.from.name) + '」のメンバー（' + esc(d.from.names) + '）を、つくったあとの画面で、招待できます。</div>' : '') + '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあと、上の［＋招待］から誘えます。</div>' +
+    (devOn() ? '<button class="link" data-a="make-demo" style="width:auto;padding:12px 0 0;font-size:calc(12px*var(--ts))">動作確認用に、3人のテスト旅行をつくる</button>' : '');
   if (d.err) h += '<div class="err" role="alert">' + esc(d.err) + '</div>';
   return h + '</div><div class="cta"><button class="btn" data-a="save-trip">この内容でつくる</button></div>';
 }
@@ -1828,6 +1832,8 @@ function quickForm(){
   return '<form id="quick-form" class="quick" autocomplete="off"><input class="field" id="q-quick" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="none" aria-label="ひとことで記録" placeholder="ひとこと：夕食 2000円" value="' + esc(ui.quick || '') + '"><button class="btn line" type="submit">記録</button>' + aiButtons() + (ui.canFind ? '<button class="btn line aibtn" type="button" data-a="find-toggle" aria-label="支出を探す" aria-pressed="' + !!(ui.qOpen || ui.q) + '">' + icon('find', 22) + '</button>' : '') + '</form>' +
     (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '') + (trip() ? quickChips(trip()) : '');
 }
+const coachKey = t => 'tabiwari.coach.' + t.id;
+const coachCard = t => lsGet(coachKey(t)) === '1' ? '<div class="coach"><b>はじめの3ステップ</b><ol><li>友だちを、上の［＋招待］から誘う</li><li>旅行中は、［＋］かひとことで、支出を記録する</li><li>帰ったら、［精算］で、誰が誰にいくらかを見る</li></ol><button class="link" data-a="coach-ok">わかった</button></div>' : '';
 const welcomeCard = t => lsGet('tabiwari.welcome.' + t.id) ? '<div class="install" style="margin:0 0 8px"><div class="grow"><b>参加しました。</b><div class="sub sm">支出は、下の［＋］か、ひとことで記録できます。割り勘は、自動で計算されます。</div></div><button class="btn line" data-a="welcome-ok" style="font-size:calc(14px*var(--ts));padding:8px 14px;width:auto">わかった</button></div>' : '';
 const tabHtml = (t, k) => k === 'exp' ? tabExp(t) : k === 'settle' ? tabSettle(t) : tabSave(t);
 /* two small first-time lines (they go away by themselves): how to write the one-line entry, and that a row can be swiped left to delete */
@@ -1836,10 +1842,11 @@ const quickHint = t => t.expenses.length < 3 ? '<div class="hint"><span>「夕�
 const swipeHint = t => !lsGet(HINT_SWIPE) && t.expenses.some(e => !isSettled(t, e)) ? '<div class="hint swiphint"><span>左にスワイプすると、支出を削除できます。</span><button class="link" data-a="hint-swipe-no">わかった</button></div>' : '';
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
-  if (!t.expenses.length) return welcomeCard(t) + stampBar(t) + quickForm() + quickHint(t) + '<div class="empty exp0">' + ILL.note.replace('class="ill"', 'class="ill lg"') + '<b>まだ何も記録していません</b><span>最初の一件は、たとえば「夕食 2000円」。</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
+  if (!t.expenses.length && coachCard(t)) return welcomeCard(t) + coachCard(t) + stampBar(t) + quickForm() + quickHint(t);   // the first-steps card says what to do: the empty-state block waits (so the tab still fits on one page)
+  if (!t.expenses.length) return welcomeCard(t) + coachCard(t) + stampBar(t) + quickForm() + quickHint(t) + '<div class="empty exp0">' + ILL.note.replace('class="ill"', 'class="ill lg"') + '<b>まだ何も記録していません</b><span>最初の一件は、たとえば「夕食 2000円」。</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:calc(14px*var(--ts));padding:8px 14px">まとめ画像</button></div>' : '';
   const box = done + (ui.canFind && (ui.qOpen || ui.q) ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
-  return welcomeCard(t) + stampBar(t) + quickForm() + quickHint(t) + box + swipeHint(t) + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
+  return welcomeCard(t) + coachCard(t) + stampBar(t) + quickForm() + quickHint(t) + box + swipeHint(t) + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
 }
 
 const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => esc(nameOf(t, id)) + ' ' + (nets[id] > 0 ? '+' : '−') + Math.abs(nets[id]).toLocaleString('ja-JP')).join('・');
@@ -1886,6 +1893,7 @@ function recapNudge(t){
 }
 function tabSettle(t){
   const ss = t.settlements || [];
+  if (t.members.length === 1 && !ss.length) return noteRow(t) + '<div class="empty">' + ILL.map.replace('class="ill"', 'class="ill lg"') + '<b>友だちを招待すると、精算できます</b>いまは、あなたひとりの旅行です。友だちが入ると、誰が誰にいくら送ればいいかが、自動で出ます。<button class="btn" data-a="invite" data-id="' + esc(t.id) + '"' + (ui.inviting === t.id ? ' disabled' : '') + ' style="width:min(100%,280px);margin:16px auto 0">' + (ui.inviting === t.id ? '準備しています…' : '友だちを招待する') + '</button></div>';   // one person: there is no money to split
   if (!t.expenses.length && !ss.length) return noteRow(t) + '<div class="empty">' + ILL.map.replace('class="ill"', 'class="ill lg"') + '<b>精算するものが、まだありません</b>支出を記録すると、誰が誰にいくら送ればいいかが出ます。</div>';
   const n = ss.length + 1, open = openItems(t), bal = roundBalances(t), pays = settle(bal.net), has = open.expenses.length > 0 || open.adjustments.length > 0;
   const left = pays.filter(p => !t.paid[payKey(n, p)]).length;
@@ -2672,6 +2680,7 @@ document.addEventListener('click', e => {
   }
   else if (a === 'wrap-settle'){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'settle'; ui.resetScroll = true; }
   else if (a === 'wrap-recap'){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.resetScroll = true; const wt = state.trips.find(x => x.id === id); if (wt){ openRecap(wt); return; } }
+  else if (a === 'coach-ok'){ if (t) lsSet(coachKey(t), null); }
   else if (a === 'stamps-open'){ ui.sheet = { type: 'stamps' }; }
   else if (a === 'join-paste'){ ui.sheet = { type: 'join-paste', err: '', text: '', busy: false }; }
   else if (a === 'join-paste-go'){
@@ -2733,7 +2742,7 @@ document.addEventListener('click', e => {
       const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, received: {}, savings: {}, settlements: [], adjustments: [],
         members: [Object.assign({ id: uid(), name: me, pos: 0 }, state.payNote ? { note: state.payNote } : {})], expenses: [] };
       const next = !!d.from;
-      state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
+      state.trips.push(nt); if (!next) lsSet(coachKey(nt), '1'); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'exp'; ui.draft = null;
       if (next) setTimeout(() => { const b = document.querySelector('[data-a="invite"][data-id="' + nt.id + '"]'); if (b) b.click(); }, 0);   // opens the invite right away, for the same friends
     }
   }

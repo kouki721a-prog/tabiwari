@@ -63,6 +63,7 @@ try {
   await p.locator('.trip').first().click(); await p.waitForSelector('[data-a=add-exp]');
 
   // trip screen, no expenses yet: short guidance without an orphaned "す。", a button that opens the same sheet as the + button, members row with an invite button, "残りN日" label
+  assert.strictEqual(await p.locator('.coach').count(), 1, 'a trip made just now has the first-steps card'); assert.strictEqual(await p.locator('.exp0').count(), 0, 'and the empty-state block waits'); await p.click('[data-a=coach-ok]');
   await see(p, 'まだ何も記録していません'); await see(p, '最初の一件は');
   { const m = await p.evaluate(() => { const e = document.querySelector('.exp0'), lines = Array.from(e.querySelectorAll('b,span')).map(x => { const r = document.createRange(); r.selectNodeContents(x); return r.getClientRects().length; });
       const lab = Array.from(document.querySelectorAll('.ticket .t-top .t-label')).map(x => x.textContent); return { lines, lab, hasBtn: !!e.querySelector('[data-a=add-exp]'), mem: !!document.querySelector('.mem-row [data-a=invite]'), avs: document.querySelectorAll('.mem-row .av').length }; });
@@ -282,6 +283,18 @@ try {
     // one at a time: two ended trips show one now (the other waits for the next visit)
     q = await open([T('r1', '箱根 1泊2日', -4, -2), T('r2', '京都', -5, -3)]); await q.waitForSelector('.sheet', { timeout: 3000 }); await q.click('[data-a=close-sheet]'); await q.waitForTimeout(1300); assert.strictEqual(await q.locator('.sheet').count(), 0, 'one per visit'); await q.context().close();
   }
+  { // first use (v155): no developer shortcut for everybody, the invite sentence matches the screen, a one-time 3-step card, and nothing to "settle" while alone
+    const mk = async (hash = '', h = 700) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: h } }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message)); await q.addInitScript(() => localStorage.setItem('tabiwari.noinstall', '1')); await q.goto('http://localhost:8797/' + hash); await q.waitForSelector('.lp-h'); return q; };
+    const make = async (q, name) => { await q.click('[data-a=new]'); await q.waitForSelector('#d-name'); await q.fill('#d-name', name); await q.fill('#d-budget', '60000'); await q.fill('#d-me', 'あおい'); await q.click('[data-a=save-trip]'); await q.waitForSelector('.ticket'); };
+    let q = await mk(); await q.click('.home0 [data-a=new]'); await q.waitForSelector('#d-name'); assert.strictEqual(await q.locator('[data-a=make-demo]').count(), 0, 'the test-trip shortcut is not shown to everybody');
+    assert.ok((await q.innerText('#app')).includes('上の［＋招待］から誘えます') && !(await q.innerText('#app')).includes('旅行の設定の「友だちと共有」'), 'the sentence matches the screen'); await q.context().close();
+    q = await mk('#dev'); assert.ok(!(await q.evaluate(() => location.hash)), 'the address is cleaned'); await q.click('.home0 [data-a=new]'); await q.waitForSelector('#d-name'); assert.strictEqual(await q.locator('[data-a=make-demo]').count(), 1, '#dev shows it on this device'); await q.context().close();
+    q = await mk(); await make(q, '箱根');
+    assert.ok(await q.$eval('.coach', e => e.innerText.includes('はじめの3ステップ') && e.querySelectorAll('li').length === 3), 'a card with the first three steps'); assert.ok(await q.$eval('#app > .scroll, .scroll', e => e.scrollHeight <= e.clientHeight + 1), 'the record tab still fits on one page (390x700)');
+    await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.sheet, [data-a=invite]'); assert.strictEqual(await q.locator('[data-a=settle-ask]').count(), 0, 'alone: nothing to settle'); assert.ok((await q.innerText('.scroll')).includes('友だちを招待すると、精算できます') && await q.locator('.scroll [data-a=invite]').count() === 1, 'alone: an invitation instead');
+    await q.click('[data-a=tab][data-t=exp]'); await q.click('[data-a=coach-ok]'); assert.strictEqual(await q.locator('.coach').count(), 0, 'gone for good'); await q.reload(); await q.waitForSelector('.trip'); await q.click('.trip'); await q.waitForSelector('.ticket'); assert.strictEqual(await q.locator('.coach').count(), 0, 'and it stays gone');
+    await q.click('[data-a=home]'); await make(q, '京都'); assert.strictEqual(await q.locator('.coach').count(), 1, 'the next new trip gets its own card'); await q.context().close();
+  }
   { // stamps (v146): the row on the record tab, the stamp book, the "pressed" moment (once per stamp), reduce motion, the recap
     const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }];
     const seed = { id: 'st', name: '箱根', start: '2026-11-18', end: '2026-11-19', budget: 80000, members: ms, paid: {}, savings: { a: 26667, b: 26667, c: 26667 }, expenses: [
@@ -424,7 +437,7 @@ try {
 
   // demo trip: three members, settlement rows with request buttons
   { const c4 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c4.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
-    await q.goto('http://localhost:8797/'); await q.click('[data-a=new]'); await q.fill('#d-me', 'こうき'); await q.click('[data-a=make-demo]'); await see(q, '第1回の精算');
+    await q.goto('http://localhost:8797/#dev'); await q.click('[data-a=new]'); await q.fill('#d-me', 'こうき'); await q.click('[data-a=make-demo]'); await see(q, '第1回の精算');
     assert.ok(await q.locator('.xfer').count() >= 1, 'the demo trip has transfers');
     await q.click('[data-a=tab][data-t=settle]'); assert.strictEqual(await q.locator('.item', { hasText: 'こうき' }).count() >= 1, true); assert.deepStrictEqual(qerrs, []); }
 
