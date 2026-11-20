@@ -411,7 +411,8 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
-.nb{white-space:nowrap}.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
+.nb{white-space:nowrap}.fly{position:fixed;z-index:56;pointer-events:none;white-space:nowrap;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:6px;padding:8px 16px;font-family:var(--mono);font-weight:600;font-size:calc(15px*var(--ts));font-variant-numeric:tabular-nums;box-shadow:0 6px 16px rgba(15,39,66,.22)}
+.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
 .ticket.m.stub:before,.ticket.m.stub:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.ticket.m.stub:before{top:-9px}.ticket.m.stub:after{bottom:-9px}
 /* the home card as a trip ticket (v148): the trip on the left, a perforated stub with the money on the right, a notch at both ends of the perforation */
 .trip-l{flex:1;min-width:0;padding:14px 12px 14px 16px}.trip-s{flex:none;width:var(--stub);border-left:2px dashed var(--dash);padding:14px 12px 14px 14px;display:flex;align-items:center}
@@ -1775,6 +1776,22 @@ function tearOff(ticket){
   const a = ov.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(10px,-6px) rotate(3deg)', opacity: 1, offset: .25 }, { transform: 'translate(70px,-34px) rotate(14deg)', opacity: 0 }], { duration: TEAR_MS, easing: 'cubic-bezier(.4,0,.6,1)' });
   a.onfinish = a.oncancel = () => ov.remove();
 }
+/* a recorded expense (v162): a small receipt flies from where it was typed into the budget ticket. One overlay on <body> (like tearOff), so a redraw cannot cut it.
+   flyFrom() is read BEFORE the redraw (the place it starts); recFly() runs after it (the ticket is drawn again by then). */
+const FLY_MS = 860;
+const flyFrom = id => { const e = (id && document.getElementById(id)) || document.querySelector('.sheet [data-a=save-exp]') || document.querySelector('.fab'); return e ? e.getBoundingClientRect() : null; };
+function recFly(label, from){
+  if (!calm() || !from || document.querySelector('.stpop')) return;   // a stamp is being pressed: one reward at a time
+  const tk = document.querySelector('.ticket'); if (!tk) return;
+  const to = tk.getBoundingClientRect(), el = document.createElement('div');
+  el.className = 'fly'; el.setAttribute('aria-hidden', 'true'); el.textContent = label; document.body.appendChild(el);
+  const w = el.offsetWidth, h = el.offsetHeight, sx = from.left + from.width / 2 - w / 2, sy = from.top + from.height / 2 - h / 2, ex = to.left + to.width * .3 - w / 2, ey = to.top + to.height * .45 - h / 2, dx = ex - sx, dy = ey - sy;
+  Object.assign(el.style, { left: sx + 'px', top: sy + 'px' });
+  const at = (f, sc, rot, up) => 'translate(' + dx * f + 'px,' + (dy * f - up) + 'px) scale(' + sc + ') rotate(' + rot + 'deg)';
+  const a = el.animate([{ transform: at(0, .85, -3, 0), opacity: 0 }, { transform: at(.06, 1.08, -3, 8), opacity: 1, offset: .16 }, { transform: at(.22, 1.05, -2, 22), opacity: 1, offset: .34 },
+    { transform: at(.72, .82, 2, 30), opacity: 1, offset: .78 }, { transform: at(1, .4, 0, 0), opacity: 0 }], { duration: FLY_MS, easing: 'cubic-bezier(.3,.1,.3,1)' });
+  a.onfinish = a.oncancel = () => { el.remove(); const t2 = document.querySelector('.ticket'); if (t2) t2.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.022)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'ease-out' }); };
+}
 function motionMoney(){
   if (!calm()) return;
   const now = performance.now(), t = trip(), place = (ui.view === 'trip' && t ? t.id + '|' + ui.tab : 'home');
@@ -2271,7 +2288,7 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   t.members.forEach(m => { if (left.indexOf(m.id) >= 0 && fx[m.id] === undefined && r.weights[m.name] && wp[m.id] === undefined){ wp[m.id] = r.weights[m.name]; said.push(m.name + ' ' + partLabel(r.weights[m.name])); } });
   r.excluded.forEach(n => said.push(n + 'なし'));
   const pp = cleanParts(wp, rec.split.slice()), full = {}; if (pp){ rec.split.forEach(id => { full[id] = wp[id] || 2; }); const fp = cleanParts(full, rec.split); if (fp) rec.parts = fp; }
-  const before = catSums(t); stampNew(t, rec); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render();
+  const before = catSums(t), fl0 = flyFrom('q-quick'); stampNew(t, rec); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render(); recFly((r.title || (CAT[r.cat] || CAT.other)[2]) + ' −' + yen(r.amount), fl0);
   const cn = capNotice(t, before);
   flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
 });
@@ -2813,7 +2830,7 @@ document.addEventListener('click', e => {
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }
       else { const ne = stampNew(t, Object.assign({ id: uid() }, rec)); t.expenses.push(ne); ui.fresh = { [ne.id]: 1 }; lsSet('tabiwari.last.' + t.id, JSON.stringify({ payer: ne.payer, split: ne.split })); }
-      const wasEdit = !!s.editId; save(); ui.sheet = null; render(); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
+      const wasEdit = !!s.editId, fl0 = wasEdit ? null : flyFrom(), fl1 = (rec.title || (CAT[rec.cat] || CAT.other)[2]) + ' −' + yen(rec.amount); save(); ui.sheet = null; render(); recFly(fl1, fl0); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
     }
   }
   else if (a === 'settled-cancel'){ s.confirmSettled = false; }
