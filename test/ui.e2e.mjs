@@ -256,12 +256,38 @@ try {
     const rEarly = await num(q, '.ticket.m .t-amount'); await q.waitForTimeout(900); assert.ok(rEarly < r0 && rEarly === await num(q, '.ticket.m .t-amount'), 'reduce motion: the new number at once, no counting: ' + [r0, rEarly]);
     await q.click('[data-a=tab][data-t=settle]'); await q.click('[data-a=settle-ask]'); await q.click('[data-a=settle-go]'); await q.waitForTimeout(300); assert.strictEqual(await q.locator('.tearoff').count(), 0, 'reduce motion: no stub'); await q.context().close();
   }
+  { // 旅のおつかれさま (v153): once per ended trip (within 14 days), with the right message and button; remembered on the device
+    const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }];
+    const day = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+    const T = (id, name, s, e, extra = {}) => ({ id, name, start: day(s), end: day(e), budget: 80000, members: ms, paid: {}, savings: {}, expenses: [{ id: 'x' + id, title: '夕食', amount: 14000, payer: 'a', cat: 'food', date: day(s), split: ['a', 'b'] }], ...extra });
+    const open = async (trips, o = {}, seen = null) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 }, ...o }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
+      await q.addInitScript(([tr, sn]) => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: tr })); localStorage.setItem('tabiwari.stampseen', JSON.stringify({ r1: [], r2: [], r3: [], old: [], run: [] })); if (sn) localStorage.setItem('tabiwari.wrapseen', sn); }, [trips, seen]);
+      await q.goto('http://localhost:8797/'); return q; };
+    const tr = { from: 'b', to: 'a', amount: 7000 }, st = { id: 's1', n: 1, at: day(-2), total: 14000, transfers: [tr] };
+    // not settled yet
+    let q = await open([T('r1', '箱根 1泊2日', -4, -2)]); await q.waitForSelector('.sheet', { timeout: 3000 }); let tx = await q.innerText('.sheet'); assert.ok(tx.includes('旅のおつかれさま') && tx.includes('箱根 1泊2日') && tx.includes('14,000円') && tx.includes('7,000円') && tx.includes('精算が、まだ済んでいません'), tx);
+    assert.ok(!/[！]/.test(tx), 'a quiet sentence'); assert.strictEqual(await q.locator('[data-a=wrap-settle]').count(), 1); assert.strictEqual(await q.locator('[data-a=wrap-recap]').count(), 0);
+    await q.click('[data-a=wrap-settle]'); await q.waitForSelector('[data-a=settle-ask]'); assert.ok(await q.locator('[data-a=tab][data-t=settle].on').count() === 1, 'it opens the settle tab'); await q.context().close();
+    // shown once: the same trip, same device, next visit: nothing
+    q = await open([T('r1', '箱根 1泊2日', -4, -2)], {}, JSON.stringify({ r1: 1 })); await q.waitForSelector('.trip'); await q.waitForTimeout(1300); assert.strictEqual(await q.locator('.sheet').count(), 0, 'already shown on this device'); await q.context().close();
+    // settled and paid: the recap is offered
+    q = await open([T('r2', '京都', -5, -3, { settlements: [st], paid: { 'b-a-7000': true }, expenses: [{ id: 'x2', title: '夕食', amount: 14000, payer: 'a', cat: 'food', date: day(-5), split: ['a', 'b'], settleId: 's1' }] })]);
+    await q.waitForSelector('.sheet', { timeout: 3000 }); tx = await q.innerText('.sheet'); assert.ok(tx.includes('精算も、すべて済んでいます'), tx); await q.click('[data-a=wrap-recap]'); await q.waitForSelector('.recap-img', { timeout: 5000 }); assert.ok((await q.innerText('.sheet')).includes('旅のまとめ'), 'it goes on to the recap'); await q.context().close();
+    // settled, but somebody has not paid
+    q = await open([T('r3', '沖縄', -5, -3, { settlements: [st], paid: {}, expenses: [{ id: 'x3', title: '夕食', amount: 14000, payer: 'a', cat: 'food', date: day(-5), split: ['a', 'b'], settleId: 's1' }] })]);
+    await q.waitForSelector('.sheet', { timeout: 3000 }); assert.ok((await q.innerText('.sheet')).includes('払い込みが、まだの人がいます')); assert.strictEqual(await q.locator('[data-a=wrap-settle]').count(), 1); await q.context().close();
+    // an old trip (over 14 days), a running trip, a trip without records: nothing; a broken memory is ignored; "reduce motion" still shows it
+    q = await open([T('old', '昔の旅', -40, -30), T('run', '旅行中', -1, 2), { ...T('empty', '空の旅', -4, -2), expenses: [] }], {}, '{broken'); await q.waitForSelector('.trip'); await q.waitForTimeout(1300); assert.strictEqual(await q.locator('.sheet').count(), 0, 'nothing to say'); await q.context().close();
+    q = await open([T('r1', '箱根 1泊2日', -4, -2)], { reducedMotion: 'reduce' }); await q.waitForSelector('.sheet', { timeout: 3000 }); await q.context().close();
+    // one at a time: two ended trips show one now (the other waits for the next visit)
+    q = await open([T('r1', '箱根 1泊2日', -4, -2), T('r2', '京都', -5, -3)]); await q.waitForSelector('.sheet', { timeout: 3000 }); await q.click('[data-a=close-sheet]'); await q.waitForTimeout(1300); assert.strictEqual(await q.locator('.sheet').count(), 0, 'one per visit'); await q.context().close();
+  }
   { // stamps (v146): the row on the record tab, the stamp book, the "pressed" moment (once per stamp), reduce motion, the recap
     const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }];
     const seed = { id: 'st', name: '箱根', start: '2026-11-18', end: '2026-11-19', budget: 80000, members: ms, paid: {}, savings: { a: 26667, b: 26667, c: 26667 }, expenses: [
       { id: 'e1', title: '新幹線', amount: 9800, payer: 'a', cat: 'transport', date: '2026-11-18', split: ['a', 'b', 'c'] }, { id: 'e2', title: 'ランチ', amount: 4200, payer: 'b', cat: 'food', date: '2026-11-18', split: ['a', 'b', 'c'] }, { id: 'e3', title: '旅館', amount: 36000, payer: 'c', cat: 'stay', date: '2026-11-18', split: ['a', 'b', 'c'] }] };
-    const open = async (opts = {}, store = null) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 }, ...opts }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
-      await q.addInitScript(([tr, st]) => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [tr] })); if (st != null) localStorage.setItem('tabiwari.stampseen', st); }, [seed, store]);
+    const open = async (opts = {}, store = null, tr0 = seed) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 }, ...opts }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
+      await q.addInitScript(([tr, st]) => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [tr] })); if (st != null) localStorage.setItem('tabiwari.stampseen', st); }, [tr0, store]);
       await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.stbar'); return q; };
     let q = await open();
     assert.ok((await q.innerText('.stbar')).replace(/\s+/g, ' ').includes('スタンプ 6/10'), 'transport, stay, food, the first record, "everyone" and the savings = 6: ' + await q.innerText('.stbar'));
@@ -285,6 +311,12 @@ try {
     q = await open({}, '{not json'); await q.waitForTimeout(300); assert.strictEqual(await q.locator('.stpop').count(), 0, 'a broken memory does not break anything, and does not pop');
     await q.context().close();
     q = await open({}, JSON.stringify({ st: ['transport', 'stay', 'first', 'all', 'save'] })); await q.waitForSelector('.stpop', { timeout: 2000 }); assert.ok((await q.innerText('.stpop')).includes('食事のスタンプ'), 'a stamp not yet shown pops'); await q.context().close();
+    // the big rewards (v153): the savings reached the goal / everybody paid: a bigger stamp, a ring, and a sentence about what happened; they come before the ordinary stamps
+    q = await open({}, JSON.stringify({ st: ['transport', 'stay', 'first', 'all'] })); await q.waitForSelector('.stpop.big', { timeout: 2000 }); assert.ok((await q.innerText('.stpop')).includes('積立が目標に届きました'), await q.innerText('.stpop')); assert.strictEqual(await q.locator('.stpop-ring').count(), 1, 'a ring spreads from it');
+    await q.waitForFunction(() => !document.querySelector('.stpop'), null, { timeout: 4000 }); await q.context().close();
+    { const tr = { ...seed, savings: {}, settlements: [{ id: 's1', n: 1, at: '2026-11-20', total: 14000, transfers: [{ from: 'b', to: 'a', amount: 1000 }] }], paid: { 'b-a-1000': true } };
+      q = await open({}, JSON.stringify({ st: ['transport', 'food', 'stay', 'first', 'all'] }), tr); await q.waitForSelector('.stpop.big', { timeout: 2000 }); const tx = await q.innerText('.stpop'); assert.ok(tx.includes('みんなの精算が済みました'), tx); assert.ok(!/[！]/.test(tx), 'a quiet sentence'); await q.waitForFunction(() => !document.querySelector('.stpop'), null, { timeout: 4000 }); await q.context().close();
+      q = await open({ reducedMotion: 'reduce' }, JSON.stringify({ st: ['transport', 'food', 'stay', 'first', 'all'] }), tr); await q.waitForTimeout(700); assert.strictEqual(await q.locator('.stpop').count(), 0, 'reduce motion: no reward animation either'); await q.context().close(); }
     // "reduce motion": no pop (the count on the row still changes)
     q = await open({ reducedMotion: 'reduce' }); await q.fill('#q-quick', '観光 1000円'); await q.press('#q-quick', 'Enter'); await q.waitForTimeout(800);
     assert.strictEqual(await q.locator('.stpop').count(), 0, 'reduce motion: no pop'); assert.ok(/スタンプ 7\/10/.test((await q.innerText('.stbar')).replace(/\s+/g, ' ')), 'but the count changed'); await q.context().close();
@@ -401,7 +433,7 @@ try {
     await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }, ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }];
       const T = (id, name, s, e, ex, extra = {}) => ({ id, name, start: d(s), end: d(e), budget: 30000, members: ms, paid: {}, savings: {}, expenses: ex, ...extra });
       const e1 = { id: 'e1', title: '食事', amount: 6000, payer: 'a', cat: 'food', date: d(-10), split: ['a', 'b'] };
-      localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [T('now', '旅行中の旅', -1, 1, []), T('soon', '準備中の旅', 3, 4, [], { savings: { a: 10000 } }), T('open', '精算前の旅', -12, -9, [e1]),
+      localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.wrapseen', JSON.stringify({ open: 1, done: 1 })); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: [T('now', '旅行中の旅', -1, 1, []), T('soon', '準備中の旅', 3, 4, [], { savings: { a: 10000 } }), T('open', '精算前の旅', -12, -9, [e1]),
         T('done', '精算済みの旅', -30, -28, [{ ...e1, id: 'e2', settleId: 's1' }], { settlements: [{ id: 's1', n: 1, at: d(-27), total: 6000, transfers: [{ from: 'b', to: 'a', amount: 3000 }] }] })] })); });
     await q.goto('http://localhost:8797/'); await q.waitForSelector('.home1');
     const hint = async name => q.$eval('.trip:has-text("' + name + '") .hint', e => e.textContent).catch(() => null);
