@@ -1,5 +1,7 @@
 # 独自ドメインにする手順（買ったあとに行う）
 
+> **実施済み（2026-11-20）**: ドメイン **`tabiflow.app`** を Cloudflare Registrar で購入（初年度 $8.20、2年目から 年$14.20 で自動更新。登録者情報は、Cloudflare の WHOIS 保護）。Workers（`tabiwari`）の「ドメインとルート」に、カスタムドメインとして追加。**古い `tabiwari.tabiwari-app.workers.dev` も、オンのまま**（配った共有リンクが開ける）。コード側は、共有カード（`og:url`・`og:image`・`twitter:image`）とまとめ画像の `RECAP_SITE` を、`tabiflow.app` に。LINE Developers の登録（下の3か所）は、ユーザーが行う（コールバックURLが、先に必要）。
+
 いまの公開URLは `https://tabiwari.tabiwari-app.workers.dev`。独自ドメインにしても、**アプリとサーバーのコードは、ほぼ変わりません**（ログインの戻り先・共有リンク・Origin の確認は、開いているアドレスから、自動で決まります）。作業の中心は、下の設定です。**利用者が増える前に、行うのが、いちばん安全です。**
 
 ## 1. ドメインを買う（お金がかかる。年1,500円前後から）
