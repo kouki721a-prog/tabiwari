@@ -446,6 +446,9 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
 .wr-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px}.wr-bot:before,.wr-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.wr-bot:before{left:0;border-radius:0 11px 11px 0}.wr-bot:after{right:0;border-radius:11px 0 0 11px}
 .wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
+.ill{width:64px;height:64px;flex:none;color:var(--ink)}.ill.lg{width:92px;height:92px;display:block;margin:0 auto 8px}
+.lp-hd{display:flex;align-items:center;justify-content:space-between;gap:12px}.lp-hd .ill{width:58px;height:58px;margin-top:-6px}
+@media (max-height:800px){.exp0 .ill.lg{display:none}}   /* the record tab must fit on one page: on a normal phone the empty state keeps only its words */
 /* stamps (v146): one accent colour (the yellow), navy ink; a little tilt so they look pressed by hand */
 .stp{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;position:relative;color:#0f2742;font-weight:700;font-size:calc(21px*var(--ts));border:2.5px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(var(--r,-6deg));box-shadow:inset 0 0 0 3px rgba(255,255,255,.55);flex:none}
 .stp:after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed #0f2742;opacity:.55}
@@ -1401,6 +1404,14 @@ async function makeRecap(t){
   const icon = await new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = 'icons/icon-192.png'; });
   return new Promise(r => recapCanvas(d, icon).toBlob(r, 'image/png'));
 }
+/* small hand-drawn line pictures (v154): suitcase, train, notebook, map. One yellow accent; strokes follow the text colour, so they work in the dark too. */
+const ILL_OPEN = '<svg class="ill" viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">';
+const ILL = {
+  bag: ILL_OPEN + '<path d="M15 35Q14 33 17 32L79 31Q83 31 83 35L84 75Q84 80 79 80L16 81Q12 81 12 77Z" fill="var(--cream)"/><path d="M37 31V23Q37 19 41 19H56Q60 19 60 23V31"/><path d="M30 33V80M66 32V80" stroke-width="2"/><circle cx="48" cy="56" r="10" fill="var(--sun)"/><path d="M44 56l3 3 6-7" stroke-width="2.2"/><path d="M18 88h12M66 88h12" stroke-width="2.6"/></svg>',
+  train: ILL_OPEN + '<path d="M9 62V36Q9 30 15 30H66Q80 30 85 46L88 62Z" fill="var(--cream)"/><path d="M9 52H87" stroke="var(--sun)" stroke-width="5"/><rect x="16" y="36" width="12" height="10" rx="2"/><rect x="34" y="36" width="12" height="10" rx="2"/><rect x="52" y="36" width="12" height="10" rx="2"/><path d="M70 36L78 45H70Z"/><circle cx="24" cy="68" r="5" fill="var(--cream)"/><circle cx="46" cy="68" r="5" fill="var(--cream)"/><circle cx="70" cy="68" r="5" fill="var(--cream)"/><path d="M30 30V22M50 22H22M42 30V22" stroke-width="2"/><path d="M6 76H90" stroke-dasharray="3 5" stroke-width="2"/></svg>',
+  note: ILL_OPEN + '<path d="M20 14L66 13Q70 13 70 17L71 78Q71 82 67 82L21 83Q17 83 17 79L16 18Q16 14 20 14Z" fill="var(--cream)"/><path d="M26 28H60M26 40H60M26 52H48" stroke-width="2" stroke-dasharray="1 5"/><path d="M60 74L79 38L86 42L68 78Z" fill="var(--sun)"/><path d="M60 74L58 83L68 78"/><path d="M79 38L82 32L89 36L86 42"/></svg>',
+  map: ILL_OPEN + '<path d="M10 24L34 18L62 26L86 18V72L62 80L34 72L10 80Z" fill="var(--cream)"/><path d="M34 18V72M62 26V80" stroke-width="2"/><path d="M18 62Q30 40 44 52T74 36" stroke-dasharray="2 6" stroke-width="2.6"/><path d="M74 20Q74 12 80 12Q86 12 86 20Q86 27 80 33Q74 27 74 20Z" fill="var(--sun)" transform="translate(-8,6) scale(.9)"/><circle cx="72" cy="22" r="2" fill="currentColor" stroke="none"/></svg>'
+};
 const APP_NAME = 'Tabiflow';
 const brandRow = () => '<div class="brandrow"><h1 class="brand">Tabiflow</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
 /* first-page motion (v151): when each part first came into view (ui.lpAt), and when the hero started (ui.lpHero0). Kept in memory, so a re-draw carries the move on instead of restarting it. */
@@ -1416,9 +1427,9 @@ function lpObserve(){
 }
 function viewHomeEmpty(){
   const flow = [['出発前', '積立'], ['旅行中', '1日の目安・割り勘'], ['旅行後', '通知つきの精算']];
-  const stages = [['1', '出発前', 'みんなで積立', 'ひとりずつ、あといくらかが見えます。出発が近づくと、お知らせも届きます。', 'save', '積立の画面。みんなの積立が16,000円。', 222],
-    ['2', '旅行中', '今日の目安と、ひとことの記録', '今日あといくら使えるかが分かります。「夕食 2000円」と書くだけで、記録できます。', 'exp', '今日の目安が12,000円。ひとことで記録する欄。', 266],
-    ['3', '旅行後', '割り勘は、自動で精算', '誰が誰にいくらかを、自動で計算します。払う人には、お知らせが届きます。', 'settle', '精算の画面。あおいさん 8,367円、けんたさん 6,766円。', 224]];
+  const stages = [['1', '出発前', '行く前に、少しずつ貯める', 'ひとりずつ、あといくら貯めればいいかが分かります。出発が近づくと、通知でそっと知らせます。', 'save', '積立の画面。みんなの積立が16,000円。', 222],
+    ['2', '旅行中', '旅先では、今日いくら使えるか', '予算の残りから、今日使っていい額を出します。「夕食 2000円」と書くだけで、記録できます。', 'exp', '今日の目安が12,000円。ひとことで記録する欄。', 266],
+    ['3', '旅行後', '帰ったら、誰が誰にいくらか', '立て替えの差し引きを計算して、誰が誰にいくら送ればいいかを出します。払う人には、通知が届きます。', 'settle', '精算の画面。あおいさん 8,367円、けんたさん 6,766円。', 224]];
   const feats = [['一部の人だけの割り勘', '人ごとに選べる'], ['割合・金額', '多め・少なめに'], ['レシートの写真', '店名と合計を読む'], ['受け取りの確認', '払った・受け取った'], ['変更の履歴', '誰がいつ'], ['まとめ画像', 'レシート風']];
   const steps = ['旅行をつくる（名前・日付・予算・メンバー）', '共有リンクを、LINEで友だちに送る', '旅行中は、払った人が記録する', '最後に「精算」を開いて、表示のとおりに送金する'];
   const faq = [['料金は、かかりますか？', '無料で使えます。'], ['登録やインストールは、必要ですか？', '要りません。ブラウザで開くだけです。ホーム画面に追加すると、すぐ開けて、お知らせも届きます。'], ['お金を、アプリで送れますか？', '送れません。記録と計算だけです。送金は、いつものやり方で。'], ['データは、どこに保存されますか？', 'この端末に保存されます。LINEでログインすると、バックアップされて、端末を替えても戻せます。']];
@@ -1430,17 +1441,17 @@ function viewHomeEmpty(){
   const ticket = '<div class="lp-tk" aria-hidden="true"><div class="lp-tk-top"><div class="lp-tk-hd"><span>TRIP TICKET</span><span>SAMPLE</span></div><div class="lp-tk-grid"><div><small>行き先</small><b>箱根 1泊2日</b></div><div><small>日程</small><b>11/18 – 19</b></div><div><small>メンバー</small><b>あおい・けんた・みく</b></div><div><small>予算</small><b>80,000円</b></div></div></div>' +
     '<div class="lp-tk-bot"><div><small>1人あたり</small><b>26,667円</b></div><i class="lp-bars"></i></div><span class="lp-tk-stamp">初</span></div>';
   return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + remoteCard() + installBanner() +
-    '<div class="lp-hero' + hero.cls + '"' + hero.st + '><div class="lp-eye">Money · Before / During / After</div><h2 class="lp-h">旅のお金を、<br class="lp-br">前から後まで、<br class="lp-br">ひとつに。</h2><p class="lp-lead">積立、旅行中の1日の目安、割り勘、精算まで。<br>友だち・カップルの国内旅行のために。</p>' +
+    '<div class="lp-hero' + hero.cls + '"' + hero.st + '><h2 class="lp-h">「いくら出したっけ」を、<br>なくします。</h2><p class="lp-lead">友だちやパートナーとの国内旅行で、誰がいくら出したか分からなくなる。それを、出発前から帰ったあとまで、片づけるアプリです。</p>' +
     '<button class="btn" data-a="new">旅行をつくる</button><button class="btn line" data-a="join-paste" style="margin-top:10px">友だちに招待された方は、こちら</button>' +
-    '<div class="home0-tags">✓ 無料　✓ 登録なし　✓ インストール不要</div>' + ticket + '</div>' +
-    '<section class="lp-sec"><div class="lp-eye">Route</div><h2>旅の流れに、そのまま</h2><div' + lpRv('rail', 'lp-rail', true) + '>' +
+    '<div class="home0-tags">無料。登録も、インストールも、いりません。</div>' + ticket + '</div>' +
+    '<section class="lp-sec"><div class="lp-hd"><h2>出発前から、帰ったあとまで</h2>' + ILL.train + '</div><div' + lpRv('rail', 'lp-rail', true) + '>' +
       stages.map(x => '<div' + lpRv('st' + x[0], 'lp-stage') + '><span class="n" aria-hidden="true">' + x[0] + '</span><small>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><div class="lp-shot"><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div></div>').join('') + '</div></section>' +
-    '<section class="lp-sec"><div class="lp-eye">Details</div><h2>割り勘の、明細</h2><div' + lpRv('feat', 'lp-feat') + '>' + feats.map(x => '<div class="ln"><b>' + x[0] + '</b><i></i><span>' + x[1] + '</span></div>').join('') + '</div></section>' +
-    '<section class="lp-sec"><div class="lp-eye">Notice</div><h2>お知らせで、忘れない</h2><p class="lp-sub">アプリを開かなくても、気づけます。</p>' +
+    '<section class="lp-sec"><div class="lp-hd"><h2>割り勘の、明細</h2>' + ILL.note + '</div><div' + lpRv('feat', 'lp-feat') + '>' + feats.map(x => '<div class="ln"><b>' + x[0] + '</b><i></i><span>' + x[1] + '</span></div>').join('') + '</div></section>' +
+    '<section class="lp-sec"><h2>お知らせで、忘れない</h2><p class="lp-sub">開かなくても、届きます。</p>' +
       '<div' + lpRv('n1', 'lp-note line') + '><b>LINEの公式アカウントから（精算の確定・立て替え）</b><div class="lp-bub">【' + APP_NAME + '】熱海の精算が確定しました。けんたさんに 2,000円 を送ってください。</div></div>' +
       '<div' + lpRv('n2', 'lp-note') + '><b>アプリの通知（積立・記録のし忘れ）</b><div class="lp-bub">箱根まで、あと7日です。あなたの積立は、あと 16,667円 で目標です。</div></div></section>' +
-    '<section class="lp-sec"><div class="lp-eye">Start</div><h2>はじめ方</h2><ol' + lpRv('steps', 'lp-steps') + '>' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
-    '<section class="lp-sec lp-faq"><div class="lp-eye">FAQ</div><h2>よくある質問</h2><div' + lpRv('faq', '') + '>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</div></section>' +
+    '<section class="lp-sec"><div class="lp-hd"><h2>はじめ方</h2>' + ILL.map + '</div><ol' + lpRv('steps', 'lp-steps') + '>' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
+    '<section class="lp-sec lp-faq"><h2>よくある質問</h2><div' + lpRv('faq', '') + '>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</div></section>' +
     '<div' + lpRv('cta', 'lp-cta') + '><button class="btn" data-a="new">旅行をつくる</button></div>' +
     '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。（ログインなしでも使えます）<div class="home0-note-sub">ログインしていないと、スマホを替えたときや、閲覧履歴を消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>';
 }
@@ -1487,9 +1498,9 @@ function homeListHtml(tab){   // the list under the tabs (also built for the tab
   const { now, past } = homeSets(); let h = '';
   if (tab === 'now'){
     now.forEach(t => { h += tripCard(t); });
-    if (!now.length) h += '<div class="empty" style="padding:28px 8px"><b>これから・旅行中の旅行は、ありません</b>下の［旅行をつくる］から、つくれます。</div>';
+    if (!now.length) h += '<div class="empty" style="padding:28px 8px">' + ILL.bag.replace('class="ill"', 'class="ill lg"') + '<b>次の旅行は、まだありません</b>下の［旅行をつくる］から、はじめられます。</div>';
     h += '<button class="btn line inv join" data-a="join-paste">共有リンクで参加する</button>';
-  } else h += past.length ? past.map(tripCard).join('') : '<div class="empty" style="padding:28px 8px"><b>終了した旅行は、まだありません</b>旅行が終わって、精算が済むと、ここに並びます。</div>';
+  } else h += past.length ? past.map(tripCard).join('') : '<div class="empty" style="padding:28px 8px">' + ILL.bag.replace('class="ill"', 'class="ill lg"') + '<b>帰ってきた旅行は、まだありません</b>旅行が終わって、精算が済むと、ここに並びます。</div>';
   return h;
 }
 function viewHome(){
@@ -1825,7 +1836,7 @@ const quickHint = t => t.expenses.length < 3 ? '<div class="hint"><span>「夕�
 const swipeHint = t => !lsGet(HINT_SWIPE) && t.expenses.some(e => !isSettled(t, e)) ? '<div class="hint swiphint"><span>左にスワイプすると、支出を削除できます。</span><button class="link" data-a="hint-swipe-no">わかった</button></div>' : '';
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
-  if (!t.expenses.length) return welcomeCard(t) + stampBar(t) + quickForm() + quickHint(t) + '<div class="empty exp0"><b>最初の支出を記録しましょう</b><span>＋ボタンから入力できます</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
+  if (!t.expenses.length) return welcomeCard(t) + stampBar(t) + quickForm() + quickHint(t) + '<div class="empty exp0">' + ILL.note.replace('class="ill"', 'class="ill lg"') + '<b>まだ何も記録していません</b><span>最初の一件は、たとえば「夕食 2000円」。</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:calc(14px*var(--ts));padding:8px 14px">まとめ画像</button></div>' : '';
   const box = done + (ui.canFind && (ui.qOpen || ui.q) ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
   return welcomeCard(t) + stampBar(t) + quickForm() + quickHint(t) + box + swipeHint(t) + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
@@ -1875,7 +1886,7 @@ function recapNudge(t){
 }
 function tabSettle(t){
   const ss = t.settlements || [];
-  if (!t.expenses.length && !ss.length) return noteRow(t) + '<div class="empty"><b>精算はまだありません</b>支出を記録すると、誰が誰にいくら払えばいいかが出ます。</div>';
+  if (!t.expenses.length && !ss.length) return noteRow(t) + '<div class="empty">' + ILL.map.replace('class="ill"', 'class="ill lg"') + '<b>精算するものが、まだありません</b>支出を記録すると、誰が誰にいくら送ればいいかが出ます。</div>';
   const n = ss.length + 1, open = openItems(t), bal = roundBalances(t), pays = settle(bal.net), has = open.expenses.length > 0 || open.adjustments.length > 0;
   const left = pays.filter(p => !t.paid[payKey(n, p)]).length;
   if (t.share && (!ui.reach || ui.reach.id !== t.id || Date.now() - ui.reach.at > 60000)) refreshReach(t);
