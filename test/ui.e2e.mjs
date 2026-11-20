@@ -809,6 +809,8 @@ try {
     assert.strictEqual(await q.locator('.legend2').count(), 0, 'the category split is folded into one line'); assert.ok((await q.textContent('.ufold')).includes('内訳'), 'with a limit but nothing recorded: the fold line'); await q.click('[data-a=usage-toggle]'); await q.waitForSelector('.legend2');
     assert.ok((await q.textContent('.legend2')).includes('食事 0／5,000') && (await q.textContent('.legend2')).includes('お土産 0／3,000'), 'the categories with a limit show even when unused');
     await q.fill('#q-quick', '夕食 4000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 4,000円を記録しました'); assert.ok(!(await q.textContent('.toast, [role=status]').catch(() => '')).includes('超えました'));
+    // a long notice (like the offline one) wraps inside the screen instead of being cut off at both edges
+    await q.evaluate(() => flash('ネットワークにつながりません。接続を確認して、もう一度お試しください。')); await see(q, 'ネットワークにつながりません'); { const r = await q.$eval('.toast', e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: innerWidth, h: b.height }; }); assert.ok(r.l >= 8 && r.r <= r.w - 8, 'the long notice stays inside the screen: ' + JSON.stringify(r)); }
     await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '食事が、上限を 1,000円 超えました。');
     assert.ok((await q.textContent('.legend2 .over')).includes('食事 6,000／5,000（1,000円超え）'), await q.textContent('.legend2')); assert.strictEqual(await q.evaluate(() => getComputedStyle(document.querySelector('.legend2 .over')).color), 'rgb(255, 154, 146)');
     { // tap a category in the card: only its expenses are listed (settled rounds too); the bar still opens the limits; all shown again by the link or the same chip
