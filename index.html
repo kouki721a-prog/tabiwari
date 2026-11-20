@@ -411,7 +411,8 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
-.nb{white-space:nowrap}.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
+.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}
+.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
 .ticket.m.stub:before,.ticket.m.stub:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.ticket.m.stub:before{top:-9px}.ticket.m.stub:after{bottom:-9px}
 /* the home card as a trip ticket (v148): the trip on the left, a perforated stub with the money on the right, a notch at both ends of the perforation */
 .trip-l{flex:1;min-width:0;padding:14px 12px 14px 16px}.trip-s{flex:none;width:var(--stub);border-left:2px dashed var(--dash);padding:14px 12px 14px 14px;display:flex;align-items:center}
@@ -858,6 +859,26 @@ function stampsOf(t){
   r.settle = { on: ss.length > 0, date: ss.length && /^\d{4}-\d\d-\d\d$/.test(ss[0].at || '') ? ss[0].at : null };
   r.paid = { on: ss.length > 0 && ss.every(function(st, i){ return (st.transfers || []).every(function(x){ return paid[payKey(i + 1, x)]; }); }), date: null };
   return STAMPS.map(function(x){ return { id: x[0], k: x[1], name: x[2], on: r[x[0]].on, date: r[x[0]].date }; });
+}
+/* 積立のめやす (v163). What one person should put aside, worked out each time (nothing is saved): from today to departure, once a week on the weekday of
+   departure; further than 12 weeks away, once a month on the day of the month of departure. What is still missing is divided over the dates left, so a skipped
+   date raises the next amount by itself. Returns null when there is nothing to plan (the target is reached, or the trip has begun). */
+function savePlanOf(target, have, today, start){
+  var miss = target - have, d = dayDiff(today, start);
+  if (!(miss > 0) || !(d > 0)) return null;
+  var weeks = Math.floor(d / 7), p = start.split('-').map(Number), fmt = function(y, m, dd){ return y + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd; };
+  var round = function(n){ return Math.min(miss, Math.ceil(miss / n / 100) * 100); };
+  if (weeks < 1) return { kind: 'once', miss: miss, days: d };
+  if (weeks <= 12){
+    var nx = new Date(p[0], p[1] - 1, p[2] - 7 * weeks);
+    return { kind: 'weekly', miss: miss, n: weeks, per: round(weeks), wd: new Date(p[0], p[1] - 1, p[2]).getDay(), next: fmt(nx.getFullYear(), nx.getMonth() + 1, nx.getDate()) };
+  }
+  var dates = [];
+  for (var k = 1; k < 120; k++){
+    var first = new Date(p[0], p[1] - 1 - k, 1), last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate(), day = Math.min(p[2], last), ds = fmt(first.getFullYear(), first.getMonth() + 1, day);
+    if (dayDiff(today, ds) < 0) break; dates.push(ds);
+  }
+  return { kind: 'monthly', miss: miss, n: dates.length, per: round(dates.length), dom: p[2], next: dates[dates.length - 1] };
 }
 /* ===== LOGIC_END ===== */
 
@@ -1568,8 +1589,8 @@ function viewTrip(){
   if (ui.tab === 'exp') h += '<i class="sp"></i>' + budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct);   // record tab: the budget in a short card, so the list gets the room
   else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
     const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = Math.min(100, Math.round(ssum / t.budget * 100));
-    const saveMiss = t.budget - savedOf(t), saveInline = st[0] !== '準備中' || saveMiss <= 0 || dayDiff(today, t.start) <= 0;   // one line when there is no daily pace to show
-    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">予算 ' + yen(t.budget) + ' の ' + spct + '%' + (st[0] === '準備中' ? '・出発まで あと' + dayDiff(today, t.start) + '日' : '') + (saveInline ? '・' + (saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)) : '') + '</div>' + (saveInline ? '' : savePace(t, today)) + '</div>';
+    const saveMiss = t.budget - savedOf(t);
+    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">' + ['予算 ' + yen(t.budget) + ' の ' + spct + '%'].concat(st[0] === '準備中' ? ['出発まで あと' + dayDiff(today, t.start) + '日'] : [], [saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)]).map(x => '<span class="nb">' + x + '</span>').join('・') + '</div>' + '</div>';
   } else   // settlement tab: one thin line
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
@@ -1925,15 +1946,17 @@ function tabSettle(t){
   return h;
 }
 
-/* one line under the savings card: what is still missing and, before the trip, what a day of saving would take */
-function savePace(t, today){
-  const miss = t.budget - savedOf(t); if (miss <= 0) return '<div class="t-sub">目標に届きました</div>';
-  const d = dayDiff(today, t.start); if (d <= 0) return '<div class="t-sub">あと ' + yen(miss) + '</div>';
-  return '<div class="t-sub">あと ' + yen(miss) + '・1日 約' + yen(Math.ceil(miss / d)) + ' ずつで届きます</div>';
+/* the plan under the savings card (v163): how much to put aside each time. The numbers come from savePlanOf() (LOGIC block). */
+function savePlanHtml(t, today){
+  const p = savePlanOf(Math.ceil(t.budget / t.members.length), (t.savings && t.savings[meId(t)]) || 0, today, t.start); if (!p) return '';
+  const head = '<div class="plan-h">あなたの積立のめやす</div>';
+  if (p.kind === 'once') return '<div class="plan">' + head + '<div class="plan-b">出発までに、あと <b>' + yen(p.miss) + '</b></div><div class="plan-s">' + (p.days === 1 ? '出発は明日です。' : '出発は ' + p.days + '日後です。') + '</div></div>';
+  const when = p.kind === 'weekly' ? '毎週' + WD[p.wd] + '曜日に、' : '毎月 ' + p.dom + '日に、';
+  return '<div class="plan">' + head + '<div class="plan-b">' + when + '約 <b>' + yen(p.per) + '</b></div><div class="plan-s">次は ' + fmtDay(p.next) + '・あと ' + p.n + '回</div></div>';
 }
 function tabSave(t){
-  const target = Math.ceil(t.budget / t.members.length);
-  let h = '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2><div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。目標は、予算を人数で割った額です。</div><div class="list">';
+  const target = Math.ceil(t.budget / t.members.length), plan = savePlanHtml(t, todayStr());
+  let h = '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。目標は、予算を人数で割った額です。</div>') + '<div class="list">';
   h += t.members.map(m => {
     const v = t.savings[m.id] || 0, p = Math.min(100, Math.round(v / target * 100)), done = v >= target;
     return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +

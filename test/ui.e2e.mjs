@@ -483,7 +483,17 @@ try {
     { const soon = q.locator('.trip', { hasText: '準備中の旅' }); assert.ok((await soon.textContent()).includes('積立（目標 30,000円）') && (await soon.textContent()).includes('10,000円'));
       assert.strictEqual(await soon.locator('.bar>i').evaluate(e => e.style.width), '33%', 'the bar shows the savings'); await soon.click(); await q.waitForSelector('.ticket.m');
       { const tm = await q.innerText('.ticket.m'); assert.ok(tm.includes('積立') && tm.includes('10,000円') && tm.includes('33%') && tm.includes('予算') && tm.includes('30,000円'), 'detail card: ' + tm); } await q.click('[data-a=tab][data-t=save]'); await q.waitForSelector('.ticket.c');
-      const sv = await q.textContent('.ticket.c'); assert.ok(sv.includes('出発まで あと3日') && sv.includes('あと 20,000円・1日 約6,667円 ずつで届きます'), sv); await q.click('[data-a=home]'); }
+      const sv = await q.textContent('.ticket.c'); assert.ok(sv.includes('出発まで あと3日') && sv.includes('あと 20,000円') && !sv.includes('1日 約'), sv);
+      // the plan: under a week it is just what is missing; further away, a weekly amount; a reached target brings the plain explanation back
+      { const planTx = async () => (await q.locator('.plan').count()) ? await q.innerText('.plan') : '';
+        assert.ok((await planTx()).includes('あなたの積立のめやす') && (await planTx()).includes('出発までに、あと'), 'under a week: ' + await planTx()); assert.ok(!(await q.innerText('.sec')).includes('目標は、予算を人数で割った額です'), 'the plan stands in for the explanation');
+        await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.start = addDays(todayStr(), 36); t.end = addDays(t.start, 1); render(); });
+        assert.ok(/毎週.曜日に、約 [\d,]+円/.test(await planTx()) && (await planTx()).includes('次は') && (await planTx()).includes('回'), 'weekly: ' + await planTx());
+        await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.start = addDays(todayStr(), 120); t.end = addDays(t.start, 1); render(); });
+        assert.ok(/毎月 \d+日に、約 [\d,]+円/.test(await planTx()), 'monthly: ' + await planTx());
+        await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.savings[meId(t)] = Math.ceil(t.budget / t.members.length); render(); });
+        assert.strictEqual(await q.locator('.plan').count(), 0, 'target reached: no plan'); assert.ok((await q.innerText('.sec')).includes('目標は、予算を人数で割った額です'), 'the explanation is back'); }
+      await q.click('[data-a=home]'); }
     // trip recap image: offered on a finished trip with expenses (and in the trip settings), made on the device as a 1080x1350 PNG
     await q.locator('.trip', { hasText: '旅行中の旅' }).click(); await q.waitForSelector('[data-a=add-exp]'); assert.strictEqual(await q.locator('[data-a=recap]').count(), 0, 'nothing recorded: no recap'); await q.click('[data-a=home]');
     await q.locator('.trip', { hasText: '精算前の旅' }).click(); await q.waitForSelector('[data-a=recap]'); await q.click('.install [data-a=recap]'); await q.waitForSelector('.recap-img');
