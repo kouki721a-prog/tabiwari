@@ -12,7 +12,7 @@
    - 規約に同意して、作成。
 4. 作成したチャネルの **「LINEログイン」タブ → コールバックURL** に、次をそのまま登録します（1文字でも違うとエラーになります）。
    ```
-   https://tabiwari.tabiwari-app.workers.dev/api/auth/line/callback
+   https://tabiflow.app/api/auth/line/callback
    ```
    独自ドメインにしたときは、そのドメインで、もう1つ追加します。
 5. **「チャネル基本設定」** にある、**チャネルID** と **チャネルシークレット** を、控えます。
@@ -43,7 +43,7 @@ Cloudflare → Workers & Pages → `tabiwari` → **設定 → 変数とシー�
 いまは、友だち追加・解除が、ログインのときにしか伝わりません。Webhook を設定すると、追加・解除（ブロック）が、すぐ反映されます。設定しなくても、Tabiflowは動きます。
 1. LINE Developers → 公式アカウントの **Messaging API** のチャネル →「チャネル基本設定」の **チャネルシークレット** を控える（LINEログイン用のものとは別）。
 2. Cloudflare → `tabiwari` → 設定 → 変数とシークレット →「シークレット」で、`LINE_OA_CHANNEL_SECRET` を追加して、デプロイ。
-3. LINE Developers → Messaging API 設定 → **Webhook URL** に `https://tabiwari.tabiwari-app.workers.dev/api/line/webhook` を入れて、［Webhookの利用］をオン → ［検証］で「成功」と出れば完了。
+3. LINE Developers → Messaging API 設定 → **Webhook URL** に `https://tabiflow.app/api/line/webhook` を入れて、［Webhookの利用］をオン → ［検証］で「成功」と出れば完了。
 4. 確かめる: 別のLINEアカウントで、Tabiflowにログインしてから、公式アカウントを友だち追加（またはブロック）して、精算の確定の通知が、LINEに届く（届かなくなる）ことを見る。
 
 ## つまずいたとき

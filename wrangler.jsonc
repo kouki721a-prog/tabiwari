@@ -4,6 +4,8 @@
   "name": "tabiwari",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-01",
+  // The old *.workers.dev address is off (the app lives at https://tabiflow.app). Without this line, every deploy turns it back on.
+  "workers_dev": false,
   "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
   // No database_id on purpose: Wrangler creates the database on first deploy (see docs/SHARING.md if it asks for an id).
   "d1_databases": [{ "binding": "DB", "database_name": "tabiwari" }],
