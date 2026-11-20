@@ -413,6 +413,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
 .nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}
 .fly{position:fixed;z-index:56;pointer-events:none;white-space:nowrap;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:6px;padding:8px 16px;font-family:var(--mono);font-weight:600;font-size:calc(15px*var(--ts));font-variant-numeric:tabular-nums;box-shadow:0 6px 16px rgba(15,39,66,.22)}
+.stn{position:relative;height:12px;margin:3px 0 1px}.stn:before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1.5px dashed rgba(255,255,255,.22)}.stn i{position:absolute;top:1px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);background:var(--navy);box-sizing:border-box}.stn i:last-child{margin-left:-9px}.stn i.on{background:var(--sun);border-color:var(--sun)}
 .tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
 .ticket.m.stub:before,.ticket.m.stub:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.ticket.m.stub:before{top:-9px}.ticket.m.stub:after{bottom:-9px}
 /* the home card as a trip ticket (v148): the trip on the left, a perforated stub with the money on the right, a notch at both ends of the perforation */
@@ -1380,7 +1381,7 @@ function ghost(node, kind){   // a still copy of what has just gone, animated ou
   const sh = g.querySelector('.sheet'); if (sh && sh.style.transform) g.classList.add('dragged');   // dragged away by hand: it is already gone
   g.dataset.t = Date.now(); document.body.appendChild(g); setTimeout(() => g.remove(), 320);
 }
-function flash(msg, undo){ const n = ++toastN; ui.toast = msg; ui.undo = undo || null; ui.toastNew = true; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; render(); } }, undo ? 7000 : 1700); }
+function flash(msg, undo){ readSheet(); const n = ++toastN; ui.toast = msg; ui.undo = undo || null; ui.toastNew = true; render(); setTimeout(() => { if (n === toastN){ ui.toast = null; ui.undo = null; readSheet(); render(); } }, undo ? 7000 : 1700); }   // readSheet: what is typed in an open sheet must survive the notice going away
 
 /* the first screen (no trips yet): one screen, no scrolling. Order: intro, the main button, join by link, the 3 steps, LINE login (small), legal links at the very bottom */
 const OA_URL = 'https://line.me/R/ti/p/%40896znnha';   // official account 「Tabiflow」 (@896znnha)
@@ -1594,7 +1595,7 @@ function viewTrip(){
   else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
     const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = Math.min(100, Math.round(ssum / t.budget * 100));
     const saveMiss = t.budget - savedOf(t);
-    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div><div class="t-sub">' + ['予算 ' + yen(t.budget) + ' の ' + spct + '%'].concat(st[0] === '準備中' ? ['出発まで あと' + dayDiff(today, t.start) + '日'] : [], [saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)]).map(x => '<span class="nb">' + x + '</span>').join('・') + '</div>' + '</div>';
+    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div>' + stnHtml(spct) + '<div class="t-sub">' + ['予算 ' + yen(t.budget) + ' の ' + spct + '%'].concat(st[0] === '準備中' ? ['出発まで あと' + dayDiff(today, t.start) + '日'] : [], [saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)]).map(x => '<span class="nb">' + x + '</span>').join('・') + '</div>' + '</div>';
   } else   // settlement tab: one thin line
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
@@ -1614,6 +1615,23 @@ function memRow(t){   // the members and the invite button (on the record tab th
     '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
 }
 /* the record tab's card: ONE thing in big letters (today's guide while travelling / what was saved before / what was spent after), one bar, one line for the rest; the category split is folded into one line (a tap opens the bar and the chips) */
+/* stations on the savings bar (v167): 25 / 50 / 75 / 100 %. A station lights up (with a small pop) when a deposit takes the total past it. */
+const STN = [25, 50, 75, 100], STN_MS = 620;
+const stnHtml = pct => '<div class="stn" aria-hidden="true">' + STN.map(m => '<i data-m="' + m + '" class="' + (pct >= m ? 'on' : '') + '" style="left:' + m + '%"></i>').join('') + '</div>';
+const STN_KF = [{ backgroundColor: 'rgba(255,200,61,0)', borderColor: 'rgba(255,255,255,.4)', transform: 'scale(.9)' }, { backgroundColor: '#ffc83d', borderColor: '#ffc83d', transform: 'scale(1.8)', offset: .45 }, { backgroundColor: '#ffc83d', borderColor: '#ffc83d', transform: 'scale(1)' }];
+function motionStations(now){
+  const t = trip(), dots = [...document.querySelectorAll('.stn i')];
+  if (t && dots.length){   // the stations already lit, remembered per trip: a higher count than last time means a deposit just passed one
+    const lit = dots.filter(d => d.classList.contains('on')).map(d => +d.dataset.m), L = ui.stnLvl || (ui.stnLvl = {}), prev = L[t.id]; L[t.id] = lit.length;
+    if (prev != null && lit.length > prev && calm()) ui.stnAnim = { id: t.id, marks: lit.slice(prev), t0: now + (ui.stnWait || 0) };
+  }
+  ui.stnWait = 0;
+  const sa = ui.stnAnim; if (!sa) return;
+  if (!calm() || !t || now - sa.t0 > STN_MS + sa.marks.length * 170 + 100){ ui.stnAnim = null; return; }
+  if (sa.id !== t.id) return;
+  sa.marks.forEach((m, i) => { const e = now - (sa.t0 + i * 170), dot = document.querySelector('.stn i[data-m="' + m + '"]'); if (!dot || e >= STN_MS) return;   // drawn again in the middle of it: carry on from where it was
+    const a = dot.animate(STN_KF, { duration: STN_MS, delay: e < 0 ? -e : 0, fill: 'backwards', easing: 'cubic-bezier(.3,1.3,.5,1)' }); if (e > 0) a.currentTime = e; });
+}
 function budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct){
   const money = n => yen(n);
   let hl, hv, hn = false, rl, rv, rw = false, fl, fr, barPct = pct, barOver = over;
@@ -1806,7 +1824,7 @@ function tearOff(ticket){
 /* a recorded expense (v162): a small receipt flies from where it was typed into the budget ticket. One overlay on <body> (like tearOff), so a redraw cannot cut it.
    flyFrom() is read BEFORE the redraw (the place it starts); recFly() runs after it (the ticket is drawn again by then). */
 const FLY_MS = 860;
-const flyFrom = id => { const e = (id && document.getElementById(id)) || document.querySelector('.sheet [data-a=save-exp]') || document.querySelector('.fab'); return e ? e.getBoundingClientRect() : null; };
+const flyFrom = id => { const e = (id && document.getElementById(id)) || document.querySelector('.sheet [data-a=save-exp], .sheet [data-a=save-saving]') || document.querySelector('.fab'); return e ? e.getBoundingClientRect() : null; };
 function recFly(label, from){
   if (!calm() || !from || document.querySelector('.stpop')) return;   // a stamp is being pressed: one reward at a time
   const tk = document.querySelector('.ticket'); if (!tk) return;
@@ -1831,6 +1849,7 @@ function motionMoney(){
     const el0 = now - an.t0; if (an.to !== to || el0 >= BAR_MS) return;
     const cur = an.from + (an.to - an.from) * easeOut(el0 / BAR_MS);
     el.style.transition = 'none'; el.style.width = cur + '%'; void el.offsetWidth; el.style.transition = 'width ' + (BAR_MS - el0) + 'ms var(--ease)'; el.style.width = to + '%'; });
+  motionStations(now);
   if (ui.tear){ ui.tear = false; const tk = document.querySelector('.ticket.m.stub, .ticket.c'); if (tk) tearOff(tk); }
   const ts = ui.tearSt; if (ts){   // the ticket drawn again while the stub is still flying: keep the stub off it until it has gone
     const tk = document.querySelector('.ticket.m.stub, .ticket.c'), e = now - ts.t0;
@@ -2034,7 +2053,7 @@ function viewSheet(){
   } else if (s.type === 'note'){
     const mine = t.members.find(m => m.id === meId(t));
     ttl = '自分の受け取り方';
-    body = '<label class="lab" for="f-note">払う人に見えるメモ（60字まで）</label><input class="field" id="f-note" type="text" maxlength="60" value="' + esc(mine && mine.note || '') + '" placeholder="例：PayPay：aoi／現金でOK">' +
+    body = '<label class="lab" for="f-note">払う人に見えるメモ（60字まで）</label><input class="field" id="f-note" type="text" maxlength="60" value="' + esc(s.val != null ? s.val : (mine && mine.note || '')) + '" placeholder="例：PayPay：aoi／現金でOK">' +
       '<div class="chips" style="margin-top:10px">' + [['PayPay', 'PayPay：'], ['現金', '現金でOK'], ['銀行振込', '銀行振込：']].map(c => '<button class="chip plain" data-a="note-chip" data-v="' + esc(c[1]) + '">' + c[0] + '</button>').join('') + '</div>' +
       '<div class="sub" style="margin-top:10px">この旅行のメンバーに見えます。口座番号など、大事な情報は、書かないでください。</div>';
     foot = err + '<button class="btn" data-a="note-save">保存する</button>' + (mine && mine.note ? '<button class="link" data-a="note-clear">メモを消す</button>' : '');
@@ -2059,7 +2078,7 @@ function viewSheet(){
     foot = err + '<button class="btn" data-a="caps-save">保存する</button>';
   } else if (s.type === 'save'){
     ttl = esc(nameOf(t, s.id)) + ' の積立';
-    body = '<label class="lab" for="f-save">今回の積立額（円）</label><input class="field" id="f-save" type="text" inputmode="numeric" placeholder="例：5000">' +
+    body = '<label class="lab" for="f-save">今回の積立額（円）</label><input class="field" id="f-save" type="text" inputmode="numeric" placeholder="例：5000" value="' + esc(s.val || '') + '">' +
       '<div class="chips" style="margin-top:10px">' + [1000, 3000, 5000, 10000].map(n => '<button class="chip plain" data-a="quick-save" data-v="' + n + '">+' + n.toLocaleString('ja-JP') + '</button>').join('') + '</div>' +
       '<div class="sub" style="margin-top:10px">間違えたときは、マイナスの金額（例：-1000）で修正できます。</div>';
     foot = err + '<button class="btn" data-a="save-saving">記録する</button>';
@@ -2280,6 +2299,10 @@ function readSheet(){
     if (g('f-title')) s.data.title = g('f-title').value;
     if (g('f-date')) s.data.date = g('f-date').value;
     document.querySelectorAll('[data-fx]').forEach(el => { s.data.fixed = Object.assign({}, s.data.fixed, { [el.getAttribute('data-fx')]: el.value }); });
+  } else if (s.type === 'save'){
+    if (g('f-save')) s.val = g('f-save').value;
+  } else if (s.type === 'note'){
+    if (g('f-note')) s.val = g('f-note').value;
   } else if (s.type === 'join-share'){
     if (g('j-name')) s.name = g('j-name').value;
   } else if (s.type === 'settings'){
@@ -2934,7 +2957,7 @@ document.addEventListener('click', e => {
   else if (a === 'save-saving'){
     const n = parseYen(document.getElementById('f-save').value);
     if (!(n !== 0 && !isNaN(n))) s.err = '金額を数字で入力してください（例：5000）。';
-    else { t.savings[s.id] = Math.max(0, (t.savings[s.id] || 0) + n); save(); ui.sheet = null; render(); flash('記録しました'); return; }
+    else { const fl0 = n > 0 ? flyFrom() : null; t.savings[s.id] = Math.max(0, (t.savings[s.id] || 0) + n); save(); ui.sheet = null; ui.stnWait = Math.round(FLY_MS * .75); render(); if (fl0) recFly('+' + yen(n), fl0); flash('記録しました'); return; }
   }
 
   else if (a === 'settings'){ ui.sheet = { type: 'settings', err: '', confirmDel: false, data: { name: t.name, start: t.start, end: t.end, budget: String(t.budget) } }; }

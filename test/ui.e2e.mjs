@@ -950,6 +950,26 @@ try {
     await drag(120, 330); assert.strictEqual(await where(), 'home:save', 'right on the first tab (積立): back to the home screen');
     await cf.close(); }
 
+  // saving: four stations on the bar (25/50/75/100 %), lit as the total passes them; a deposit sends a small "+5,000円" note into the ticket and lights the station with a pop. "Reduce motion": no note, no pop (the station is simply lit)
+  for (const [motion, moves] of [['no-preference', true], ['reduce', false]]) {
+    const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion, viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい');
+    await f.evaluate(() => { const s = addDays(todayStr(), 40); ui.draft.start = s; ui.draft.end = addDays(s, 3); render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('.stn');
+    assert.strictEqual(await f.locator('.stn i').count(), 4); assert.strictEqual(await f.locator('.stn i.on').count(), 0, 'nothing saved: no station is lit');
+    { const xs = await f.$$eval('.stn i', es => es.map(e => Math.round(e.getBoundingClientRect().left))), bar = await f.$eval('.stn', e => e.getBoundingClientRect()); assert.ok(xs.every((x, i) => i === 0 || x > xs[i - 1] + 20) && xs[0] > bar.left + 10 && xs[3] > bar.left + bar.width - 20, 'the four stations are spread along the bar: ' + xs); }
+    await f.evaluate(() => { window.__fly = 0; new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList && n.classList.contains('fly')) window.__fly++; }))).observe(document.body, { childList: true }); });
+    await f.click('[data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '30000'); await f.click('[data-a=save-saving]'); await f.waitForTimeout(100); const gone = () => f.waitForFunction(() => !document.querySelector('.sheet-bg')); await gone();
+    assert.strictEqual(await f.locator('.stn i.on').count(), 1, '30% passes the 25% station'); assert.strictEqual(await f.evaluate(() => window.__fly > 0), moves, motion + ': the note ' + (moves ? 'flies' : 'does not fly'));
+    assert.strictEqual(await f.evaluate(() => document.querySelector('.stn i[data-m="25"]').getAnimations().length > 0), moves, motion + ': the station pops (or not)');
+    if (moves) { assert.strictEqual(await f.evaluate(() => document.querySelector('.stn i[data-m="50"]').getAnimations().length), 0, 'only the station that was passed'); await f.waitForFunction(() => !document.querySelector('.fly') && !document.querySelector('.stn i[data-m="25"]').getAnimations().length, null, { timeout: 4000 }); }
+    await f.click('[data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '777'); await f.evaluate(() => flash('通知'));  await f.waitForTimeout(2300);   // the notice goes away by itself (1.7 s): that redraws, and what is typed must stay
+    assert.strictEqual(await f.inputValue('#f-save'), '777', 'a redraw does not wipe the amount typed in the saving sheet'); await f.fill('#f-save', ''); await f.click('[data-a=close-sheet]'); await gone();
+    await f.click('[data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '-5000'); await f.click('[data-a=save-saving]'); await f.waitForTimeout(100); await gone();
+    assert.strictEqual(await f.evaluate(() => window.__fly), moves ? 1 : 0, 'a correction (minus) sends no note'); assert.strictEqual(await f.locator('.stn i.on').count(), 1, '25% is still reached (25,000)');
+    await f.click('[data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '60000'); await f.click('[data-a=save-saving]'); await f.waitForTimeout(100); await gone();
+    assert.strictEqual(await f.locator('.stn i.on').count(), 3, '85,000: 25, 50 and 75 are lit'); if (moves) assert.strictEqual(await f.evaluate(() => ['50', '75'].every(m => document.querySelector('.stn i[data-m="' + m + '"]').getAnimations().length > 0)), true, 'two stations passed at once: both pop');
+    await cf.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
