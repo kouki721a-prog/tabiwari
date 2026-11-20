@@ -1064,6 +1064,7 @@ async function startShare(t){
   let ok = false, why = null;
   try { const rows = Sync.flatten([t]), r = await Share.ops(token, Sync.diff(t.share.snap, rows)); t.share.snap = rows; t.share.rev = r.rev; ok = true; } catch(e){ why = e; }
   if (!ok){ t.id = oldId; ui.tripId = oldId; delete t.share; persist(); render(); flash(Share.errText(why)); return; }
+  lsSet(GONE_KEY, JSON.stringify(readGone().concat(oldId)));   // the trip has a new id now: tell the backup to drop the copy it holds under the old one (it used to stay, as a duplicate)
   persist(); if (lineAcct.user) bkSoon(); linkMe(t); render(); flash('共有を始めました');
 }
 async function beginJoin(token){
@@ -1214,7 +1215,9 @@ async function ntfRefreshSheet(){ const v = await ntfState(); if (ui.sheet && ui
 /* Other devices' trips: on open, on coming back to the app and when the network returns, push local changes first, then look at the backup. Trips this device does not have (and did not already decline) are offered in a card on the home screen. */
 const SEEN_KEY = 'tabiwari.remoteseen';
 const readSeen = () => { try { const a = JSON.parse(lsGet(SEEN_KEY)); return Array.isArray(a) ? a : []; } catch(e){ return []; } };
-const remoteCands = () => lineAcct.remoteItems.filter(x => !x.item.deleted && !state.trips.some(t => t.id === x.id) && !sameLocal(x) && readSeen().indexOf(x.id) < 0);
+/* an old backup copy of a trip that was shared later: the same name and dates are also in the backup as a shared trip (the local copy is a leftover) */
+const twinOf = (x, items) => { if (x.item.deleted || x.item.kind !== 'local') return false; const l = bkLabel(x); return items.some(y => y.id !== x.id && !y.item.deleted && y.item.kind === 'shared' && y.item.name === l.name && y.item.start === l.start && y.item.end === l.end); };
+const remoteCands = () => lineAcct.remoteItems.filter(x => !x.item.deleted && !state.trips.some(t => t.id === x.id) && !sameLocal(x) && !twinOf(x, lineAcct.remoteItems) && readSeen().indexOf(x.id) < 0);
 async function checkRemote(force){
   if (!lineAcct.user || checkRemote.busy) return;
   if (!force && Date.now() - (checkRemote.t || 0) < 15000) return;
@@ -1236,8 +1239,8 @@ async function lineOfferRestore(){
 }
 function openRestore(items){
   const missing = items.filter(x => !state.trips.some(t => t.id === x.id));
-  missing.forEach(x => { x.dup = sameLocal(x); });
-  ui.sheet = { type: 'line-restore', items: missing, pick: missing.filter(x => !x.item.deleted && !x.dup).map(x => x.id), err: '', busy: false }; render();
+  missing.forEach(x => { x.dup = sameLocal(x); x.twin = twinOf(x, items); });
+  ui.sheet = { type: 'line-restore', items: missing, pick: missing.filter(x => !x.item.deleted && !x.dup && !x.twin).map(x => x.id), err: '', busy: false }; render();
 }
 const GONE_KEY = 'tabiwari.gone';   // trips deleted on this device that the backup has not been told about yet
 const readGone = () => { try { const a = JSON.parse(lsGet(GONE_KEY)); return Array.isArray(a) ? a : []; } catch(e){ return []; } };
@@ -2078,7 +2081,7 @@ function viewSheet(){
     ttl = 'バックアップから戻す';
     body = s.loading ? '<div class="sub" style="margin-top:14px">読み込んでいます…</div>' : !s.items.length ? '<div class="empty" style="padding:24px 8px"><b>戻すものはありません</b>この端末にない旅行は、バックアップに入っていません。</div>' :
       '<div class="sub" style="margin-top:12px">この端末にない旅行です。戻したいものを選んでください。</div><div class="list" style="margin-top:8px">' + s.items.map(x => { const l = bkLabel(x), on = s.pick.indexOf(x.id) >= 0;
-        return '<button class="item" data-a="bk-pick" data-id="' + esc(x.id) + '" aria-pressed="' + on + '"><span class="chk ' + (on ? 'on' : '') + '">' + icon('check', 18) + '</span><div class="grow"><div class="t">' + esc(l.name) + '</div><div class="sub">' + fmtDate(l.start) + ' - ' + fmtDate(l.end) + (l.shared ? '・共有中' : '') + (x.item.deleted ? '・削除した旅行' : '') + (x.dup ? '・同じ旅行が、この端末にあります' : '') + '</div></div></button>'; }).join('') + '</div>';
+        return '<button class="item" data-a="bk-pick" data-id="' + esc(x.id) + '" aria-pressed="' + on + '"><span class="chk ' + (on ? 'on' : '') + '">' + icon('check', 18) + '</span><div class="grow"><div class="t">' + esc(l.name) + '</div><div class="sub">' + fmtDate(l.start) + ' - ' + fmtDate(l.end) + (l.shared ? '・共有中' : '') + (x.item.deleted ? '・削除した旅行' : '') + (x.dup ? '・同じ旅行が、この端末にあります' : '') + (x.twin ? '・共有中の同じ旅行が、あります（古い控え）' : '') + '</div></div></button>'; }).join('') + '</div>';
     foot = err + (s.items && s.items.length ? '<button class="btn" data-a="bk-restore-go"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '戻しています…' : '選んだ旅行を戻す') + '</button>' + (s.delAsk ? '<div class="sub" style="margin:8px 0">選んだ ' + s.pick.length + '件を、バックアップから削除します（この端末や、共有している旅行には、影響しません）。元に戻せません。</div><button class="btn bad" data-a="bk-del-yes">本当に削除する</button><button class="link" data-a="bk-del-no">やめる</button>' : '<button class="link bad" data-a="bk-del-go">選んだものを、バックアップから削除</button>') : '<button class="link" data-a="close-sheet">閉じる</button>');
   }
   if (s.type === 'join-share'){
