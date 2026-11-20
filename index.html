@@ -1212,7 +1212,7 @@ async function ntfOff(){
   if (sub){ try { await Line.pushUnsubscribe(sub.endpoint); } catch(e){} await sub.unsubscribe(); }
   return 'off';
 }
-const KIND_JA = { eve: '前日の通知', daily: '記録のし忘れ', settle: '精算', over: '今日の使いすぎ', sv7: '積立（1週間前）', sv1: '積立（前日）' };
+const KIND_JA = { eve: '前日の通知', daily: '記録のし忘れ', settle: '精算', over: '今日の使いすぎ', sv7: '積立（1週間前）', sv1: '積立（前日）', svw: '積立の日' };
 const jstText = ms => new Date(ms + 9 * 3600 * 1000).toISOString().slice(5, 16).replace('-', '/').replace('T', ' ');
 /* The person's own side of the settlement notices: is the official account a friend, is the switch on, which member of which shared trip they are. */
 function reachLines(r){

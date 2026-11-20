@@ -87,6 +87,12 @@ try {
   const msg = decrypt(jwk, auth, inbox.splice(0)[0].body);
   assert.deepStrictEqual([msg.title, msg.url], ['明日から 「通知テスト旅行」', './']);
 
+  // ---- a day of the savings plan: the trip starts on Monday Jan 11, so Monday Dec 28 (14 days before) is a plan day; 10:00 in Japan; once only. The person's own saving is short (nothing saved yet)
+  assert.strictEqual((await run('2026-12-28T00:59:00Z')).sent, 0, '09:59 in Japan: too early'); assert.strictEqual((await run('2026-12-29T01:00:00Z')).sent, 0, 'Tuesday: not a plan day');
+  const rw = await run('2026-12-28T01:00:00Z'); assert.deepStrictEqual([rw.claimed, rw.sent], [1, 1], 'plan day: ' + JSON.stringify(rw)); assert.strictEqual(inbox.length, 1);
+  { const m2 = decrypt(jwk, auth, inbox.splice(0)[0].body); assert.strictEqual(m2.title, '積立のお知らせ'); assert.ok(m2.body.startsWith('通知テスト旅行は、あと14日です。今日は積立の日です。あなたの積立は、あと '), m2.body); }
+  assert.strictEqual((await run('2026-12-28T02:00:00Z')).sent, 0, 'the same day: once only');
+
   // ---- turning it off: nothing more is sent
   await d.p.click('[data-a=app-settings]'); await d.p.click('[data-a=line-account]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=true]'); await d.p.click('[data-a=ntf-toggle]'); await d.p.waitForSelector('[data-a=ntf-toggle][aria-checked=false]');
   assert.strictEqual(await d.p.evaluate(() => window.__sub), null, 'the browser subscription is removed too'); await d.p.click('[data-a=close-sheet]');
@@ -101,6 +107,9 @@ try {
     const api = (m, path, body) => fetch(base + path, { method: m, headers: { Authorization: 'Bearer ' + info.token, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }).then(r => r.json());
     let rc = []; for (let i = 0; i < 40 && !rc.includes(info.me); i++) { await d.p.waitForTimeout(250); rc = (await api('GET', '/api/reach')).reachable; }
     assert.deepStrictEqual(rc, [info.me], 'sharing linked this LINE account to its member');
+    // the plan day for a SHARED trip: the saving comes from the server's tables (2 members now), not from the backup; 21 days before the Monday start is also a Monday
+    { inbox.splice(0); const rs = await run('2026-12-21T01:00:00Z'); assert.ok(rs.sent >= 1, 'shared trip, plan day: ' + JSON.stringify(rs));
+      const jwk2 = await d.p.evaluate(() => window.__jwk), auth2 = await d.p.evaluate(() => window.__auth), bodies = inbox.splice(0).map(x => decrypt(jwk2, auth2, x.body)).filter(m => m.title === '積立のお知らせ').map(m => m.body); assert.ok(bodies.some(b => b.startsWith('通知テスト旅行は、あと21日です。今日は積立の日です。')), JSON.stringify(bodies)); }
     await api('POST', '/api/ops', { ops: [{ kind: 'insert', table: 'members', rows: [{ id: 'm-miku', name: 'みく', position: 1 }] }, { kind: 'insert', table: 'expenses', rows: [{ id: 'ex1', title: '昼食', amount: 2000, payer: info.me, cat: 'food', spent_on: '2027-01-11', split: [info.me, 'm-miku'] }] }] });
     await d.p.evaluate(id => { ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'settle'; render(); }, info.id);   // a remote change is not applied under an open sheet
     await see(d.p, 'まだみくさんが、お知らせを受け取れません。', 20000); await see(d.p, 'LINEにログインして、通知をオンにすると');
