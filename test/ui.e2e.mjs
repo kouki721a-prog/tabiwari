@@ -30,7 +30,13 @@ try {
     for (const n of ['save', 'exp', 'settle']) assert.ok(await p.$eval('.lp-stage img[src$="/' + n + '.png"]', i => { i.loading = 'eager'; return i.complete || new Promise(r => { i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false); }); }), 'the picture ' + n + ' loads');
     assert.strictEqual(await p.locator('.fab').count(), 0, 'no floating button on the first page');
     assert.ok(await p.$eval('.home0-line', () => false).catch(() => true), 'no LINE login row without the server'); }
-  await p.click('[data-a=new]'); await p.fill('#d-name', '箱根'); await p.fill('#d-budget', '100000');
+  // an empty form: every missing field shows its own frame and line at once (not one at a time), and the keyboard does not open by itself
+  await p.click('[data-a=new]'); await p.click('[data-a=save-trip]'); await see(p, '旅行の名前を入力してください');
+  assert.strictEqual(await p.locator('.ferr').count(), 3, 'name, budget and your name are all named at once'); assert.strictEqual(await p.locator('.field.bad').count(), 3);
+  assert.ok(!(await p.evaluate(() => /INPUT|TEXTAREA/.test(document.activeElement.tagName))), 'no field takes focus by itself (the keyboard stays closed)');
+  await p.fill('#d-name', '箱'); assert.strictEqual(await p.locator('.ferr').count(), 2, 'typing in a field clears only its own message'); assert.strictEqual(await p.locator('#d-name.bad').count(), 0);
+  await p.fill('#d-name', '');
+  await p.fill('#d-name', '箱根'); await p.fill('#d-budget', '100000');
   assert.strictEqual(await p.inputValue('#d-me'), '', 'your name starts empty');
   await p.click('[data-a=save-trip]'); await see(p, 'あなたの名前を入力してください'); assert.strictEqual(await p.locator('text=旅行をつくる').count() > 0, true, 'still on the create screen');
   await p.fill('#d-me', '   '); await p.click('[data-a=save-trip]'); await see(p, 'あなたの名前を入力してください');
@@ -809,6 +815,7 @@ try {
     assert.strictEqual(await q.locator('.legend2').count(), 0, 'the category split is folded into one line'); assert.ok((await q.textContent('.ufold')).includes('内訳'), 'with a limit but nothing recorded: the fold line'); await q.click('[data-a=usage-toggle]'); await q.waitForSelector('.legend2');
     assert.ok((await q.textContent('.legend2')).includes('食事 0／5,000') && (await q.textContent('.legend2')).includes('お土産 0／3,000'), 'the categories with a limit show even when unused');
     await q.fill('#q-quick', '夕食 4000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 4,000円を記録しました'); assert.ok(!(await q.textContent('.toast, [role=status]').catch(() => '')).includes('超えました'));
+    await q.click('[data-a=tab][data-t=save]'); await see(q, 'ひとりずつの積立'); { assert.ok((await q.innerText('body')).includes('目標は、予算を人数で割った額です'), 'the savings tab says what it is'); await q.click('[data-a=tab][data-t=exp]').catch(() => {}); }
     // a long notice (like the offline one) wraps inside the screen instead of being cut off at both edges
     await q.evaluate(() => flash('ネットワークにつながりません。接続を確認して、もう一度お試しください。')); await see(q, 'ネットワークにつながりません'); { const r = await q.$eval('.toast', e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: innerWidth, h: b.height }; }); assert.ok(r.l >= 8 && r.r <= r.w - 8, 'the long notice stays inside the screen: ' + JSON.stringify(r)); }
     await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '食事が、上限を 1,000円 超えました。');
