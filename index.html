@@ -291,7 +291,7 @@ html,body{overscroll-behavior-x:none}
 .fline{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 2px 0;font-size:calc(13px*var(--ts));color:var(--sub)}.fline .link{color:var(--ink);font-weight:600}
 .usage{display:block;width:100%;text-align:left;font:inherit;color:inherit}.usage.thin{padding:8px 14px;font-size:calc(13px*var(--ts));color:var(--sub);text-align:center}.legend2 .over{color:var(--bad);font-weight:700}
 .subrow{display:flex;align-items:center;justify-content:space-between;gap:8px}.subrow .mem-row{margin:0;flex:none}.subrow .mem-row .btn.sm{padding:5px 12px;font-size:calc(13px*var(--ts))}
-.usage.in{background:none;border:0;border-radius:0;padding:0 18px 12px;color:#fff}.usage.in .seg{background:rgba(255,255,255,.18);height:8px;margin:0 0 7px}.usage.in .legend2{color:rgba(255,255,255,.78)}.usage.in .legend2 .over{color:#ff9a92}.usage.in.thin{padding:8px 18px 12px;color:rgba(255,255,255,.7);text-align:left;border-top:2px dashed rgba(255,255,255,.28);margin:0 18px;width:auto}
+.usage.in{background:none;border:0;border-radius:0;padding:0 18px 12px;color:#fff}.usage.in .seg{background:rgba(255,255,255,.18);height:8px;margin:0 0 7px}.usage.in .legend2{color:rgba(255,255,255,.78)}.usage.in .legend2 .over{color:#ff9a92}.usage.in.thin{padding:8px 0 12px;color:rgba(255,255,255,.7);text-align:left;border-top:2px dashed rgba(255,255,255,.28);margin:0 18px;width:auto}
 .legend2 .dot{width:8px;height:8px;border-radius:50%;background:hsl(var(--h) 70% 55%)}
 .legend2 b{color:var(--ink)}
 .panel{background:var(--cream);border:1.5px dashed var(--dash);border-radius:20px;padding:16px}
@@ -346,6 +346,7 @@ html,body{overscroll-behavior-x:none}
 .field.bad{border-color:var(--bad)}.ferr{color:var(--bad);font-size:calc(13px*var(--ts));margin:6px 2px 0}.err{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);padding:10px 12px;border-radius:12px;font-size:calc(14px*var(--ts));font-weight:500;margin-top:14px}
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 .two>*{min-width:0}
+@media(max-width:350px){.two input[type=date].field{font-size:calc(14px*var(--ts));padding-left:10px;padding-right:8px}}
 input[type=date].field{min-width:0;max-width:100%;min-height:50px;-webkit-appearance:none;appearance:none;text-align:left;display:block}
 input[type=date].field::-webkit-date-and-time-value{text-align:left}
 
@@ -410,7 +411,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
-.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
+.nb{white-space:nowrap}.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
 .ticket.m.stub:before,.ticket.m.stub:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.ticket.m.stub:before{top:-9px}.ticket.m.stub:after{bottom:-9px}
 /* the home card as a trip ticket (v148): the trip on the left, a perforated stub with the money on the right, a notch at both ends of the perforation */
 .trip-l{flex:1;min-width:0;padding:14px 12px 14px 16px}.trip-s{flex:none;width:var(--stub);border-left:2px dashed var(--dash);padding:14px 12px 14px 14px;display:flex;align-items:center}
@@ -1594,11 +1595,11 @@ function budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct){
   if (st[0] === '旅行中'){
     if (over){ hl = '予算オーバー'; hv = money(-left); hn = true; fl = a[0].replace('1日あたりの目安', '今日の目安') + ' <b>' + money(a[1]) + '</b>'; }
     else { hl = a[0].replace('1日あたりの目安', '今日の目安'); hv = money(a[1]); fl = '予算の残り <b>' + money(left) + '</b>'; }
-    rl = b[0]; rv = money(b[1]); rw = bWarn; fr = '予算 ' + money(t.budget);
+    rl = b[0]; rv = money(b[1]); rw = bWarn; fr = '予算 <span class="nb">' + money(t.budget) + '</span>';
   } else if (st[0] === '準備中'){
-    hl = '積立'; hv = money(savedOf(t)); rl = '目標に対して'; rv = savedPct(t) + '%'; barPct = savedPct(t); barOver = false; fl = '予算 <b>' + money(t.budget) + '</b>'; fr = b[0] + ' ' + money(b[1]);
+    hl = '積立'; hv = money(savedOf(t)); rl = '目標に対して'; rv = savedPct(t) + '%'; barPct = savedPct(t); barOver = false; fl = '予算 <b>' + money(t.budget) + '</b>'; fr = b[0] + ' <span class="nb">' + money(b[1]) + '</span>';
   } else {
-    hl = a[0]; hv = money(a[1]); rl = b[0]; rv = money(b[1]); fl = (over ? '予算オーバー' : '予算の残り') + ' <b>' + money(Math.abs(left)) + '</b>'; fr = '予算 ' + money(t.budget);
+    hl = a[0]; hv = money(a[1]); rl = b[0]; rv = money(b[1]); fl = (over ? '予算オーバー' : '予算の残り') + ' <b>' + money(Math.abs(left)) + '</b>'; fr = '予算 <span class="nb">' + money(t.budget) + '</span>';
   }
   return '<div class="ticket m stub"><div class="tk-l"><div class="t-top"><span class="t-label">' + hl + '</span><div class="t-amount ' + (hn ? 'neg' : '') + '">' + hv + '</div>' +
     '<div class="t-bar ' + (barOver ? 'over' : '') + '" role="img" aria-label="' + (st[0] === '準備中' ? '積立は目標の ' : '予算の ') + barPct + '%"><i style="width:' + barPct + '%"></i></div>' +
