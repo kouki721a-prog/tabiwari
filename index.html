@@ -1799,7 +1799,7 @@ const stampEl = (x, sm, i) => '<span class="stp' + (sm ? ' sm' : '') + (x.on ? '
 function stampBar(t){
   const all = stampsOf(t), on = all.filter(x => x.on), n = on.length, show = on.concat(all.filter(x => !x.on)).slice(0, 6);
   return '<button type="button" class="stbar" data-a="stamps-open" aria-label="旅のスタンプ。' + n + '個押されています。開く"><span class="strow" aria-hidden="true">' + show.map((x, i) => stampEl(x, true, i)).join('') + '</span>' +
-    '<span class="sttxt"><b>スタンプ ' + n + '/' + all.length + '</b><small>' + (n >= all.length ? 'コンプリート ›' : 'あと' + (all.length - n) + 'つ ›') + '</small></span></button>';
+    '<span class="sttxt"><b>スタンプ ' + n + '/' + all.length + '</b><small>' + (n >= all.length ? 'コンプリート ›' : n === 0 ? '記録すると、集まります ›' : 'あと' + (all.length - n) + '個 ›') + '</small></span></button>';
 }
 /* the stamps that deserve more than a tap: everybody paid (済) and the savings reached the goal (積). They come first, the stamp is bigger, a ring spreads from it, and it says what happened. */
 const STAMP_BIG = { paid: 'みんなの精算が済みました', save: '積立が目標に届きました' }, STAMP_ORDER = ['paid', 'save', 'settle'];
