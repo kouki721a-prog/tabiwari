@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -365,3 +365,18 @@ console.log('expense log logic tests passed');
   assert.strictEqual(L.recapData(T({ expenses: [E('1', 'food', '2026-11-18', ['a', 'b'])] })).stamps.length, 2, 'the recap carries the earned stamps');
   console.log('stamp logic tests passed');
 }
+
+// 積立のめやす: worked out each time. Weekly on the weekday of departure up to 12 weeks, monthly beyond; what is missing is divided over the dates left.
+{ const P = L.savePlanOf;
+  assert.deepStrictEqual(P(50000, 12000, '2026-11-20', '2026-12-26'), { kind: 'weekly', miss: 38000, n: 5, per: 7600, wd: 6, next: '2026-11-21' }, '36 days: five Saturdays, 38,000 over 5');
+  assert.deepStrictEqual(P(50000, 30000, '2026-11-20', '2026-11-25'), { kind: 'once', miss: 20000, days: 5 }, 'under a week: just what is missing');
+  assert.strictEqual(P(50000, 50000, '2026-11-20', '2026-12-26'), null, 'the target is reached'); assert.strictEqual(P(50000, 60000, '2026-11-20', '2026-12-26'), null);
+  assert.strictEqual(P(50000, 0, '2026-12-26', '2026-12-26'), null, 'the day of departure'); assert.strictEqual(P(50000, 0, '2026-12-27', '2026-12-26'), null, 'the trip has begun');
+  const w7 = P(50000, 0, '2026-11-20', '2026-11-27'); assert.strictEqual(w7.kind, 'weekly'); assert.strictEqual(w7.n, 1); assert.strictEqual(w7.next, '2026-11-20', 'exactly a week away: today is the date'); assert.strictEqual(w7.per, 50000);
+  const w84 = P(60000, 0, '2026-11-20', '2027-02-12'); assert.strictEqual(w84.kind, 'weekly', '12 weeks (84 days) is still weekly'); assert.strictEqual(w84.n, 12); assert.strictEqual(w84.per, 5000);
+  const m = P(60000, 0, '2026-11-20', '2027-03-01'); assert.strictEqual(m.kind, 'monthly', 'further than 12 weeks: monthly'); assert.strictEqual(m.n, 3); assert.strictEqual(m.next, '2026-12-01'); assert.strictEqual(m.dom, 1); assert.strictEqual(m.per, 20000);
+  const clamp = P(60000, 0, '2026-11-20', '2027-03-31'); assert.strictEqual(clamp.kind, 'monthly'); assert.strictEqual(clamp.dom, 31); assert.strictEqual(clamp.next, '2026-11-30', 'a short month: the 30th'); assert.strictEqual(clamp.n, 4, 'Nov 30, Dec 31, Jan 31, Feb 28');
+  assert.strictEqual(P(50, 0, '2026-11-20', '2026-12-26').per, 50, 'never more than what is missing');
+  // a skipped date raises the next amount by itself (fewer dates left)
+  assert.strictEqual(P(50000, 0, '2026-11-20', '2026-12-26').per, 10000); assert.strictEqual(P(50000, 0, '2026-11-28', '2026-12-26').per, 12500, 'four dates left (weeks: 4): 50,000 / 4'); }
+console.log('save plan tests passed');
