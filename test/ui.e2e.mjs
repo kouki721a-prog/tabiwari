@@ -295,6 +295,23 @@ try {
     await q.click('[data-a=tab][data-t=exp]'); await q.click('[data-a=coach-ok]'); assert.strictEqual(await q.locator('.coach').count(), 0, 'gone for good'); await q.reload(); await q.waitForSelector('.trip'); await q.click('.trip'); await q.waitForSelector('.ticket'); assert.strictEqual(await q.locator('.coach').count(), 0, 'and it stays gone');
     await q.click('[data-a=home]'); await make(q, '京都'); assert.strictEqual(await q.locator('.coach').count(), 1, 'the next new trip gets its own card'); await q.context().close();
   }
+  { // backup duplicates (v157): sharing a trip gives it a new id, so the old backup copy is dropped; a leftover local copy next to its shared twin is neither counted nor pre-selected
+    const tok = 'a'.repeat(43), lab = { name: '箱根', start: '2026-11-18', end: '2026-11-19' };
+    const items = [{ id: 'L1', item: { kind: 'local', trip: { ...lab, id: 'L1', budget: 1000, members: [{ id: 'a', name: 'あおい', pos: 0 }], expenses: [], paid: {}, savings: {} } } },
+      { id: 'S1', item: { kind: 'shared', token: tok, me: 'a', ...lab } },
+      { id: 'L2', item: { kind: 'local', trip: { name: '京都', start: '2026-12-01', end: '2026-12-02', id: 'L2', budget: 1000, members: [{ id: 'a', name: 'あおい', pos: 0 }], expenses: [], paid: {}, savings: {} } } }];
+    const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', viewport: { width: 390, height: 780 } }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
+    await q.route('**/api/me', r => r.fulfill({ json: { login: true, user: { name: 'あおい', admin: false }, push: null } })); await q.route('**/api/backup', r => r.request().method() === 'GET' ? r.fulfill({ json: { items } }) : r.fulfill({ json: { ok: true, count: 3 } }));
+    await q.addInitScript(() => localStorage.setItem('tabiwari.noinstall', '1')); await q.goto('http://localhost:8797/'); await q.waitForFunction(() => lineAcct && lineAcct.user, null, { timeout: 5000 });
+    await q.evaluate(() => { ui.sheet = null; render(); return checkRemote(true); }); await q.waitForTimeout(500);
+    const msg = await q.evaluate(() => remoteCands().map(x => x.id).join(',')); assert.strictEqual(msg, 'S1,L2', 'the leftover copy is not counted: ' + msg);
+    await q.evaluate(() => openRestore(lineAcct.remoteItems)); await q.waitForSelector('[data-a=bk-pick]'); const rows = await q.$$eval('[data-a=bk-pick]', es => es.map(e => [e.getAttribute('data-id'), e.getAttribute('aria-pressed'), e.innerText.includes('古い控え')]));
+    assert.deepStrictEqual(rows, [['L1', 'false', true], ['S1', 'true', false], ['L2', 'true', false]], 'the leftover is marked and not pre-selected: ' + JSON.stringify(rows));
+    // sharing: the id changes, the old one is queued to be dropped from the backup
+    await q.evaluate(() => { ui.sheet = null; state.trips.push({ id: 'old-id-1', name: '共有する旅', start: '2026-12-01', end: '2026-12-02', budget: 1000, members: [{ id: 'm', name: 'あおい', pos: 0 }], expenses: [], paid: {}, savings: {}, settlements: [], adjustments: [], received: {} }); ui.view = 'trip'; ui.tripId = 'old-id-1'; });
+    await q.route('**/api/ops', r => r.fulfill({ json: { ok: true, rev: 1 } })); await q.evaluate(() => startShare(state.trips.find(x => x.id === 'old-id-1'))); await q.waitForTimeout(400);
+    assert.ok(await q.evaluate(() => JSON.parse(localStorage.getItem('tabiwari.gone') || '[]').includes('old-id-1')), 'the old id is queued for the backup to drop'); assert.ok(await q.evaluate(() => !state.trips.some(x => x.id === 'old-id-1')), 'and the trip has its new id'); await c.close();
+  }
   { // stamps (v146): the row on the record tab, the stamp book, the "pressed" moment (once per stamp), reduce motion, the recap
     const ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }];
     const seed = { id: 'st', name: '箱根', start: '2026-11-18', end: '2026-11-19', budget: 80000, members: ms, paid: {}, savings: { a: 26667, b: 26667, c: 26667 }, expenses: [
