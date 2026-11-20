@@ -69,5 +69,15 @@ assert.strictEqual(reminderMessage('nope', 'x'), null); assert.match(reminderMes
   assert.deepStrictEqual(dueKinds(trip('2026-12-01', '2026-12-03'), T('2026-12-04T00:59:00Z'), some), [], 'not before 10:00');
   assert.deepStrictEqual(dueKinds(trip('2026-12-01', '2026-12-03'), T('2026-12-04T01:00:00Z'), none), [], 'no settling when nothing was spent');
   assert.deepStrictEqual(dueKinds(trip('2026-12-01', '2026-12-03'), T('2026-12-05T01:00:00Z'), some), [], 'nothing two days after');
+  // 積立の日 (svw): a day of the plan the app shows (weekly on the weekday of departure), from 10:00, only while the person's own saving is short
+  { const sv = (saved, target = 50000) => ({ total: 0, onToday: 0, svp: { saved, target } }), tr = trip('2026-12-26', '2026-12-27');
+    const k = (iso, ex) => { const e = JSON.parse(JSON.stringify(ex)); return [dueKinds(tr, T(iso), e), e]; };
+    let [kinds, e] = k('2026-11-21T01:00:00Z', sv(12000)); assert.deepStrictEqual(kinds, ['svw'], 'Saturday 10:00: 5 weeks before a Saturday departure'); assert.deepStrictEqual(e.svw, { left: 38000, per: 7600, days: 35 });
+    assert.deepStrictEqual(k('2026-11-21T00:59:00Z', sv(12000))[0], [], 'not before 10:00');
+    assert.deepStrictEqual(k('2026-11-22T01:00:00Z', sv(12000))[0], [], 'not on another weekday');
+    assert.deepStrictEqual(k('2026-11-21T01:00:00Z', sv(50000))[0], [], 'the target is reached'); assert.deepStrictEqual(k('2026-11-21T01:00:00Z', { total: 0, onToday: 0 })[0], [], 'saving unknown: nothing');
+    assert.deepStrictEqual(k('2026-12-19T01:00:00Z', sv(12000))[0], [], 'the 7th day before has its own note (sv7), not a second one'); assert.deepStrictEqual(k('2026-12-25T03:00:00Z', sv(12000))[0], [], 'the day before: no plan day (sv1)');
+    assert.deepStrictEqual(dueKinds(trip('2027-04-01', '2027-04-02'), T('2026-12-01T01:00:00Z'), { total: 0, onToday: 0, svp: { saved: 0, target: 60000 } }), ['svw'], 'monthly: the 1st of each month'); }
+  { const m = reminderMessage('svw', '福岡', { left: 240000, per: 60000, days: 35 }); assert.strictEqual(m.title, '積立のお知らせ'); assert.strictEqual(m.body, '福岡は、あと35日です。今日は積立の日です。あなたの積立は、あと 240,000円。今回は約 60,000円 が目安です。'); assert.strictEqual(reminderMessage('svw', '福岡', { left: 0, per: 0, days: 3 }), null, 'nothing left: no message'); }
 }
 console.log('push tests passed');

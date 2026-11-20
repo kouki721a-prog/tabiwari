@@ -69,6 +69,7 @@ export function reminderMessage(kind, tripName, x) {
   if (kind === 'eve') return { title: '明日から ' + n, body: '予算とメンバーを、もう一度確認しておきましょう。' };
   if (kind === 'daily') return { title: '今日の支出を記録しましょう', body: n + ' — 使った分を、忘れないうちに。' };
   if (kind === 'over' && x) return { title: n + ' 今日の支出', body: '今日は ' + String(x.today).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円 使いました。1日の目安 ' + String(x.per).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円 を超えています。' };
+  if (kind === 'svw' && x && x.left > 0 && x.per > 0) { const yn = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円'; return { title: '積立のお知らせ', body: tripName + 'は、あと' + x.days + '日です。今日は積立の日です。あなたの積立は、あと ' + yn(x.left) + '。今回は約 ' + yn(x.per) + ' が目安です。' }; }
   if ((kind === 'sv7' || kind === 'sv1') && x && x.left > 0) { const y = String(x.left).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円'; return { title: '積立のお知らせ', body: (kind === 'sv7' ? tripName + 'まで、あと7日です。' : '明日から' + n + 'です。') + 'あなたの積立は、あと ' + y + ' で目標です。' }; }
   if (kind === 'settle') return { title: '精算を済ませましょう', body: n + ' の送金は、お済みですか？' };
   return null;
