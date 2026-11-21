@@ -411,7 +411,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
-.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}
+.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.plan-go{width:100%;margin-top:10px;padding:11px 14px}
 .fly{position:fixed;z-index:56;pointer-events:none;white-space:nowrap;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:6px;padding:8px 16px;font-family:var(--mono);font-weight:600;font-size:calc(15px*var(--ts));font-variant-numeric:tabular-nums;box-shadow:0 6px 16px rgba(15,39,66,.22)}
 .stn{position:relative;height:12px;margin:3px 0 1px}.stn:before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1.5px dashed rgba(255,255,255,.22)}.stn i{position:absolute;top:1px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);background:var(--navy);box-sizing:border-box}.stn i:last-child{margin-left:-9px}.stn i.on{background:var(--sun);border-color:var(--sun)}
 .tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
@@ -1601,7 +1601,7 @@ function viewTrip(){
   h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
   return h + '<nav class="nav"><div class="nav-in">' + tb('save', 'coin', '積立') + tb('exp', 'list', '記録') +
-    '<button class="plus" data-a="add-exp" aria-label="支出を追加">' + icon('plus', 28) + '</button>' + tb('settle', 'swap', '精算') +
+    (ui.tab === 'save' ? '<button class="plus" data-a="add-save" data-id="' + esc(meId(t)) + '" aria-label="積み立てる">' + icon('plus', 28) + '</button>' : '<button class="plus" data-a="add-exp" aria-label="支出を追加">' + icon('plus', 28) + '</button>') + tb('settle', 'swap', '精算') +
     '<button class="tab" data-a="settings" aria-label="設定">' + icon('sliders') + '設定</button></div></nav>';
 }
 
@@ -1912,11 +1912,12 @@ const quickHint = t => t.expenses.length < 3 ? '<div class="hint"><span>' + (sta
 const swipeHint = t => !lsGet(HINT_SWIPE) && t.expenses.some(e => !isSettled(t, e)) ? '<div class="hint swiphint"><span>左にスワイプすると、支出を削除できます。</span><button class="link" data-a="hint-swipe-no">わかった</button></div>' : '';
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
-  if (!t.expenses.length && coachCard(t)) return welcomeCard(t) + coachCard(t) + stampBar(t) + quickForm() + quickHint(t);   // the first-steps card says what to do: the empty-state block waits (so the tab still fits on one page)
-  if (!t.expenses.length) return welcomeCard(t) + coachCard(t) + stampBar(t) + quickForm() + quickHint(t) + '<div class="empty exp0">' + ILL.note.replace('class="ill"', 'class="ill lg"') + '<b>まだ何も記録していません</b><span>最初の一件は、たとえば「夕食 2000円」。</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
+  const coach = coachCard(t), help = coach ? '' : quickHint(t) || swipeHint(t);   // ONE helper line at a time: the first-steps card, else the how-to-write line, else the swipe line
+  if (!t.expenses.length && coach) return welcomeCard(t) + coach + quickForm() + stampBar(t);   // the first-steps card says what to do: the empty-state block waits (so the tab still fits on one page)
+  if (!t.expenses.length) return welcomeCard(t) + quickForm() + help + stampBar(t) + '<div class="empty exp0">' + ILL.note.replace('class="ill"', 'class="ill lg"') + '<b>まだ何も記録していません</b><span>最初の一件は、たとえば「夕食 2000円」。</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:calc(14px*var(--ts));padding:8px 14px">まとめ画像</button></div>' : '';
   const box = done + (ui.canFind && (ui.qOpen || ui.q) ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
-  return welcomeCard(t) + coachCard(t) + stampBar(t) + quickForm() + quickHint(t) + box + swipeHint(t) + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
+  return welcomeCard(t) + coach + quickForm() + help + stampBar(t) + box + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
 }
 
 const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => esc(nameOf(t, id)) + ' ' + (nets[id] > 0 ? '+' : '−') + Math.abs(nets[id]).toLocaleString('ja-JP')).join('・');
@@ -1992,9 +1993,10 @@ function tabSettle(t){
 function savePlanHtml(t, today){
   const p = savePlanOf(Math.ceil(t.budget / t.members.length), (t.savings && t.savings[meId(t)]) || 0, today, t.start); if (!p) return '';
   const head = '<div class="plan-h">あなたの積立のめやす</div>';
-  if (p.kind === 'once') return '<div class="plan">' + head + '<div class="plan-b">出発までに、あと <b>' + yen(p.miss) + '</b></div><div class="plan-s">' + (p.days === 1 ? '出発は明日です。' : '出発は ' + p.days + '日後です。') + '</div></div>';
+  const go = n => '<button class="btn plan-go" data-a="plan-save" data-v="' + n + '">' + yen(n) + 'を積み立てる</button>';
+  if (p.kind === 'once') return '<div class="plan">' + head + '<div class="plan-b">出発までに、あと <b>' + yen(p.miss) + '</b></div><div class="plan-s">' + (p.days === 1 ? '出発は明日です。' : '出発は ' + p.days + '日後です。') + '</div>' + go(p.miss) + '</div>';
   const when = p.kind === 'weekly' ? '毎週' + WD[p.wd] + '曜日に、' : '毎月 ' + p.dom + '日に、';
-  return '<div class="plan">' + head + '<div class="plan-b">' + when + '約 <b>' + yen(p.per) + '</b></div><div class="plan-s">次は ' + fmtDay(p.next) + '・あと ' + p.n + '回</div></div>';
+  return '<div class="plan">' + head + '<div class="plan-b">' + when + '約 <b>' + yen(p.per) + '</b></div><div class="plan-s">次は ' + fmtDay(p.next) + '・あと ' + p.n + '回</div>' + go(p.per) + '</div>';
 }
 function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length), plan = savePlanHtml(t, todayStr());
@@ -2906,6 +2908,7 @@ document.addEventListener('click', e => {
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }
+  else if (a === 'plan-save'){ ui.sheet = { type: 'save', id: meId(t), err: '', val: el.getAttribute('data-v') }; }   // from the plan card: the amount of this time is already in
   else if (a === 'note-edit'){ ui.sheet = { type: 'note', err: '' }; }
   else if (a === 'note-chip'){ const f = document.getElementById('f-note'); if (f){ f.value = el.getAttribute('data-v'); } return; }
   else if (a === 'note-save' || a === 'note-clear'){
