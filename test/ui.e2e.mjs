@@ -983,6 +983,27 @@ try {
     assert.strictEqual(await f.locator('.stn i.on').count(), 3, '85,000: 25, 50 and 75 are lit'); if (moves) assert.strictEqual(await f.evaluate(() => ['50', '75'].every(m => document.querySelector('.stn i[data-m="' + m + '"]').getAnimations().length > 0)), true, 'two stations passed at once: both pop');
     await cf.close(); }
 
+  // 積立の履歴: a row opens that person's history; an older trip's total is one grey "unlogged" line; a deposit adds an entry; an entry can be edited or deleted (with undo); the total always follows
+  { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '300000'); await f.fill('#d-me', 'あおい');
+    await f.evaluate(() => { const s = addDays(todayStr(), 40); ui.draft.start = s; ui.draft.end = addDays(s, 3); render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('.stn');
+    const gone = () => f.waitForFunction(() => !document.querySelector('.sheet-bg')), tot = () => f.evaluate(() => { const t = state.trips[0]; return t.savings[t.members[0].id] || 0; }), sheet = () => f.innerText('.sheet');
+    await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = 10000; delete t.savelog; render(); });   // what an older version saved: a total, no history
+    await f.click('.slog'); await f.waitForSelector('.sheet [data-a=sl-edit]'); let sh = await sheet(); assert.ok(sh.includes('それ以前の積立') && sh.includes('記録なし') && sh.includes('+10,000円') && sh.includes('10,000円'), 'the old total is one grey line: ' + sh); assert.strictEqual(await f.locator('.sheet .slog-rest').count(), 1);
+    await f.click('.sheet [data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '5000'); await f.click('[data-a=save-saving]'); await gone(); assert.strictEqual(await tot(), 15000);
+    await f.click('.slog'); await f.waitForSelector('.sheet [data-a=sl-edit]'); sh = await sheet(); assert.ok(sh.includes('+5,000円') && sh.includes('あおいが記録') && sh.includes('+10,000円'), 'the new entry and the unlogged part: ' + sh); assert.strictEqual(await f.locator('.sheet [data-a=sl-edit]').count(), 2);
+    // edit the entry: 5,000 -> 7,000 (the total follows); an empty / zero amount is refused; undo brings 5,000 back
+    await f.click('.sheet [data-a=sl-edit]:not(.slog-rest)'); await f.waitForSelector('#f-sl-a'); assert.strictEqual(await f.inputValue('#f-sl-a'), '5000'); await f.fill('#f-sl-a', '0'); await f.click('[data-a=sl-save]'); await f.waitForSelector('.sheet .err'); assert.strictEqual(await tot(), 15000, 'refused: nothing moved');
+    await f.fill('#f-sl-a', '7000'); await f.click('[data-a=sl-save]'); await f.waitForSelector('.sheet [data-a=sl-edit]'); assert.strictEqual(await tot(), 17000, 'edited: +2,000'); assert.ok((await sheet()).includes('+7,000円'));
+    await f.click('.toast [data-a=undo]'); await f.waitForTimeout(200); assert.strictEqual(await tot(), 15000, 'undo of the edit');
+    // delete it (undo too); then take the unlogged part away
+    await f.click('.sheet [data-a=sl-edit]:not(.slog-rest)'); await f.waitForSelector('[data-a=sl-del]'); await f.click('[data-a=sl-del]'); await f.waitForSelector('.sheet .slog-rest'); assert.strictEqual(await tot(), 10000, 'deleted'); assert.strictEqual(await f.locator('.sheet [data-a=sl-edit]:not(.slog-rest)').count(), 0);
+    await f.click('.toast [data-a=undo]'); await f.waitForTimeout(200); assert.strictEqual(await tot(), 15000, 'undo of the delete'); assert.strictEqual(await f.locator('.sheet [data-a=sl-edit]:not(.slog-rest)').count(), 1, 'the entry is back');
+    await f.click('.sheet .slog-rest'); await f.waitForSelector('#f-sl-a'); assert.strictEqual(await f.inputValue('#f-sl-a'), '10000'); assert.strictEqual(await f.locator('#f-sl-d').count(), 0, 'the unlogged part has no date'); await f.fill('#f-sl-a', '0'); await f.click('[data-a=sl-save]'); await f.waitForSelector('.sheet [data-a=sl-edit]'); assert.strictEqual(await tot(), 5000, 'the unlogged part is gone'); assert.strictEqual(await f.locator('.sheet .slog-rest').count(), 0);
+    // the card and the bar read the same total
+    await f.click('[data-a=close-sheet]'); await gone(); assert.ok((await f.innerText('.ticket.c')).includes('5,000円'), 'the card follows: ' + await f.innerText('.ticket.c'));
+    await cf.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }

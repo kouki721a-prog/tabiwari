@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {saveEntries, saveApply, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -380,3 +380,28 @@ console.log('expense log logic tests passed');
   // a skipped date raises the next amount by itself (fewer dates left)
   assert.strictEqual(P(50000, 0, '2026-11-20', '2026-12-26').per, 10000); assert.strictEqual(P(50000, 0, '2026-11-28', '2026-12-26').per, 12500, 'four dates left (weeks: 4): 50,000 / 4'); }
 console.log('save plan tests passed');
+
+// 積立の履歴: the total is the truth; the list is next to it; the difference shows as one "unlogged" line; every change moves the total the same way
+{ const mk = () => ({ members: [{ id: 'a' }, { id: 'b' }], savings: { a: 30000 } }), A = L.saveApply, E = L.saveEntries;
+  let t = mk(); let v = E(t, 'a'); assert.deepStrictEqual([v.entries.length, v.rest, v.total], [0, 30000, 30000], 'before any history: the whole total is "unlogged"');
+  let u = A(t, 'a', { kind: 'add', id: 'x1', a: 5000, d: '2026-11-20', by: 'a' }); assert.strictEqual(t.savings.a, 35000); v = E(t, 'a'); assert.deepStrictEqual([v.entries.length, v.rest], [1, 30000], 'the old 30,000 stays as the unlogged part');
+  A(t, 'a', { kind: 'add', id: 'x2', a: 2000, d: '2026-11-22' }); A(t, 'a', { kind: 'add', id: 'x3', a: 1000, d: '2026-11-22' }); v = E(t, 'a'); assert.deepStrictEqual(v.entries.map(x => x.id), ['x3', 'x2', 'x1'], 'newest date first; the same day: the later record first'); assert.strictEqual(t.savings.a, 38000);
+  u = A(t, 'a', { kind: 'edit', id: 'x1', a: 6000, d: '2026-11-19' }); assert.strictEqual(t.savings.a, 39000, 'editing moves the total by the difference'); assert.deepStrictEqual(u, { kind: 'edit', id: 'x1', a: 5000, d: '2026-11-20' }); A(t, 'a', u); assert.strictEqual(t.savings.a, 38000, 'undo of an edit');
+  u = A(t, 'a', { kind: 'del', id: 'x2' }); assert.strictEqual(t.savings.a, 36000); assert.strictEqual(E(t, 'a').entries.length, 2); A(t, 'a', u); assert.strictEqual(t.savings.a, 38000); assert.deepStrictEqual(t.savelog.a.map(x => x.id), ['x1', 'x2', 'x3'], 'undo of a delete puts it back in place');
+  u = A(t, 'a', { kind: 'rest', rest: 0 }); assert.strictEqual(t.savings.a, 8000, 'taking away the unlogged part: the total is just the list'); assert.strictEqual(E(t, 'a').rest, 0); A(t, 'a', u); assert.strictEqual(t.savings.a, 38000, 'undo');
+  A(t, 'a', { kind: 'rest', rest: 10000 }); assert.strictEqual(t.savings.a, 18000, 'the unlogged part edited to 10,000: 8,000 + 10,000');
+  // a minus entry is a correction; the total never goes below 0
+  t = mk(); A(t, 'b', { kind: 'add', id: 'm1', a: 3000, d: '2026-11-20' }); A(t, 'b', { kind: 'add', id: 'm2', a: -5000, d: '2026-11-21' }); assert.strictEqual(t.savings.b, 0, 'never below 0'); assert.strictEqual(E(t, 'b').rest, 2000, 'the list says -2000, the total 0: the difference is shown, nothing breaks');
+  // refused: an unknown entry, a duplicate id, zero, a non-integer, a full list
+  t = mk(); assert.strictEqual(A(t, 'a', { kind: 'edit', id: 'nope', a: 1, d: '2026-11-20' }), null); assert.strictEqual(A(t, 'a', { kind: 'del', id: 'nope' }), null); A(t, 'a', { kind: 'add', id: 'd1', a: 1000, d: '2026-11-20' }); assert.strictEqual(A(t, 'a', { kind: 'add', id: 'd1', a: 1000, d: '2026-11-20' }), null); assert.strictEqual(A(t, 'a', { kind: 'add', id: 'd2', a: 0, d: '2026-11-20' }), null); assert.strictEqual(A(t, 'a', { kind: 'add', id: 'd3', a: 1.5, d: '2026-11-20' }), null); assert.strictEqual(t.savings.a, 31000, 'a refused change moves nothing');
+  for (let i = 0; i < 299; i++) A(t, 'a', { kind: 'add', id: 'f' + i, a: 1, d: '2026-11-20' }); assert.strictEqual(t.savelog.a.length, 300); assert.strictEqual(A(t, 'a', { kind: 'add', id: 'over', a: 1, d: '2026-11-20' }), null, 'the list holds 300 entries');
+  // a person who is not a member of the trip is not a problem for the pure part: other people are untouched
+  t = mk(); A(t, 'b', { kind: 'add', id: 'q1', a: 700, d: '2026-11-20' }); assert.strictEqual(t.savings.a, 30000, 'someone else is untouched'); assert.strictEqual(t.savings.b, 700); }
+console.log('save log tests passed');
+
+// a trip restored from a backup keeps its history; one from an older version (no history) still loads and shows its total as the unlogged part
+{ const base = { id: 't1', name: '箱根', start: '2026-11-09', end: '2026-11-11', budget: 80000, members: [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }], expenses: [], settlements: [], adjustments: [], paid: {}, received: {}, savings: { a: 30000, b: 5000 } };
+  const old = L.sanitizeTrip(JSON.parse(JSON.stringify(base)), null); assert.ok(old && !('savelog' in old), 'an older record: no history key'); assert.deepStrictEqual(old.savings, { a: 30000, b: 5000 }); assert.strictEqual(L.saveEntries(old, 'a').rest, 30000);
+  const withLog = JSON.parse(JSON.stringify(base)); withLog.savelog = { a: [{ id: 'x1', a: 5000, d: '2026-11-20', by: 'a' }, { id: 'x1', a: 9, d: '2026-11-20' }, { id: 'bad id', a: 1, d: '2026-11-20' }, { id: 'x2', a: 0, d: '2026-11-20' }, { id: 'x3', a: 100, d: 'xx' }, { id: 'x4', a: 100, d: '2026-11-21', by: 'a' }], zz: [{ id: 'y', a: 1, d: '2026-11-20' }] };
+  const kept = L.sanitizeTrip(withLog, null); assert.deepStrictEqual(kept.savelog, { a: [{ id: 'x1', a: 5000, d: '2026-11-20', by: 'a' }, { id: 'x4', a: 100, d: '2026-11-21', by: 'a' }] }, 'valid entries kept; duplicates, bad ids, zero amounts and bad dates dropped; a stranger is dropped'); }
+console.log('save log restore tests passed');
