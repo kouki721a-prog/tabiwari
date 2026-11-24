@@ -147,3 +147,23 @@ console.log('expense log sync tests passed');
   assert.doesNotThrow(() => S.diff(older, S.flatten([trip])), 'and a record with only a few tables');
   assert.doesNotThrow(() => S.diff({}, S.flatten([trip])), 'and an empty object'); }
 console.log('old sync record tests passed');
+
+// 積立の履歴: it rides on the savings row. A trip that never had one sends nothing new (no spurious update after the update of the app); a new entry updates the row with the list; an emptied list is sent as [] (that clears it)
+{ const mk = () => ({ id: 't1', name: '箱根', start: '2026-11-09', end: '2026-11-11', budget: 80000, savings: { a: 5000 }, members: [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'けんた' }], expenses: [] });
+  // the snapshot an older app saved (no log anywhere) against the same trip seen by the new app: nothing to send
+  const snapOld = S.flatten([mk()]); assert.strictEqual('log' in snapOld.savings['t1|a'], false, 'a trip without a history: no log on the row'); assert.deepStrictEqual(S.diff(JSON.parse(JSON.stringify(snapOld)), S.flatten([mk()])), [], 'the app was updated: no spurious operations');
+  // the first entry: one update, carrying the list and the new total
+  let t = mk(); t.savings.a = 8000; t.savelog = { a: [{ id: 'x1', a: 3000, d: '2026-11-20', by: 'a' }] };
+  let ops = S.diff(JSON.parse(JSON.stringify(snapOld)), S.flatten([t])); assert.deepStrictEqual(ops.map(o => o.table + ':' + o.kind), ['savings:update']); assert.deepStrictEqual(ops[0].row, { trip_id: 't1', member_id: 'a', amount: 8000, log: [{ id: 'x1', a: 3000, d: '2026-11-20', by: 'a' }] });
+  // a first deposit for a person who has no savings row yet (a history entry creates the row)
+  t = mk(); t.savings.b = 2000; t.savelog = { b: [{ id: 'y1', a: 2000, d: '2026-11-21' }] }; ops = S.diff(JSON.parse(JSON.stringify(snapOld)), S.flatten([t])); assert.deepStrictEqual(ops.map(o => o.table + ':' + o.kind), ['savings:insert']); assert.deepStrictEqual(ops[0].rows[0].log, [{ id: 'y1', a: 2000, d: '2026-11-21', by: null }]);
+  // an emptied list is sent as [] (a trip that never had one sends none)
+  const snapLog = S.flatten([Object.assign(mk(), { savings: { a: 8000 }, savelog: { a: [{ id: 'x1', a: 3000, d: '2026-11-20', by: 'a' }] } })]);
+  t = mk(); t.savings.a = 5000; t.savelog = { a: [] }; ops = S.diff(JSON.parse(JSON.stringify(snapLog)), S.flatten([t])); assert.deepStrictEqual(ops[0].row.log, [], 'the entry was deleted: [] clears the list on the server');
+  // reading back from the server: the list comes with the total; a server row without one gives a trip with no savelog key at all
+  const row = (log) => ({ id: 't1', name: '箱根', start_date: '2026-11-09', end_date: '2026-11-11', budget: 80000, caps: null, owner: null, trip_members: [{ id: 'a', name: 'あおい', position: 0 }], expenses: [], settlements: [], adjustments: [], paid: [], received: [], savings: [{ trip_id: 't1', member_id: 'a', amount: 8000, log }] });
+  const a1 = S.assemble([row([{ id: 'x1', a: 3000, d: '2026-11-20', by: 'a' }])])[0]; assert.deepStrictEqual(a1.savelog, { a: [{ id: 'x1', a: 3000, d: '2026-11-20', by: 'a' }] }); assert.strictEqual(a1.savings.a, 8000);
+  const a2 = S.assemble([row(null)])[0]; assert.strictEqual('savelog' in a2, false, 'no list on the server: no savelog key'); const a3 = S.assemble([row([])])[0]; assert.deepStrictEqual(a3.savelog, { a: [] }, 'an emptied list is kept as empty');
+  // assemble -> flatten gives the same rows back (no endless sync loop)
+  assert.deepStrictEqual(S.flatten(S.assemble([row([{ id: 'x1', a: 3000, d: '2026-11-20', by: 'a' }])])).savings['t1|a'], { trip_id: 't1', member_id: 'a', amount: 8000, log: [{ id: 'x1', a: 3000, d: '2026-11-20', by: 'a' }] }); }
+console.log('save log sync tests passed');

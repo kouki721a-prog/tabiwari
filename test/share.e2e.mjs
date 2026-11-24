@@ -132,6 +132,21 @@ try {
   await A.p.click('.mem-row [data-a=invite]'); const sent2 = decodeURIComponent((await lineReq2).url().split('?')[1]);
   assert.ok(sent2.includes('「招待旅行」') && /#t=[A-Za-z0-9_-]{32}/.test(sent2), sent2);
 
+  // ---------- 積立の履歴 on a shared trip: A deposits (an entry), B joins and sees it, B edits it, A sees the edit; A deletes it, B sees the total fall back to an "unlogged" line
+  { const P1 = await person(); await P1.p.goto(base + '/'); await see(P1.p, 'いくら出したっけ');
+    await P1.p.click('[data-a=new]'); await P1.p.fill('#d-name', '積立共有'); await P1.p.fill('#d-budget', '60000'); await P1.p.fill('#d-me', 'あおい');
+    await P1.p.evaluate(() => { const s = addDays(todayStr(), 30); ui.draft.start = s; ui.draft.end = addDays(s, 1); render(); }); await P1.p.click('[data-a=save-trip]'); await P1.p.waitForSelector('.stn');
+    await P1.p.click('[data-a=add-save]'); await P1.p.waitForSelector('#f-save'); await P1.p.fill('#f-save', '20000'); await P1.p.click('[data-a=save-saving]'); await P1.p.waitForFunction(() => !document.querySelector('.sheet-bg'));
+    await P1.p.click('[data-a=settings]'); await see(P1.p, '友だちと共有'); await P1.p.click('[data-a=share-start]'); await P1.p.waitForSelector('#s-sharelink', { timeout: 9000 }); const lk = await P1.p.inputValue('#s-sharelink'); await P1.p.click('[data-a=close-sheet]'); await see(P1.p, '共有中');
+    const P2 = await person(); await P2.p.goto(lk); await see(P2.p, 'に招待されました'); await P2.p.fill('#j-name', 'けんた'); await P2.p.click('[data-a=join-share-go]'); await see(P2.p, '参加しました');
+    await P2.p.click('[data-a=tab][data-t=save]'); await P2.p.waitForSelector('.slog'); await P2.p.click('.slog'); await see(P2.p, '+20,000円'); assert.strictEqual(await P2.p.locator('.sheet .slog-rest').count(), 0, 'the entry came over; nothing is "unlogged"'); assert.ok((await P2.p.innerText('.sheet')).includes('あおいが記録'), 'who recorded it came over too');
+    await P2.p.click('.sheet [data-a=sl-edit]'); await P2.p.waitForSelector('#f-sl-a'); await P2.p.fill('#f-sl-a', '15000'); await P2.p.click('[data-a=sl-save]'); await see(P2.p, '+15,000円'); await P2.p.waitForTimeout(1500);
+    await refresh(P1.p); await P1.p.waitForTimeout(1500); await P1.p.click('[data-a=tab][data-t=save]').catch(() => {}); await P1.p.waitForSelector('.slog'); await P1.p.click('.slog'); await see(P1.p, '+15,000円');
+    await P1.p.click('.sheet [data-a=sl-edit]'); await P1.p.waitForSelector('[data-a=sl-del]'); await P1.p.click('[data-a=sl-del]'); await P1.p.waitForSelector('.sheet .empty'); await P1.p.waitForFunction(() => { const x = state.trips.find(y => y.name === '積立共有'); return x && !x.share.dirty; }, null, { timeout: 9000 }); await P1.p.waitForTimeout(500);
+    await P2.p.click('[data-a=close-sheet]'); await P2.p.waitForFunction(() => !document.querySelector('.sheet-bg'));   // a change from a friend is not applied under an open sheet
+    await refresh(P2.p); await P2.p.waitForFunction(() => { const x = state.trips.find(y => y.name === '積立共有'); return x && Object.values(x.savings).reduce((s, v) => s + v, 0) === 0; }, null, { timeout: 9000 }).catch(() => {}); assert.ok((await P2.p.innerText('.ticket.c, .sheet')).includes('0円'), 'B sees the deletion'); assert.strictEqual(await P2.p.evaluate(() => { const t = state.trips.find(x => x.name === '積立共有'); return Object.values(t.savings).reduce((a, v) => a + v, 0); }), 0, 'the total is 0 on B too');
+    await P1.ctx.close(); await P2.ctx.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('share e2e passed');
 } finally { await b.close(); srv.stop(); }
