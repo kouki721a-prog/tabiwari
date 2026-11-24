@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -380,3 +380,10 @@ console.log('expense log logic tests passed');
   // a skipped date raises the next amount by itself (fewer dates left)
   assert.strictEqual(P(50000, 0, '2026-11-20', '2026-12-26').per, 10000); assert.strictEqual(P(50000, 0, '2026-11-28', '2026-12-26').per, 12500, 'four dates left (weeks: 4): 50,000 / 4'); }
 console.log('save plan tests passed');
+
+// whole percent, rounded down: 100% only when the goal is really reached
+{ const P = L.pctFloor;
+  assert.strictEqual(P(299400, 300000), 99, '99.8% is 99%, not 100%'); assert.strictEqual(P(300000, 300000), 100); assert.strictEqual(P(400000, 300000), 100, 'over the goal: 100');
+  assert.strictEqual(P(29, 100), 29, 'integer arithmetic: 29 of 100 is 29'); assert.strictEqual(P(1, 3), 33); assert.strictEqual(P(2, 3), 66); assert.strictEqual(P(0, 100), 0); assert.strictEqual(P(-5, 100), 0); assert.strictEqual(P(5, 0), 0);
+  for (let k = 0; k < 2000; k++) { const w = 1 + (k * 37) % 5000, p = (k * 91) % (w + 200); const v = P(p, w); assert.ok(v >= 0 && v <= 100 && (v < 100 || p >= w), 'never 100 below the goal: ' + p + '/' + w); } }
+console.log('percent tests passed');

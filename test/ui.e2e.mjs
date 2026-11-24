@@ -963,6 +963,9 @@ try {
     const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion, viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
     await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい');
     await f.evaluate(() => { const s = addDays(todayStr(), 40); ui.draft.start = s; ui.draft.end = addDays(s, 3); render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('.stn');
+    // 99.8% is shown as 99%: the last station and "100%" wait for the goal
+    await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = t.budget - 600; render(); }); assert.ok((await f.innerText('.ticket.c')).includes('99%') && !(await f.innerText('.ticket.c')).includes('100%'), 'almost there: 99%'); assert.strictEqual(await f.locator('.stn i.on').count(), 3, 'the last station is not lit yet');
+    await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = 0; ui.stnLvl = {}; render(); });
     assert.strictEqual(await f.locator('.stn i').count(), 4); assert.strictEqual(await f.locator('.stn i.on').count(), 0, 'nothing saved: no station is lit');
     { const xs = await f.$$eval('.stn i', es => es.map(e => Math.round(e.getBoundingClientRect().left))), bar = await f.$eval('.stn', e => e.getBoundingClientRect()); assert.ok(xs.every((x, i) => i === 0 || x > xs[i - 1] + 20) && xs[0] > bar.left + 10 && xs[3] > bar.left + bar.width - 20, 'the four stations are spread along the bar: ' + xs); }
     // the + button is the stage's main action: on the savings tab it puts money aside; the plan card has a button with this time's amount already in
