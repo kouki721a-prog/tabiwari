@@ -882,6 +882,12 @@ function savePlanOf(target, have, today, start){
   }
   return { kind: 'monthly', miss: miss, n: dates.length, per: round(dates.length), dom: p[2], next: dates[dates.length - 1] };
 }
+/* A share in whole percent, rounded DOWN: 99.8% is 99%, so "100%" (and the last station of the savings bar) only shows when the goal is really reached.
+   Integer arithmetic on purpose: 29 of 100 must be 29, not 28.999... */
+function pctFloor(part, whole){
+  if (!(whole > 0) || !(part > 0)) return 0;
+  return Math.min(100, Math.floor(part * 100 / whole));
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -930,7 +936,7 @@ function uid(){ return (window.crypto && crypto.randomUUID) ? crypto.randomUUID(
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const yen = n => Number(n).toLocaleString('ja-JP') + '円';
 const savedOf = t => t.members.reduce((a, m) => a + ((t.savings && t.savings[m.id]) || 0), 0);
-const savedPct = t => Math.min(100, Math.round(savedOf(t) / t.budget * 100));
+const savedPct = t => pctFloor(savedOf(t), t.budget);
 const fmtDate = s => { const p = s.split('-'); return Number(p[1]) + '/' + Number(p[2]); };
 function fmtDay(s){ const p = s.split('-').map(Number); return p[1] + '/' + p[2] + '(' + WD[new Date(p[0], p[1]-1, p[2]).getDay()] + ')'; }
 
@@ -1593,7 +1599,7 @@ function viewTrip(){
   const lab = over ? '予算オーバー' : '予算の残り', amt = '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>', bar = '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>';
   if (ui.tab === 'exp') h += '<i class="sp"></i>' + budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct);   // record tab: the budget in a short card, so the list gets the room
   else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
-    const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = Math.min(100, Math.round(ssum / t.budget * 100));
+    const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = pctFloor(ssum, t.budget);
     const saveMiss = t.budget - savedOf(t);
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div>' + stnHtml(spct) + '<div class="t-sub">' + ['予算 ' + yen(t.budget) + ' の ' + spct + '%'].concat(st[0] === '準備中' ? ['出発まで あと' + dayDiff(today, t.start) + '日'] : [], [saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)]).map(x => '<span class="nb">' + x + '</span>').join('・') + '</div>' + '</div>';
   } else   // settlement tab: one thin line
@@ -2019,7 +2025,7 @@ function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length), plan = savePlanHtml(t, todayStr());
   let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。目標は、予算を人数で割った額です。</div>') + '<div class="list">';
   h += t.members.map(m => {
-    const v = t.savings[m.id] || 0, p = Math.min(100, Math.round(v / target * 100)), done = v >= target;
+    const v = t.savings[m.id] || 0, p = pctFloor(v, target), done = v >= target;
     return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
       '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '</div></div>' +
       '<button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;padding:9px 14px;font-size:calc(14px*var(--ts))">積み立てる</button></div>';
