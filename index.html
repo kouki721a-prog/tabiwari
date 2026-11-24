@@ -407,7 +407,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--ts));border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
 /* the budget card as a boarding pass (v148): the main part, a perforated stub on the right, a notch at both ends of the perforation */
 .ticket.m.stub{display:flex;position:relative;--stub:calc(112px*var(--ts));border-radius:16px}
-.ticket.m.stub .tk-l{flex:1;min-width:0}.ticket.m.stub .t-top{padding:11px 12px 6px 18px}
+.ticket.m.stub .tk-l{flex:1;min-width:0}.ticket.m.stub .t-top{padding:11px 12px 12px 18px}.ticket.m.stub .t-foot{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.foot-more{flex:none;font-size:calc(12px*var(--ts));color:rgba(255,255,255,.8);padding:2px 0 2px 10px;white-space:nowrap}.foot-more.over{color:#ff9a92;font-weight:700}
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
@@ -1619,6 +1619,15 @@ function memRow(t){   // the members and the invite button (on the record tab th
 const STN = [25, 50, 75, 100], STN_MS = 620;
 const stnHtml = pct => '<div class="stn" aria-hidden="true">' + STN.map(m => '<i data-m="' + m + '" class="' + (pct >= m ? 'on' : '') + '" style="left:' + m + '%"></i>').join('') + '</div>';
 const STN_KF = [{ backgroundColor: 'rgba(255,200,61,0)', borderColor: 'rgba(255,255,255,.4)', transform: 'scale(.9)' }, { backgroundColor: '#ffc83d', borderColor: '#ffc83d', transform: 'scale(1.8)', offset: .45 }, { backgroundColor: '#ffc83d', borderColor: '#ffc83d', transform: 'scale(1)' }];
+/* a tab or a trip is opened (v170): the first rows come in one after the other. The state is in memory (ui.enterAt), so a redraw in the middle carries on from where it was. */
+const ENTER_MS = 380;
+function motionEnter(now){
+  const en = ui.enterAt; if (!en) return;
+  if (!calm() || now - en > ENTER_MS + 12 * 45 + 120){ ui.enterAt = 0; return; }
+  // a row that can be swiped is moved as a whole (the red delete button behind it must not show through)
+  [...document.querySelectorAll('#app .scroll .stbar, #app .scroll .coach, #app .scroll .plan, #app .scroll .sec > h2, #app .scroll .swp, #app .scroll .item:not(.swp .item)')].slice(0, 12).forEach((el, i) => { const e = now - (en + i * 45); if (e >= ENTER_MS) return;
+    const a = el.animate([{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], { duration: ENTER_MS, delay: e < 0 ? -e : 0, fill: 'backwards', easing: 'cubic-bezier(.2,.8,.2,1)' }); if (e > 0) a.currentTime = e; });
+}
 function motionStations(now){
   const t = trip(), dots = [...document.querySelectorAll('.stn i')];
   if (t && dots.length){   // the stations already lit, remembered per trip: a higher count than last time means a deposit just passed one
@@ -1647,10 +1656,18 @@ function budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct){
   } else {
     hl = a[0]; hv = money(a[1]); rl = b[0]; rv = money(b[1]); fl = (over ? '予算オーバー' : '予算の残り') + ' <b>' + money(Math.abs(left)) + '</b>'; fr = '予算 <span class="nb">' + money(t.budget) + '</span>';
   }
+  const um = usageMore(t);
   return '<div class="ticket m stub"><div class="tk-l"><div class="t-top"><span class="t-label">' + hl + '</span><div class="t-amount ' + (hn ? 'neg' : '') + '">' + hv + '</div>' +
     '<div class="t-bar ' + (barOver ? 'over' : '') + '" role="img" aria-label="' + (st[0] === '準備中' && !t.expenses.length ? '積立は目標の ' : '予算の ') + barPct + '%"><i style="width:' + barPct + '%"></i></div>' +
-    '<div class="t-foot"><span class="t-label">' + fl + '</span></div></div>' + usageFold(t) + '</div>' +
+    '<div class="t-foot"><span class="t-label">' + fl + '</span>' + um.btn + '</div></div>' + um.fold + '</div>' +
     '<div class="tk-s"><div><span class="t-label">' + rl + '</span><b class="' + (rw ? 'warn' : '') + '">' + rv + '</b></div><span class="t-label">' + fr + '</span></div></div>';
+}
+/* the category line folded into the foot of the budget card (v170): one small button on the foot line; opened, the bar and the limits show below */
+function usageMore(t){
+  const caps = t.caps || {}, hasCaps = Object.keys(caps).length > 0, open = ui.usageOpen || !!ui.catF;
+  if (!t.expenses.length && !hasCaps) return { btn: '<button type="button" class="foot-more" data-a="caps-edit">上限 ›</button>', fold: '' };
+  const by = catSums(t), capOver = CATS.some(c => caps[c[0]] && (by[c[0]] || 0) > caps[c[0]]);
+  return { btn: '<button type="button" class="foot-more' + (capOver ? ' over' : '') + '" data-a="usage-toggle" aria-expanded="' + open + '">' + (open ? '内訳を閉じる' : capOver ? '上限超え ›' : '内訳 ›') + '</button>', fold: open ? usageBar(t, true) : '' };
 }
 function usageFold(t){
   const caps = t.caps || {}, hasCaps = Object.keys(caps).length > 0;
@@ -1849,7 +1866,7 @@ function motionMoney(){
     const el0 = now - an.t0; if (an.to !== to || el0 >= BAR_MS) return;
     const cur = an.from + (an.to - an.from) * easeOut(el0 / BAR_MS);
     el.style.transition = 'none'; el.style.width = cur + '%'; void el.offsetWidth; el.style.transition = 'width ' + (BAR_MS - el0) + 'ms var(--ease)'; el.style.width = to + '%'; });
-  motionStations(now);
+  motionStations(now); motionEnter(now);
   if (ui.tear){ ui.tear = false; const tk = document.querySelector('.ticket.m.stub, .ticket.c'); if (tk) tearOff(tk); }
   const ts = ui.tearSt; if (ts){   // the ticket drawn again while the stub is still flying: keep the stub off it until it has gone
     const tk = document.querySelector('.ticket.m.stub, .ticket.c'), e = now - ts.t0;
@@ -2615,7 +2632,7 @@ document.addEventListener('click', e => {
 
   if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }   // the tab you were on stays (ui.homeTab)
   else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; }
-  else if (a === 'open'){ ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = phaseTab(state.trips.find(x => x.id === id) || { start: todayStr(), end: todayStr() }); ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }
+  else if (a === 'open'){ ui.enterAt = performance.now() + 220; ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = phaseTab(state.trips.find(x => x.id === id) || { start: todayStr(), end: todayStr() }); ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;
     readSheet();   // keep what is typed in an open sheet
@@ -2835,7 +2852,7 @@ document.addEventListener('click', e => {
       expenses: [ex('夕食', 9000, 0, 'food', [0, 1, 2]), ex('宿', 12000, 1, 'stay', [0, 1, 2]), ex('電車', 3000, 2, 'transport', [1, 2])] };
     state.trips.push(nt); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = 'settle'; ui.draft = null;
   }
-  else if (a === 'tab'){ ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; ui.resetScroll = true; }
+  else if (a === 'tab'){ ui.enterAt = performance.now(); ui.tab = el.getAttribute('data-t'); ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; ui.resetScroll = true; }
 
   else if (a === 'add-exp'){
     const today = todayStr();
