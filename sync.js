@@ -44,6 +44,12 @@
       Object.keys(t.savings || {}).forEach(function (mid) {
         if (ids[mid]) out.savings[t.id + '|' + mid] = { trip_id: t.id, member_id: mid, amount: t.savings[mid] };
       });
+      /* the history of a person's savings rides on the same row as the total. A trip that never had one sends no `log` (so an older row is not touched); an EMPTIED list is sent as [] (that clears it) */
+      Object.keys(t.savelog || {}).forEach(function (mid) {
+        if (!ids[mid] || !Array.isArray(t.savelog[mid])) return;
+        var k = t.id + '|' + mid, row = out.savings[k] || (out.savings[k] = { trip_id: t.id, member_id: mid, amount: (t.savings || {})[mid] || 0 });
+        row.log = t.savelog[mid].map(function (x) { return { id: x.id, a: x.a, d: x.d, by: x.by || null }; });
+      });
     });
     return out;
   }
@@ -86,11 +92,13 @@
         .map(function (st) { return { id: st.id, n: st.n, at: st.at, total: st.total || 0, transfers: st.transfers || [] }; });
       var adjustments = (r.adjustments || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : (a.id < b.id ? -1 : 1); })
         .map(function (a) { return { id: a.id, settleId: a.settle_id || null, nets: a.nets || {}, note: a.note || '', at: a.at }; });
-      var paid = {}, received = {}, savings = {};
+      var paid = {}, received = {}, savings = {}, savelog = {}, hasLog = false;
       (r.paid || []).forEach(function (p) { paid[p.key] = true; });
       (r.received || []).forEach(function (p) { received[p.key] = true; });
-      (r.savings || []).forEach(function (s) { savings[s.member_id] = s.amount; });
-      return { id: r.id, name: r.name, start: r.start_date, end: r.end_date, budget: r.budget, caps: r.caps || undefined, owner: r.owner, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, received: received, savings: savings };
+      (r.savings || []).forEach(function (s) { savings[s.member_id] = s.amount; if (Array.isArray(s.log)) { savelog[s.member_id] = s.log.map(function (x) { return { id: x.id, a: x.a, d: x.d, by: x.by || null }; }); hasLog = true; } });
+      var tr = { id: r.id, name: r.name, start: r.start_date, end: r.end_date, budget: r.budget, caps: r.caps || undefined, owner: r.owner, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, received: received, savings: savings };
+      if (hasLog) tr.savelog = savelog;   // no key at all for a trip that never had a history (the shape older data has)
+      return tr;
     });
   }
 

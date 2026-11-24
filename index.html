@@ -411,7 +411,8 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
-.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.plan-go{width:100%;margin-top:10px;padding:11px 14px}
+.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.slog{display:flex;align-items:center;gap:12px;flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit}.slog>svg{flex:none;color:var(--sub)}.slog-rest{opacity:.75}.item b.neg{color:var(--bad)}
+.plan-go{width:100%;margin-top:10px;padding:11px 14px}
 .fly{position:fixed;z-index:56;pointer-events:none;white-space:nowrap;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:6px;padding:8px 16px;font-family:var(--mono);font-weight:600;font-size:calc(15px*var(--ts));font-variant-numeric:tabular-nums;box-shadow:0 6px 16px rgba(15,39,66,.22)}
 .stn{position:relative;height:12px;margin:3px 0 1px}.stn:before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1.5px dashed rgba(255,255,255,.22)}.stn i{position:absolute;top:1px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);background:var(--navy);box-sizing:border-box}.stn i:last-child{margin-left:-9px}.stn i.on{background:var(--sun);border-color:var(--sun)}
 .tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
@@ -767,6 +768,11 @@ function sanitizeTrip(raw, newId){
   if (raw.received && typeof raw.received === 'object') Object.keys(raw.received).slice(0, 500).forEach(function(k){ if (raw.received[k] === true && k.length <= 200) received[k] = true; });
   if (raw.savings && typeof raw.savings === 'object') members.forEach(function(m){ if (INT(raw.savings[m.id], 0, 1e9)) savings[m.id] = raw.savings[m.id]; });
   var out = { id: newId || ID(raw.id), name: name, start: start, end: end, budget: raw.budget, members: members, expenses: expenses, settlements: settlements, adjustments: adjustments, paid: paid, received: received, savings: savings };
+  if (raw.savelog && typeof raw.savelog === 'object'){   // 積立の履歴 (a record made by an older app has none)
+    var sl = {}; members.forEach(function(m){ var l = raw.savelog[m.id]; if (!Array.isArray(l)) return; var seen = {};
+      sl[m.id] = l.slice(0, 300).filter(function(x){ var ok = x && ID(x.id) && !seen[x.id] && INT(x.a, -1e9, 1e9) && x.a !== 0 && D(x.d); if (ok) seen[x.id] = true; return ok; }).map(function(x){ return { id: x.id, a: x.a, d: x.d, by: ID(x.by) || null }; }); });
+    if (Object.keys(sl).length) out.savelog = sl;
+  }
   if (nc) out.caps = caps;
   return out;
 }
@@ -887,6 +893,37 @@ function savePlanOf(target, have, today, start){
 function pctFloor(part, whole){
   if (!(whole > 0) || !(part > 0)) return 0;
   return Math.min(100, Math.floor(part * 100 / whole));
+}
+/* 積立の履歴 (v172). A person's savings are kept as a TOTAL (t.savings[id]) and that is the truth. Next to it, t.savelog[id] is a list of { id, a (yen; minus = a correction), d (date), by (who recorded it) }.
+   When the total and the list do not agree, the difference is shown as one grey line, "それ以前の積立": savings made before the list existed, and a total an older app changed by itself.
+   So an older app that only knows the total can never break anything. */
+function saveEntries(t, mid){
+  var log = (t.savelog && t.savelog[mid]) || [], total = (t.savings && t.savings[mid]) || 0, sum = 0, idx = log.map(function(x, i){ sum += x.a; return { x: x, i: i }; });
+  idx.sort(function(p, q){ return p.x.d < q.x.d ? 1 : p.x.d > q.x.d ? -1 : q.i - p.i; });   // newest date first; the same day: the later record first
+  return { entries: idx.map(function(p){ return p.x; }), rest: total - sum, total: total };
+}
+/* One change to a person's history, with the total moved the same way (never below 0). Returns what undoes it, or null when it cannot be done. */
+function saveApply(t, mid, op){
+  if (!t.savings) t.savings = {}; if (!t.savelog) t.savelog = {};
+  var log = t.savelog[mid] || (t.savelog[mid] = []), total = t.savings[mid] || 0, undo = null, i, x;
+  var idx = function(id){ for (var k = 0; k < log.length; k++) if (log[k].id === id) return k; return -1; };
+  if (op.kind === 'add'){
+    if (log.length >= 300 || idx(op.id) >= 0 || !Number.isInteger(op.a) || op.a === 0) return null;
+    log.push({ id: op.id, a: op.a, d: op.d, by: op.by || null }); total += op.a; undo = { kind: 'del', id: op.id };
+  } else if (op.kind === 'edit'){
+    i = idx(op.id); if (i < 0 || !Number.isInteger(op.a) || op.a === 0) return null;
+    x = log[i]; undo = { kind: 'edit', id: x.id, a: x.a, d: x.d }; total += op.a - x.a; x.a = op.a; x.d = op.d;
+  } else if (op.kind === 'del'){
+    i = idx(op.id); if (i < 0) return null;
+    x = log[i]; undo = { kind: 'restore', x: x, index: i }; total -= x.a; log.splice(i, 1);
+  } else if (op.kind === 'restore'){
+    if (idx(op.x.id) >= 0) return null;
+    log.splice(Math.min(op.index, log.length), 0, op.x); total += op.x.a; undo = { kind: 'del', id: op.x.id };
+  } else if (op.kind === 'rest'){   // the unlogged part: set it to op.rest (0 = take it away)
+    var sum = 0; log.forEach(function(y){ sum += y.a; }); undo = { kind: 'rest', rest: total - sum }; total = sum + op.rest;
+  } else return null;
+  t.savings[mid] = Math.max(0, total);
+  return undo;
 }
 /* ===== LOGIC_END ===== */
 
@@ -1044,7 +1081,7 @@ const shareBusy = {}, shareAgain = {};
 function shareSoon(){ clearTimeout(shareSoon.t); shareSoon.t = setTimeout(() => shared().forEach(t => shareSync(t)), 80); }
 function unshare(t){ delete t.share; persist(); if (lineAcct.user) bkSoon(); }
 function applyRemote(t, r, rev){
-  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; if (r.caps) t.caps = r.caps; else delete t.caps; t.expenses = r.expenses; t.settlements = r.settlements || []; t.adjustments = r.adjustments || []; t.paid = r.paid; t.received = r.received || {}; t.savings = r.savings;
+  t.name = r.name; t.start = r.start; t.end = r.end; t.budget = r.budget; t.members = r.members; if (r.caps) t.caps = r.caps; else delete t.caps; t.expenses = r.expenses; t.settlements = r.settlements || []; t.adjustments = r.adjustments || []; t.paid = r.paid; t.received = r.received || {}; t.savings = r.savings; if (r.savelog) t.savelog = r.savelog; else delete t.savelog;   // 積立の履歴: what the server has (none = none)
   t.share.rev = rev; t.share.snap = Sync.flatten([t]); persist();
 }
 /* push local changes (diff against what the server last had), then pull if somebody else changed it. Resolves 'ok' | 'offline' | 'gone'. */
@@ -2026,8 +2063,8 @@ function tabSave(t){
   let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。目標は、予算を人数で割った額です。</div>') + '<div class="list">';
   h += t.members.map(m => {
     const v = t.savings[m.id] || 0, p = pctFloor(v, target), done = v >= target;
-    return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
-      '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '</div></div>' +
+    return '<div class="item"><button type="button" class="slog" data-a="save-log" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'の積立の履歴を開く">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
+      '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '</div></div>' + icon('chev', 16) + '</button>' +
       '<button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;padding:9px 14px;font-size:calc(14px*var(--ts))">積み立てる</button></div>';
   }).join('') + '</div></div>';
   return h;
@@ -2105,8 +2142,24 @@ function viewSheet(){
     ttl = esc(nameOf(t, s.id)) + ' の積立';
     body = '<label class="lab" for="f-save">今回の積立額（円）</label><input class="field" id="f-save" type="text" inputmode="numeric" placeholder="例：5000" value="' + esc(s.val || '') + '">' +
       '<div class="chips" style="margin-top:10px">' + [1000, 3000, 5000, 10000].map(n => '<button class="chip plain" data-a="quick-save" data-v="' + n + '">+' + n.toLocaleString('ja-JP') + '</button>').join('') + '</div>' +
-      '<div class="sub" style="margin-top:10px">間違えたときは、マイナスの金額（例：-1000）で修正できます。</div>';
+      '<div class="sub" style="margin-top:10px">間違えたときは、積立の行を押すと、履歴から、直したり、消したりできます。</div>';
     foot = err + '<button class="btn" data-a="save-saving">記録する</button>';
+  } else if (s.type === 'savelog'){   // one person's history (v172): newest first; a row opens its editor; the unlogged part is one grey row
+    const v = saveEntries(t, s.id), target = Math.ceil(t.budget / t.members.length), sg = n => (n < 0 ? '−' : '+') + yen(Math.abs(n)), who = x => x.by && t.members.some(m => m.id === x.by) ? '・' + esc(nameOf(t, x.by)) + 'が記録' : '';
+    ttl = esc(nameOf(t, s.id)) + ' の積立';
+    if (s.edit){
+      const isRest = s.edit === 'rest', x = isRest ? { a: v.rest, d: '' } : (t.savelog[s.id] || []).find(y => y.id === s.edit) || { a: 0, d: todayStr() };
+      body = '<div class="sub" style="margin:0 0 8px">' + (isRest ? '「それ以前の積立」を、直します。0円にすると、消えます。' : '金額は、マイナスにもできます（間違えた分を、引くとき）。') + '</div>' +
+        '<label class="lab" for="f-sl-a">金額（円）</label><input class="field" id="f-sl-a" type="text" inputmode="numeric" value="' + esc(s.va != null ? s.va : String(x.a)) + '">' +
+        (isRest ? '' : '<label class="lab" for="f-sl-d">日付</label><input class="field" id="f-sl-d" type="date" value="' + esc(s.vd != null ? s.vd : x.d) + '">');
+      foot = err + '<button class="btn" data-a="sl-save">保存する</button><div class="row" style="justify-content:space-between;margin-top:6px"><button class="link" data-a="sl-back" style="width:auto">戻る</button><button class="link" data-a="sl-del" style="width:auto;color:var(--bad)">' + (isRest ? '0円にして消す' : 'この記録を削除') + '</button></div>';
+    } else {
+      body = '<div class="panel" style="margin:0 0 10px"><div class="row between"><span class="sub sm">合計</span><b>' + yen(v.total) + '</b></div><div class="row between"><span class="sub sm">目標（1人）</span><span>' + yen(target) + '</span></div></div>' +
+        (v.entries.length || v.rest ? '<div class="list">' + v.entries.map(x => '<button class="item slim" data-a="sl-edit" data-id="' + esc(x.id) + '"><div class="grow"><div class="t">' + fmtDay(x.d) + '</div><div class="sub sm">' + (who(x).slice(1) || '&nbsp;') + '</div></div><b class="' + (x.a < 0 ? 'neg' : '') + '">' + sg(x.a) + '</b>' + icon('chev', 16) + '</button>').join('') +
+          (v.rest ? '<button class="item slim slog-rest" data-a="sl-edit" data-id="rest"><div class="grow"><div class="t">それ以前の積立</div><div class="sub sm">記録なし・いつ積んだか、分かりません</div></div><b>' + sg(v.rest) + '</b>' + icon('chev', 16) + '</button>' : '') + '</div>'
+          : '<div class="empty"><b>まだ、積立の記録が、ありません</b><span>［積み立てる］で入れると、ここに、残ります。</span></div>');
+      foot = err + '<button class="btn" data-a="add-save" data-id="' + esc(s.id) + '">積み立てる</button>';
+    }
   } else if (s.type === 'settings'){
     const d = s.data, used = id => t.expenses.some(e => e.payer === id || e.split.indexOf(id) >= 0) || (t.adjustments || []).some(a => a.nets[id]);
     ttl = s.confirmDel ? '旅行を削除' : '旅行の設定';
@@ -2326,6 +2379,8 @@ function readSheet(){
     document.querySelectorAll('[data-fx]').forEach(el => { s.data.fixed = Object.assign({}, s.data.fixed, { [el.getAttribute('data-fx')]: el.value }); });
   } else if (s.type === 'save'){
     if (g('f-save')) s.val = g('f-save').value;
+  } else if (s.type === 'savelog'){
+    if (g('f-sl-a')) s.va = g('f-sl-a').value; if (g('f-sl-d')) s.vd = g('f-sl-d').value;
   } else if (s.type === 'note'){
     if (g('f-note')) s.val = g('f-note').value;
   } else if (s.type === 'join-share'){
@@ -2931,6 +2986,19 @@ document.addEventListener('click', e => {
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }
+  else if (a === 'save-log'){ ui.sheet = { type: 'savelog', id: id, err: '', edit: null }; }   // a row of the savings tab: that person's history
+  else if (a === 'sl-edit'){ readSheet(); s.edit = id; s.va = null; s.vd = null; s.err = ''; }
+  else if (a === 'sl-back'){ s.edit = null; s.va = null; s.vd = null; s.err = ''; }
+  else if (a === 'sl-save'){
+    readSheet(); const isRest = s.edit === 'rest', n = parseYen(s.va != null ? s.va : '');
+    if (isNaN(n) || (!isRest && n === 0) || Math.abs(n) > 1e9) s.err = isRest ? '金額を、数字で入力してください（0円なら、消えます）。' : '金額を、0以外の数字で入力してください（例：5000、−1000）。';
+    else if (!isRest && !/^\d{4}-\d{2}-\d{2}$/.test(s.vd || '')) s.err = '日付を入力してください。';
+    else { const un = saveApply(t, s.id, isRest ? { kind: 'rest', rest: n } : { kind: 'edit', id: s.edit, a: n, d: s.vd }); s.edit = null; s.va = null; s.vd = null; s.err = ''; save(); render(); flash('直しました', () => { saveApply(t, s.id, un); save(); render(); }); return; }
+  }
+  else if (a === 'sl-del'){
+    const mid = s.id, un = saveApply(t, mid, s.edit === 'rest' ? { kind: 'rest', rest: 0 } : { kind: 'del', id: s.edit });
+    if (un){ s.edit = null; s.va = null; s.vd = null; s.err = ''; save(); render(); flash('削除しました', () => { saveApply(t, mid, un); save(); render(); }); return; }
+  }
   else if (a === 'plan-save'){ ui.sheet = { type: 'save', id: meId(t), err: '', val: el.getAttribute('data-v') }; }   // from the plan card: the amount of this time is already in
   else if (a === 'note-edit'){ ui.sheet = { type: 'note', err: '' }; }
   else if (a === 'note-chip'){ const f = document.getElementById('f-note'); if (f){ f.value = el.getAttribute('data-v'); } return; }
@@ -2983,7 +3051,8 @@ document.addEventListener('click', e => {
   else if (a === 'save-saving'){
     const n = parseYen(document.getElementById('f-save').value);
     if (!(n !== 0 && !isNaN(n))) s.err = '金額を数字で入力してください（例：5000）。';
-    else { const fl0 = n > 0 ? flyFrom() : null; t.savings[s.id] = Math.max(0, (t.savings[s.id] || 0) + n); save(); ui.sheet = null; ui.stnWait = Math.round(FLY_MS * .75); render(); if (fl0) recFly('+' + yen(n), fl0); flash('記録しました'); return; }
+    else if (!saveApply(t, s.id, { kind: 'add', id: uid(), a: n, d: todayStr(), by: meId(t) })) s.err = '履歴がいっぱいです（300件まで）。いちばん古い記録を、消してください。';
+    else { const fl0 = n > 0 ? flyFrom() : null; save(); ui.sheet = null; ui.stnWait = Math.round(FLY_MS * .75); render(); if (fl0) recFly('+' + yen(n), fl0); flash('記録しました'); return; }
   }
 
   else if (a === 'settings'){ ui.sheet = { type: 'settings', err: '', confirmDel: false, data: { name: t.name, start: t.start, end: t.end, budget: String(t.budget) } }; }

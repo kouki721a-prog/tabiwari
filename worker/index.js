@@ -35,7 +35,8 @@ const ALTERS = [
   ['trips', 'caps TEXT'],   // limits per category (JSON, NULL = none)
   ['users', 'settle_notif INTEGER NOT NULL DEFAULT 1'],   // 精算のお知らせ on/off per account
   ['users', 'over_notif INTEGER NOT NULL DEFAULT 1'], ['users', 'pic_share INTEGER NOT NULL DEFAULT 1'], ['users', 'friend_flag INTEGER NOT NULL DEFAULT 0'], ['users', 'friend_changed INTEGER'], ['users', 'friend_checked_at INTEGER'],   // official-account friend state, saved at login
-  ['users', 'adv_notif INTEGER NOT NULL DEFAULT 0'], ['users', 'sv_notif INTEGER NOT NULL DEFAULT 1']
+  ['users', 'adv_notif INTEGER NOT NULL DEFAULT 0'], ['users', 'sv_notif INTEGER NOT NULL DEFAULT 1'],
+  ['savings', 'log TEXT']   // 積立の履歴 (JSON list of { id, a, d, by }); the total (amount) stays the truth. NULL = never logged (an older app only writes the total)
 ];
 /* The schema is made on first use. It is NOT redone at every cold start: that was ~40 database queries, and a free-plan Worker may make only ~50 per request, so a cold start
    left too little for the request itself (sync failed). A fingerprint of SCHEMA + ALTERS is kept in meta; when it matches, one query is all a cold start costs. A changed list = a new fingerprint = the migration runs once. */
@@ -65,6 +66,8 @@ const validFixed = (f, split, amount) => { if (f == null) return true; if (typeo
   const sum = ks.reduce((a, k) => a + f[k], 0); return sum <= amount && (ks.length < split.length || sum === amount); };
 /* limits per category of a trip (カテゴリごとの上限): null/absent, or whole yen (1 or more) for known categories */
 const validCaps = c => c == null || (typeof c === 'object' && !Array.isArray(c) && Object.keys(c).length >= 1 && Object.keys(c).length <= 6 && Object.keys(c).every(k => CATS.has(k) && isInt(c[k], 1, 1e9)));
+/* the history of one person's savings: null/absent, or a list of { id, a (yen, minus = a correction), d (date), by (who recorded it, optional) } */
+const validLog = l => l == null || (Array.isArray(l) && l.length <= 300 && l.every(x => x && typeof x === 'object' && isId(x.id) && isInt(x.a, -1e9, 1e9) && x.a !== 0 && isDate(x.d) && (x.by == null || isId(x.by))) && new Set(l.map(x => x.id)).size === l.length);
 const nonEmpty = v => typeof v === 'string' && v.trim().length > 0;
 
 /* Whitelist each row; anything unexpected rejects the whole request (nothing is applied). */
@@ -89,7 +92,7 @@ const CLEAN = {
       ? { id: r.id, settle_id: r.settle_id == null ? null : r.settle_id, nets: Object.fromEntries(ks.map(k => [k, nets[k]])), note, at: r.at } : null; },
   paid: r => isStr(r.key, 200) && r.key.length > 0 ? { key: r.key } : null,
   received: r => isStr(r.key, 200) && r.key.length > 0 ? { key: r.key } : null,
-  savings: r => isId(r.member_id) && isInt(r.amount, 0, 1e9) ? { member_id: r.member_id, amount: r.amount } : null
+  savings: r => isId(r.member_id) && isInt(r.amount, 0, 1e9) && validLog(r.log) ? { member_id: r.member_id, amount: r.amount, log: r.log == null ? null : r.log.map(x => ({ id: x.id, a: x.a, d: x.d, by: x.by == null ? null : x.by })) } : null
 };
 const UPDATABLE = new Set(['trips', 'expenses', 'savings', 'adjustments', 'members']);   // a member row only ever changes its memo (note)
 const KEYCOL = { trips: 'id', members: 'id', expenses: 'id', settlements: 'id', adjustments: 'id', paid: 'key', received: 'key', savings: 'member_id' };
@@ -126,7 +129,7 @@ async function getTrip(env, id, rev) {
     env.DB.prepare('SELECT id,title,amount,payer,cat,spent_on,split,settle_id,parts,fixed,author,made_at,editor,edited_at,prev,created_at FROM expenses WHERE trip_id=? ORDER BY created_at, id').bind(id),
     env.DB.prepare('SELECT key FROM paid WHERE trip_id=?').bind(id),
     env.DB.prepare('SELECT key FROM received WHERE trip_id=?').bind(id),
-    env.DB.prepare('SELECT member_id,amount FROM savings WHERE trip_id=?').bind(id),
+    env.DB.prepare('SELECT member_id,amount,log FROM savings WHERE trip_id=?').bind(id),
     env.DB.prepare('SELECT id,n,at,total,transfers FROM settlements WHERE trip_id=? ORDER BY n, id').bind(id),
     env.DB.prepare('SELECT id,settle_id,nets,note,at FROM adjustments WHERE trip_id=? ORDER BY at, id').bind(id)
   ]);
@@ -136,7 +139,7 @@ async function getTrip(env, id, rev) {
     expenses: e.results.map(r => ({ id: r.id, title: r.title, amount: r.amount, payer: r.payer, cat: r.cat, spent_on: r.spent_on, split: JSON.parse(r.split), settle_id: r.settle_id || null, parts: r.parts ? JSON.parse(r.parts) : null, fixed: r.fixed ? JSON.parse(r.fixed) : null, author: r.author || null, made_at: r.made_at || null, editor: r.editor || null, edited_at: r.edited_at || null, prev: r.prev ? JSON.parse(r.prev) : null, created_at: r.created_at })),
     settlements: st.results.map(r => ({ id: r.id, n: r.n, at: r.at, total: r.total, transfers: JSON.parse(r.transfers) })),
     adjustments: ad.results.map(r => ({ id: r.id, settle_id: r.settle_id || null, nets: JSON.parse(r.nets), note: r.note, at: r.at })),
-    paid: p.results.map(r => ({ trip_id: id, key: r.key })), received: rc.results.map(r => ({ trip_id: id, key: r.key })), savings: s.results.map(r => ({ trip_id: id, member_id: r.member_id, amount: r.amount })) } });
+    paid: p.results.map(r => ({ trip_id: id, key: r.key })), received: rc.results.map(r => ({ trip_id: id, key: r.key })), savings: s.results.map(r => ({ trip_id: id, member_id: r.member_id, amount: r.amount, log: r.log ? JSON.parse(r.log) : null })) } });
 }
 
 async function applyOps(env, req, id, ctx) {
@@ -170,7 +173,7 @@ async function applyOps(env, req, id, ctx) {
   if (ins.adjustments) S.push(P(`INSERT OR IGNORE INTO adjustments(trip_id,id,settle_id,nets,note,at) SELECT ?1, json_extract(value,'$.id'), json_extract(value,'$.settle_id'), json_extract(value,'$.nets'), json_extract(value,'$.note'), json_extract(value,'$.at') FROM json_each(?2)`).bind(id, J(ins.adjustments)));
   if (ins.paid) S.push(P(`INSERT OR IGNORE INTO paid(trip_id,key) SELECT ?1, json_extract(value,'$.key') FROM json_each(?2)`).bind(id, J(ins.paid)));
   if (ins.received) S.push(P(`INSERT OR IGNORE INTO received(trip_id,key) SELECT ?1, json_extract(value,'$.key') FROM json_each(?2)`).bind(id, J(ins.received)));
-  if (ins.savings) S.push(P(`INSERT OR IGNORE INTO savings(trip_id,member_id,amount) SELECT ?1, json_extract(value,'$.member_id'), json_extract(value,'$.amount') FROM json_each(?2)`).bind(id, J(ins.savings)));
+  if (ins.savings) S.push(P(`INSERT OR IGNORE INTO savings(trip_id,member_id,amount,log) SELECT ?1, json_extract(value,'$.member_id'), json_extract(value,'$.amount'), json_extract(value,'$.log') FROM json_each(?2)`).bind(id, J(ins.savings)));
 
   if (upd.trips) { const t = upd.trips[upd.trips.length - 1]; S.push(P('UPDATE trips SET name=?1, start_date=?2, end_date=?3, budget=?4, caps = CASE WHEN ?6 = 1 THEN ?7 ELSE caps END WHERE id=?5').bind(t.name, t.start_date, t.end_date, t.budget, id, t.has_caps ? 1 : 0, t.caps ? J(t.caps) : null)); }   // an older app that does not send caps must not wipe them
   if (upd.expenses) S.push(P(`UPDATE expenses SET title=j.title, amount=j.amount, payer=j.payer, cat=j.cat, spent_on=j.spent_on, split=j.split,
@@ -193,8 +196,8 @@ async function applyOps(env, req, id, ctx) {
   if (upd.adjustments) S.push(P(`UPDATE adjustments SET settle_id=j.settle_id
       FROM (SELECT json_extract(value,'$.id') AS id, json_extract(value,'$.settle_id') AS settle_id FROM json_each(?2)) AS j
       WHERE adjustments.trip_id=?1 AND adjustments.id=j.id`).bind(id, J(upd.adjustments)));
-  if (upd.savings) S.push(P(`UPDATE savings SET amount=j.amount
-      FROM (SELECT json_extract(value,'$.member_id') AS member_id, json_extract(value,'$.amount') AS amount FROM json_each(?2)) AS j
+  if (upd.savings) S.push(P(`UPDATE savings SET amount=j.amount, log=COALESCE(j.log, savings.log)
+      FROM (SELECT json_extract(value,'$.member_id') AS member_id, json_extract(value,'$.amount') AS amount, json_extract(value,'$.log') AS log FROM json_each(?2)) AS j
       WHERE savings.trip_id=?1 AND savings.member_id=j.member_id`).bind(id, J(upd.savings)));
 
   if (del.paid) S.push(P(`DELETE FROM paid WHERE trip_id=?1 AND key IN (SELECT json_extract(value,'$.key') FROM json_each(?2))`).bind(id, J(del.paid)));

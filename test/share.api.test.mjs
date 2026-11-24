@@ -57,7 +57,7 @@ try {
   assert.strictEqual(r.status, 200);
   g = await call(A, 'GET', '/api/trip');
   assert.deepStrictEqual([g.body.trip.name, g.body.trip.budget, g.body.trip.expenses[0].amount, g.body.trip.expenses[0].title], ['箱根 2泊', 60000, 3600, '夕食 2軒目']);
-  assert.deepStrictEqual(g.body.trip.savings, [{ trip_id: g.body.trip.id, member_id: 'm1', amount: 5000 }]);
+  assert.deepStrictEqual(g.body.trip.savings, [{ trip_id: g.body.trip.id, member_id: 'm1', amount: 5000, log: null }], 'a total with no history: log is null');
   assert.strictEqual(g.body.trip.paid.length, 1);
   assert.ok(g.body.rev > rev0, 'revision moves on every change');
   r = await ops(A, [{ kind: 'update', table: 'savings', row: { member_id: 'm1', amount: 7000 } }, { kind: 'delete', table: 'paid', row: { key: 'm2-m1-1800' } },
@@ -189,6 +189,23 @@ try {
     for (const bad of [{ food: 0 }, { food: -5 }, { food: 1.5 }, { food: '5' }, { zzz: 5 }, [5], {}, { food: 1e10 }])
       assert.strictEqual((await ops(T, [{ kind: 'update', table: 'trips', row: { ...trip, caps: bad } }])).status, 400, JSON.stringify(bad));
     const T2 = tok('c'); assert.strictEqual((await ops(T2, [{ kind: 'insert', table: 'trips', rows: [{ ...trip, caps: { stay: 30000 } }] }])).status, 200); assert.deepStrictEqual((await call(T2, 'GET', '/api/trip')).body.trip.caps, { stay: 30000 }, 'a trip can be created with limits'); }
+
+  // --- 積立の履歴: the total is the truth; the list rides on the same row. An older app that only writes the total never loses or breaks it.
+  { const T = await make(tok('s')), L = [{ id: 'l1', a: 3000, d: '2026-11-20', by: 'm1' }, { id: 'l2', a: 2000, d: '2026-11-21' }];
+    let r = await ops(T, [{ kind: 'insert', table: 'savings', rows: [{ member_id: 'm1', amount: 5000, log: L }] }]); assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    let g = await call(T, 'GET', '/api/trip'); assert.deepStrictEqual(g.body.trip.savings, [{ trip_id: g.body.trip.id, member_id: 'm1', amount: 5000, log: [{ id: 'l1', a: 3000, d: '2026-11-20', by: 'm1' }, { id: 'l2', a: 2000, d: '2026-11-21', by: null }] }], 'the history comes back as it was saved');
+    // an older app writes only the total: the history stays (the new app shows the difference as the unlogged part)
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'savings', row: { member_id: 'm1', amount: 9000 } }])).status, 200); g = await call(T, 'GET', '/api/trip'); assert.strictEqual(g.body.trip.savings[0].amount, 9000); assert.strictEqual(g.body.trip.savings[0].log.length, 2, 'an update without a list leaves the list alone');
+    // a new app edits: the list is replaced, an emptied list ([]) clears it
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'savings', row: { member_id: 'm1', amount: 8000, log: [L[0]] } }])).status, 200); g = await call(T, 'GET', '/api/trip'); assert.deepStrictEqual([g.body.trip.savings[0].amount, g.body.trip.savings[0].log.length], [8000, 1]);
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'savings', row: { member_id: 'm1', amount: 8000, log: [] } }])).status, 200); g = await call(T, 'GET', '/api/trip'); assert.deepStrictEqual(g.body.trip.savings[0].log, [], 'an emptied list is stored as empty, not as "never had one"');
+    // a person who has a history but no row yet (the first deposit of a new app): inserted with the list
+    assert.strictEqual((await ops(T, [{ kind: 'insert', table: 'savings', rows: [{ member_id: 'm2', amount: 1000, log: [{ id: 'k1', a: 1000, d: '2026-11-22', by: 'm2' }] }] }])).status, 200); g = await call(T, 'GET', '/api/trip'); assert.strictEqual(g.body.trip.savings.find(x => x.member_id === 'm2').log[0].id, 'k1');
+    // rejected as a whole (nothing is applied): not a list, a bad date, a zero amount, a repeated id, a bad id, too many
+    const row = log => ({ member_id: 'm1', amount: 100, log });
+    for (const bad of ['x', {}, [{ id: 'a', a: 1, d: '2026-13-45' }], [{ id: 'a', a: 0, d: '2026-11-20' }], [{ id: 'a', a: 1, d: '2026-11-20' }, { id: 'a', a: 2, d: '2026-11-20' }], [{ id: 'bad id', a: 1, d: '2026-11-20' }], [{ id: 'a', a: 1.5, d: '2026-11-20' }], [{ id: 'a', a: 1, d: '2026-11-20', by: 'bad id' }], Array.from({ length: 301 }, (_, i) => ({ id: 'e' + i, a: 1, d: '2026-11-20' }))])
+      assert.strictEqual((await ops(T, [{ kind: 'update', table: 'savings', row: row(bad) }])).status, 400, JSON.stringify(bad).slice(0, 60));
+    assert.strictEqual((await ops(T, [{ kind: 'update', table: 'savings', row: row(Array.from({ length: 300 }, (_, i) => ({ id: 'e' + i, a: -1, d: '2026-11-20' }))) }])).status, 200, '300 entries are fine (a minus entry is a correction)'); }
 
   // --- creating trips is rate limited (per day, per IP)
   let limited = false;
