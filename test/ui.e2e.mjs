@@ -487,13 +487,13 @@ try {
       const sv = await q.textContent('.ticket.c'); assert.ok(sv.includes('出発まで あと3日') && sv.includes('あと 20,000円') && !sv.includes('1日 約'), sv);
       // the plan: under a week it is just what is missing; further away, a weekly amount; a reached target brings the plain explanation back
       { const planTx = async () => (await q.locator('.plan').count()) ? await q.innerText('.plan') : '';
-        assert.ok((await planTx()).includes('あなたの積立のめやす') && (await planTx()).includes('出発までに、あと'), 'under a week: ' + await planTx()); assert.ok(!(await q.innerText('.sec')).includes('目標は、予算を人数で割った額です'), 'the plan stands in for the explanation');
+        assert.ok((await planTx()).includes('あなたの積立のめやす') && (await planTx()).includes('出発までに、あと'), 'under a week: ' + await planTx()); assert.ok(!(await q.innerText('.sec')).includes('履歴を見たり、直したりできます'), 'the plan stands in for the explanation');
         await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.start = addDays(todayStr(), 36); t.end = addDays(t.start, 1); render(); });
         assert.ok(/毎週.曜日に、約 [\d,]+円/.test(await planTx()) && (await planTx()).includes('次は') && (await planTx()).includes('回'), 'weekly: ' + await planTx());
         await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.start = addDays(todayStr(), 120); t.end = addDays(t.start, 1); render(); });
         assert.ok(/毎月 \d+日に、約 [\d,]+円/.test(await planTx()), 'monthly: ' + await planTx());
         await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.savings[meId(t)] = Math.ceil(t.budget / t.members.length); render(); });
-        assert.strictEqual(await q.locator('.plan').count(), 0, 'target reached: no plan'); assert.ok((await q.innerText('.sec')).includes('目標は、予算を人数で割った額です'), 'the explanation is back'); }
+        assert.strictEqual(await q.locator('.plan').count(), 0, 'target reached: no plan'); assert.ok((await q.innerText('.sec')).includes('履歴を見たり、直したりできます'), 'the explanation is back'); }
       await q.click('[data-a=home]'); }
     // trip recap image: offered on a finished trip with expenses (and in the trip settings), made on the device as a 1080x1350 PNG
     await q.locator('.trip', { hasText: '旅行中の旅' }).click(); await q.waitForSelector('.nav'); assert.strictEqual(await q.locator('[data-a=recap]').count(), 0, 'nothing recorded: no recap'); await q.click('[data-a=home]');
@@ -831,7 +831,7 @@ try {
     assert.strictEqual(await q.locator('.legend2').count(), 0, 'the category split is folded into one line'); assert.ok((await q.textContent('.foot-more')).includes('内訳'), 'with a limit but nothing recorded: the fold line'); await q.click('[data-a=usage-toggle]'); await q.waitForSelector('.legend2');
     assert.ok((await q.textContent('.legend2')).includes('食事 0／5,000') && (await q.textContent('.legend2')).includes('お土産 0／3,000'), 'the categories with a limit show even when unused');
     await q.fill('#q-quick', '夕食 4000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 4,000円を記録しました'); assert.ok(!(await q.textContent('.toast, [role=status]').catch(() => '')).includes('超えました'));
-    await q.click('[data-a=tab][data-t=save]'); await see(q, 'ひとりずつの積立'); { assert.ok((await q.innerText('body')).includes('目標は、予算を人数で割った額です'), 'the savings tab says what it is'); await q.click('[data-a=tab][data-t=exp]').catch(() => {}); }
+    await q.click('[data-a=tab][data-t=save]'); await see(q, 'ひとりずつの積立'); { assert.ok((await q.innerText('body')).includes('履歴を見たり、直したりできます'), 'the savings tab says what it is'); await q.click('[data-a=tab][data-t=exp]').catch(() => {}); }
     // a long notice (like the offline one) wraps inside the screen instead of being cut off at both edges
     await q.evaluate(() => flash('ネットワークにつながりません。接続を確認して、もう一度お試しください。')); await see(q, 'ネットワークにつながりません'); { const r = await q.$eval('.toast', e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: innerWidth, h: b.height }; }); assert.ok(r.l >= 8 && r.r <= r.w - 8, 'the long notice stays inside the screen: ' + JSON.stringify(r)); }
     await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '食事が、上限を 1,000円 超えました。');
@@ -966,7 +966,7 @@ try {
     // 99.8% is shown as 99%: the last station and "100%" wait for the goal
     await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = t.budget - 600; render(); }); assert.ok((await f.innerText('.ticket.c')).includes('99%') && !(await f.innerText('.ticket.c')).includes('100%'), 'almost there: 99%'); assert.strictEqual(await f.locator('.stn i.on').count(), 3, 'the last station is not lit yet');
     await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = 0; ui.stnLvl = {}; render(); });
-    assert.strictEqual(await f.locator('.stn i').count(), 4); assert.strictEqual(await f.locator('.stn i.on').count(), 0, 'nothing saved: no station is lit');
+    assert.ok((await f.innerText('.slog')).includes('履歴 ›'), 'the row says it opens the history'); assert.strictEqual(await f.locator('.stn i').count(), 4); assert.strictEqual(await f.locator('.stn i.on').count(), 0, 'nothing saved: no station is lit');
     { const xs = await f.$$eval('.stn i', es => es.map(e => Math.round(e.getBoundingClientRect().left))), bar = await f.$eval('.stn', e => e.getBoundingClientRect()); assert.ok(xs.every((x, i) => i === 0 || x > xs[i - 1] + 20) && xs[0] > bar.left + 10 && xs[3] > bar.left + bar.width - 20, 'the four stations are spread along the bar: ' + xs); }
     // the + button is the stage's main action: on the savings tab it puts money aside; the plan card has a button with this time's amount already in
     assert.strictEqual(await f.getAttribute('.nav .plus', 'data-a'), 'add-save', 'savings tab: + puts money aside'); { const go = await f.locator('.plan-go'), v = await go.getAttribute('data-v'); assert.ok(/^\d+$/.test(v) && (await go.innerText()).includes('を積み立てる'), 'the plan card button: ' + v);
