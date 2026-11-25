@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -412,3 +412,28 @@ console.log('save log tests passed');
   const withLog = JSON.parse(JSON.stringify(base)); withLog.savelog = { a: [{ id: 'x1', a: 5000, d: '2026-11-20', by: 'a' }, { id: 'x1', a: 9, d: '2026-11-20' }, { id: 'bad id', a: 1, d: '2026-11-20' }, { id: 'x2', a: 0, d: '2026-11-20' }, { id: 'x3', a: 100, d: 'xx' }, { id: 'x4', a: 100, d: '2026-11-21', by: 'a' }], zz: [{ id: 'y', a: 1, d: '2026-11-20' }] };
   const kept = L.sanitizeTrip(withLog, null); assert.deepStrictEqual(kept.savelog, { a: [{ id: 'x1', a: 5000, d: '2026-11-20', by: 'a' }, { id: 'x4', a: 100, d: '2026-11-21', by: 'a' }] }, 'valid entries kept; duplicates, bad ids, zero amounts and bad dates dropped; a stranger is dropped'); }
 console.log('save log restore tests passed');
+
+// たびまるに聞く: ready-made questions answered from the trip's numbers; the pace says whether the budget lasts
+{ const A = L.maruAnswers, P = L.maruPace, ms = [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'けんた' }];
+  const ex = (id, amount, payer, date, split = ['a', 'b']) => ({ id, title: 'x', amount, payer, cat: 'food', date, split });
+  const T = o => Object.assign({ budget: 100000, members: ms, savings: {}, expenses: [], settlements: [], adjustments: [], start: '2026-12-01', end: '2026-12-04' }, o);
+  const get = (qs, id) => (qs.find(x => x.id === id) || {}).a;
+  // before the trip: savings questions
+  let qs = A(T({ savings: { a: 20000, b: 5000 } }), '2026-11-10', 'a'); assert.deepStrictEqual(qs.map(x => x.id), ['save-left', 'save-all'], 'before: the savings questions (and the pre-paid one only if something was paid)');
+  assert.ok(get(qs, 'save-left').includes('あと 30,000円') && get(qs, 'save-left').includes('毎週'), get(qs, 'save-left')); assert.ok(get(qs, 'save-all').includes('25,000円') && get(qs, 'save-all').includes('25%'), get(qs, 'save-all'));
+  assert.ok(get(A(T({ savings: { a: 50000 } }), '2026-11-10', 'a'), 'save-left').includes('届いています'), 'the goal reached');
+  assert.ok(A(T({ expenses: [ex('e1', 30000, 'a', '2026-11-05')] }), '2026-11-10', 'a').some(x => x.id === 'pre-paid'), 'a booking before the trip adds a question');
+  // during the trip
+  const run = T({ expenses: [ex('e1', 12000, 'a', '2026-12-01'), ex('e2', 6000, 'b', '2026-12-02'), ex('e3', 5000, 'a', '2026-12-02')] });
+  qs = A(run, '2026-12-02', 'a'); assert.deepStrictEqual(qs.map(x => x.id), ['today', 'pace', 'who', 'settle']);
+  assert.ok(get(qs, 'today').includes('今日の目安は 25,666円') && get(qs, 'today').includes('いま 11,000円') && get(qs, 'today').includes('あと 14,666円'), get(qs, 'today'));
+  assert.ok(get(qs, 'who').includes('あおい +') && get(qs, 'who').includes('けんた −'), get(qs, 'who')); assert.ok(get(qs, 'settle').includes('けんた → あおい'), get(qs, 'settle'));
+  assert.ok(get(A(T({ expenses: [ex('e1', 90000, 'a', '2026-12-02')] }), '2026-12-02', 'a'), 'today').includes('超えています'), 'over the guide');
+  // after the trip
+  qs = A(run, '2026-12-10', 'a'); assert.deepStrictEqual(qs.map(x => x.id), ['who', 'settle'], 'after: who owes and the settlement'); assert.ok(get(A(T({}), '2026-12-10', 'a'), 'who').includes('貸し借りは、ありません'));
+  // the pace: 23,000 in 2 of 4 days -> 46,000 for the trip; fine. 60,000 in 2 days -> 120,000: over by 20,000
+  assert.strictEqual(P(run, '2026-12-02').projected, 46000); assert.strictEqual(P(run, '2026-12-02').over, 0);
+  const fast = T({ expenses: [ex('e1', 40000, 'a', '2026-12-01'), ex('e2', 20000, 'b', '2026-12-02')] }); assert.deepStrictEqual([P(fast, '2026-12-02').projected, P(fast, '2026-12-02').over], [120000, 20000]);
+  assert.strictEqual(P(T({ expenses: [ex('e1', 1, 'a', '2026-12-01')] }), '2026-12-02'), null, 'fewer than 2 records: too early to say'); assert.strictEqual(P(fast, '2026-12-04'), null, 'the last day: nothing left to adjust'); assert.strictEqual(P(fast, '2026-11-30'), null, 'not travelling'); assert.strictEqual(P(fast, '2026-12-05'), null);
+  assert.ok(get(A(fast, '2026-12-02', 'a'), 'pace').includes('超えます'), get(A(fast, '2026-12-02', 'a'), 'pace')); assert.ok(get(A(T({ expenses: [ex('e1', 1000, 'a', '2026-12-01')] }), '2026-12-02', 'a'), 'pace').includes('見通しが立てられません')); }
+console.log('maru help tests passed');

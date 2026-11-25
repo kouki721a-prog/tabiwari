@@ -451,6 +451,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
 .wr-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px}.wr-bot:before,.wr-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.wr-bot:before{left:0;border-radius:0 11px 11px 0}.wr-bot:after{right:0;border-radius:11px 0 0 11px}
 .wr-ticket .send-stp{position:absolute;right:16px;top:-16px;width:76px;height:76px;font-size:calc(30px*var(--ts));--r:-8deg;z-index:2;margin:0}
+.maru-btn{flex:none;width:34px;height:34px;display:grid;place-items:center;border-radius:99px;border:1.5px solid var(--dash);background:var(--cream);margin-right:6px}.maru-chat{display:flex;align-items:flex-end;gap:10px;margin:2px 0 12px}.maru-bubble.big{max-width:none;font-size:calc(14px*var(--ts));padding:10px 14px}.maru-ans{background:var(--cream);border:1.5px dashed var(--dash);border-radius:14px;padding:12px 14px;line-height:1.7;margin-bottom:12px;font-variant-numeric:tabular-nums}.maru-qs{display:flex;flex-direction:column;gap:8px;align-items:stretch}.maru-qs .chip{text-align:left;justify-content:flex-start;padding:11px 14px}.maru-qs .chip.on{background:var(--sun);border-color:var(--sun);color:var(--sun-ink)}
 .maru{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom) + 158px);z-index:45;display:flex;align-items:flex-end;gap:8px;pointer-events:none;max-width:calc(100vw - 28px)}.maru-bubble{max-width:236px;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:14px 14px 14px 4px;padding:7px 11px;font-size:calc(12.5px*var(--ts));line-height:1.5;box-shadow:0 6px 16px rgba(15,39,66,.18)}.maru-face{flex:none;display:block}
 .wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
 .ill{width:64px;height:64px;flex:none;color:var(--ink)}.ill.lg{width:92px;height:92px;display:block;margin:0 auto 8px}
@@ -927,6 +928,43 @@ function saveApply(t, mid, op){
   t.savings[mid] = Math.max(0, total);
   return undo;
 }
+/* たびまるに聞く (v178): ready-made questions, answered from the trip's own numbers (no AI, nothing is sent anywhere). The questions depend on where the trip is.
+   Returns [{ id, q, a }]. `me` is the person using the app. */
+function maruAnswers(t, today, me){
+  var nm = function(id){ for (var i = 0; i < t.members.length; i++) if (t.members[i].id === id) return t.members[i].name; return ''; };
+  var yen = function(n){ return Number(n).toLocaleString('ja-JP') + '円'; };
+  var out = [], spent = t.expenses.reduce(function(s, e){ return s + e.amount; }, 0), left = t.budget - spent;
+  var pre = today < t.start, over = today > t.end, N = Math.max(1, t.members.length);
+  if (pre){
+    var target = Math.ceil(t.budget / N), have = (t.savings && t.savings[me]) || 0, plan = savePlanOf(target, have, today, t.start), all = 0;
+    t.members.forEach(function(m){ all += (t.savings && t.savings[m.id]) || 0; });
+    out.push({ id: 'save-left', q: 'あと いくら積めばいい？', a: have >= target ? 'あなたの積立は、目標に届いています。' : 'あなたの目標まで、あと ' + yen(target - have) + ' です。' + (plan && plan.kind !== 'once' ? (plan.kind === 'weekly' ? '毎週' : '毎月') + '、約 ' + yen(plan.per) + ' ずつで届きます。' : plan ? '出発まで ' + plan.days + '日です。' : '') });
+    out.push({ id: 'save-all', q: 'みんなの積立は、いまいくら？', a: 'みんなで ' + yen(all) + '。予算 ' + yen(t.budget) + ' の ' + pctFloor(all, t.budget) + '% です。' });
+    if (spent > 0) out.push({ id: 'pre-paid', q: '旅行前に、いくら払った？', a: '旅行前の支出は、合計 ' + yen(spent) + ' です。予算の残りは ' + yen(left) + ' です。' });
+    return out;
+  }
+  if (!over){
+    var days = Math.max(1, dayDiff(t.start, t.end) + 1), dl = Math.max(1, dayDiff(today, t.end) + 1), per = Math.max(0, Math.floor(left / dl)), ts = t.expenses.filter(function(e){ return e.date === today; }).reduce(function(s, e){ return s + e.amount; }, 0);
+    out.push({ id: 'today', q: '今日は、あと いくら使える？', a: ts > per ? '今日は、目安の ' + yen(per) + ' を、 ' + yen(ts - per) + ' 超えています。' : '今日の目安は ' + yen(per) + '。いま ' + yen(ts) + ' 使っているので、あと ' + yen(per - ts) + ' です。' });
+    var pace = maruPace(t, today);
+    out.push({ id: 'pace', q: '予算は、足りそう？', a: !pace ? 'まだ、記録が少なくて、見通しが立てられません。もう少し記録してから、また聞いてください。' : pace.over > 0 ? 'このペースだと、最終日までに、約 ' + yen(pace.projected) + ' になりそうです。予算を、約 ' + yen(pace.over) + ' 超えます。' : 'このペースなら、最終日までに、約 ' + yen(pace.projected) + ' で、予算に収まりそうです。' });
+  }
+  var net = roundBalances(t).net, who = t.members.filter(function(m){ return net[m.id]; }).sort(function(a, b){ return net[b.id] - net[a.id]; });
+  out.push({ id: 'who', q: '誰が、いくら立て替えてる？', a: who.length ? who.map(function(m){ return nm(m.id) + ' ' + (net[m.id] > 0 ? '+' : '−') + yen(Math.abs(net[m.id])); }).join('・') + '（＋は、受け取る側）' : 'いまは、貸し借りは、ありません。' });
+  if (over || t.settlements && t.settlements.length || who.length){
+    var tr = settle(net);
+    out.push({ id: 'settle', q: '精算は、いくらになる？', a: tr.length ? tr.slice(0, 6).map(function(x){ return nm(x.from) + ' → ' + nm(x.to) + ' ' + yen(x.amount); }).join('、') + (tr.length > 6 ? ' ほか' : '') + '。' : '精算するものは、ありません。' });
+  }
+  return out;
+}
+/* the pace of the spending against the budget: what the days so far say about the whole trip. null while there is too little to say (fewer than 2 records, or the first day with less than a quarter of it gone). */
+function maruPace(t, today){
+  if (today < t.start || today > t.end || t.expenses.length < 2 || !(t.budget > 0)) return null;
+  var days = Math.max(1, dayDiff(t.start, t.end) + 1), elapsed = Math.max(1, dayDiff(t.start, today) + 1), spent = t.expenses.reduce(function(s, e){ return s + e.amount; }, 0);
+  if (elapsed >= days) return null;   // the last day: nothing left to adjust
+  var projected = Math.round(spent / elapsed * days);
+  return { projected: projected, over: Math.max(0, projected - t.budget), elapsed: elapsed, days: days };
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -1398,7 +1436,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
-  stampWatch(); lpObserve(); motionMoney(); motionSendoff(performance.now()); sendoffCheck(); wrapCheck();
+  stampWatch(); lpObserve(); motionMoney(); motionSendoff(performance.now()); sendoffCheck(); maruPaceCheck(); wrapCheck();
 }
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
@@ -1657,6 +1695,7 @@ function capNotice(t, before){   // "食事が、上限を 2,000円 超えまし
 }
 function memRow(t){   // the members and the invite button (on the record tab they share the date line)
   return '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
+    '<button class="maru-btn" data-a="maru-open" aria-label="たびまるに聞く">' + tabimaru(17) + '</button>' +
     '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
 }
 /* the record tab's card: ONE thing in big letters (today's guide while travelling / what was saved before / what was spent after), one bar, one line for the rest; the category split is folded into one line (a tap opens the bar and the chips) */
@@ -1966,9 +2005,10 @@ function maruSay(key, line, retry){
 }
 /* after a record is saved: today over the guide (once a day), or the first record on the last day (once a trip) */
 function maruAfterRecord(t){
+  ui.lastRecordAt = Date.now();
   const today = todayStr(); if (status(t)[0] !== '旅行中') return;
   const sp = total(t), dl = Math.max(1, dayDiff(today, t.end) + 1), per = Math.max(0, Math.floor((t.budget - sp) / dl)), todays = t.expenses.filter(e => e.date === today), ts = todays.reduce((a, e) => a + e.amount, 0);
-  if (ts > 0 && ts > per && maruSay('over|' + t.id + '|' + today, '今日は、目安を、少し超えました。明日で、ならしましょう。')) return;
+  if (ts > 0 && ts > per){ ui.pacePlanned = 'pace|' + t.id + '|' + today; if (maruSay('over|' + t.id + '|' + today, '今日は、目安を、少し超えました。明日で、ならしましょう。')) return; }   // the same day, the pace line stays quiet (one line a day)
   if (today === t.end && todays.length === 1) maruSay('last|' + t.id, '最終日ですね。帰ったら、精算を、ひらきましょう。');
 }
 const MARU_STN = { 25: '4分の1まで、来ました。', 50: '半分まで、来ました。', 75: '4分の3まで、来ました。あと少しです。' };
@@ -2005,6 +2045,13 @@ function motionSendoff(now){
   if (!calm() || now - at > SEND_DELAY + SEND_MS + 100){ ui.sendoffAt = 0; return; }
   const el = document.querySelector('.send-stp'); if (!el) return; const e = now - (at + SEND_DELAY); if (e >= SEND_MS) return;
   const a = el.animate([{ opacity: 0, transform: 'rotate(-34deg) scale(2.3)' }, { opacity: 1, transform: 'rotate(-8deg) scale(.9)', offset: .68 }, { opacity: 1, transform: 'rotate(-8deg) scale(1)' }], { duration: SEND_MS, delay: e < 0 ? -e : 0, fill: 'backwards', easing: 'cubic-bezier(.3,1.2,.5,1)' }); if (e > 0) a.currentTime = e;
+}
+/* たびまるの先回り (v178): the pace of the spending says the budget will run out before the last day -> one line, once a day per trip, when the record tab of the running trip is shown */
+function maruPaceCheck(){
+  if (ui.view !== 'trip' || ui.tab !== 'exp' || ui.sheet) return; const t = trip(); if (!t || status(t)[0] !== '旅行中') return;
+  const today = todayStr(), p = maruPace(t, today); if (!p || !(p.over > t.budget * 0.05)) return;
+  const key = 'pace|' + t.id + '|' + today; if (ui.pacePlanned === key || ui.maruBusy || Date.now() - (ui.lastRecordAt || 0) < 4000) return; ui.pacePlanned = key;   // right after a record, the record's own line goes first
+  setTimeout(() => { const cur = trip(); if (cur && cur.id === t.id && ui.tab === 'exp') maruSay(key, 'このペースだと、最終日までに、予算を ' + yen(p.over) + ' ほど、超えそうです。'); }, 1400);
 }
 function stampWatch(){
   const t = trip(); if (!t) return;
@@ -2344,6 +2391,15 @@ function viewSheet(){
     else { body = '<div class="sub" style="margin-top:10px">Cloudflare に登録した、運営者の合言葉を入れてください。このアカウントが、運営者になります。</div><input class="field" id="adm-token" type="password" autocomplete="off" autocapitalize="none" aria-label="運営者の合言葉" placeholder="合言葉" style="margin-top:14px">';
       foot = (s.err ? '<div class="err" role="alert" style="margin:0 0 8px">' + esc(s.err) + '</div>' : '') + '<button class="btn" data-a="adm-claim"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '確認しています…' : '運営者になる') + '</button><button class="link" data-a="close-sheet">やめる</button>'; }
   }
+  if (s.type === 'maru'){   // ask たびまる: ready-made questions, answered from this trip's numbers
+    const qs = maruAnswers(t, todayStr(), meId(t)), cur = qs.find(x => x.id === s.pick), st = status(t)[0];
+    ttl = 'たびまる';
+    body = '<div class="maru-chat"><span class="maru-face">' + tabimaru(34) + '</span><div class="maru-bubble big">' + (cur ? esc(cur.q) : st === '準備中' ? 'いよいよ、もうすぐですね。何か、聞いてみますか？' : st === '旅行中' ? '旅の途中ですね。何か、聞いてみますか？' : 'おつかれさまでした。何か、聞いてみますか？') + '</div></div>' +
+      (cur ? '<div class="maru-ans" role="status">' + esc(cur.a) + '</div>' : '') +
+      '<div class="maru-qs">' + qs.map(x => '<button class="chip plain' + (x.id === s.pick ? ' on' : '') + '" data-a="maru-q" data-v="' + x.id + '">' + esc(x.q) + '</button>').join('') + '</div>' +
+      '<div class="sub sm" style="margin-top:12px">この旅行の記録から、その場で、計算して答えます。外には、送りません。</div>';
+    foot = '<button class="link" data-a="close-sheet">閉じる</button>';
+  }
   if (s.type === 'sendoff'){
     const w = state.trips.find(x => x.id === s.id);
     if (!w){ ttl = 'いってらっしゃい'; body = '<div class="empty">見つかりませんでした。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
@@ -2490,7 +2546,7 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   t.members.forEach(m => { if (left.indexOf(m.id) >= 0 && fx[m.id] === undefined && r.weights[m.name] && wp[m.id] === undefined){ wp[m.id] = r.weights[m.name]; said.push(m.name + ' ' + partLabel(r.weights[m.name])); } });
   r.excluded.forEach(n => said.push(n + 'なし'));
   const pp = cleanParts(wp, rec.split.slice()), full = {}; if (pp){ rec.split.forEach(id => { full[id] = wp[id] || 2; }); const fp = cleanParts(full, rec.split); if (fp) rec.parts = fp; }
-  const before = catSums(t), fl0 = flyFrom('q-quick'); stampNew(t, rec); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render(); recFly((r.title || (CAT[r.cat] || CAT.other)[2]) + ' −' + yen(r.amount), fl0); setTimeout(() => maruAfterRecord(t), 1100);
+  const before = catSums(t), fl0 = flyFrom('q-quick'); stampNew(t, rec); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render(); recFly((r.title || (CAT[r.cat] || CAT.other)[2]) + ' −' + yen(r.amount), fl0); ui.lastRecordAt = Date.now(); setTimeout(() => maruAfterRecord(t), 1100);
   const cn = capNotice(t, before);
   flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
 });
@@ -3033,7 +3089,7 @@ document.addEventListener('click', e => {
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }
       else { const ne = stampNew(t, Object.assign({ id: uid() }, rec)); t.expenses.push(ne); ui.fresh = { [ne.id]: 1 }; lsSet('tabiwari.last.' + t.id, JSON.stringify({ payer: ne.payer, split: ne.split })); }
-      const wasEdit = !!s.editId, fl0 = wasEdit ? null : flyFrom(), fl1 = (rec.title || (CAT[rec.cat] || CAT.other)[2]) + ' −' + yen(rec.amount); save(); ui.sheet = null; render(); recFly(fl1, fl0); if (!wasEdit) setTimeout(() => maruAfterRecord(t), 1100); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
+      const wasEdit = !!s.editId, fl0 = wasEdit ? null : flyFrom(), fl1 = (rec.title || (CAT[rec.cat] || CAT.other)[2]) + ' −' + yen(rec.amount); save(); ui.sheet = null; render(); recFly(fl1, fl0); if (!wasEdit) ui.lastRecordAt = Date.now(); setTimeout(() => maruAfterRecord(t), 1100); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
     }
   }
   else if (a === 'settled-cancel'){ s.confirmSettled = false; }
@@ -3077,6 +3133,8 @@ document.addEventListener('click', e => {
     if (mine){ if (v) mine.note = v; else delete mine.note; state.payNote = v || undefined; save(); }   // kept on this device too: it starts the memo of the next trip
     ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
   }
+  else if (a === 'maru-open'){ ui.sheet = { type: 'maru', pick: null }; }
+  else if (a === 'maru-q'){ ui.sheet.pick = el.getAttribute('data-v'); }
   else if (a === 'maru-toggle'){ lsSet(MARU_KEY, maruOn() ? '0' : null); render(); return; }
   else if (a === 'text-size'){ const v = el.getAttribute('data-v'); if (!TEXT_SIZES[v]) return; lsSet(TEXT_KEY, v === '1' ? null : v); applyTextSize(); render(); return; }
   else if (a === 'usage-toggle'){ const open = ui.usageOpen || !!ui.catF; if (open){ ui.usageOpen = false; ui.catF = null; } else ui.usageOpen = true; render(); return; }
