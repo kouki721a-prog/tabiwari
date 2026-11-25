@@ -1007,6 +1007,21 @@ try {
     // the card and the bar read the same total
     assert.ok((await f.innerText('.ticket.c')).includes('5,000円'), 'the card follows: ' + await f.innerText('.ticket.c'));
     await cf.close(); }
+  // いってらっしゃい: on the day of departure, the first time the home screen is opened, a small ticket greets you (the stamp 発 is pressed). Once per trip. Not for a trip made that very day (it was first seen today).
+  for (const [motion, moves] of [['no-preference', true], ['reduce', false]]) {
+    const mkCtx = async (firstSeen) => { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion, viewport: { width: 390, height: 780 } }), p = await c.newPage(); p.on('pageerror', e => errs.push(e.message)); await p.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+      await p.addInitScript(fs0 => { const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1');
+        if (!localStorage.getItem('tabiwari.v1')) { localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '福岡', start: day(0), end: day(2), budget: 300000, paid: {}, savings: { a: 120000 }, settlements: [], adjustments: [], members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }], expenses: [] }] }));
+          if (fs0 !== null) localStorage.setItem('tabiwari.firstseen', JSON.stringify({ t0: day(fs0) })); } }, firstSeen);
+      await p.goto('http://localhost:8797/'); return [c, p]; };
+    const [c1, p1] = await mkCtx(-5); await p1.waitForSelector('.sheet [data-a=sendoff-go]', { timeout: 4000 }); let tx = await p1.innerText('.sheet'); assert.ok(tx.includes('いってらっしゃい') && tx.includes('福岡') && tx.includes('120,000円') && tx.includes('今日の目安') && tx.includes('2人で、出発'), tx);
+    assert.strictEqual(await p1.evaluate(() => document.querySelector('.send-stp').getAnimations().length > 0), moves, motion + ': the stamp is pressed (or not)');
+    { const g = await p1.evaluate(() => { const s = document.querySelector('.send-stp'), k = document.querySelector('.wr-ticket'), n = document.querySelector('.wr-name'); return { right: s.offsetLeft + s.offsetWidth, ticketW: k.offsetWidth, left: s.offsetLeft, nameTop: n.getBoundingClientRect().top - k.getBoundingClientRect().top }; }); assert.ok(g.right <= g.ticketW && g.left > 100, 'the stamp sits at the right edge of the ticket (layout, not the animation): ' + JSON.stringify(g)); assert.ok(g.nameTop < 70, 'no empty band above the name (the stamp does not take room): ' + JSON.stringify(g)); }
+    await p1.click('[data-a=sendoff-go]'); await p1.waitForSelector('.nav'); assert.strictEqual(await p1.evaluate(() => ui.view + ':' + ui.tab), 'trip:exp', 'the button starts the record');
+    await p1.goto('http://localhost:8797/'); await p1.waitForTimeout(1500); assert.strictEqual(await p1.locator('.sheet').count(), 0, 'once only: it does not come again'); await c1.close();
+    const [c2, p2] = await mkCtx(null); await p2.waitForTimeout(1500); assert.strictEqual(await p2.locator('.sheet').count(), 0, 'a trip with no "first seen" day (made today, or from an older version): no greeting'); await c2.close();
+    const [c3, p3] = await mkCtx(0); await p3.waitForTimeout(1500); assert.strictEqual(await p3.locator('.sheet').count(), 0, 'first seen today: no greeting'); await c3.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
