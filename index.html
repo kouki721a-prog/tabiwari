@@ -492,6 +492,9 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .strow{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden}.sttxt{text-align:right;flex:none}.sttxt b{font-size:calc(13px*var(--ts))}.sttxt small{display:block;color:var(--sub);font-size:calc(12px*var(--ts))}
 .stgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px 4px;padding:18px 0 8px;text-align:center}.stgrid>div{display:flex;flex-direction:column;align-items:center;gap:6px}.stgrid .stp{margin:6px}
 .stgrid>div>span:last-child{font-size:calc(11px*var(--ts));line-height:1.3}.stgrid small{display:block;font-size:calc(10px*var(--ts));color:var(--sub)}
+.route{display:flex;align-items:center;height:20px;margin:0 2px 8px}.route i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--dash)}.route i.on{background:var(--sun)}.route i.now{width:13px;height:13px;box-shadow:0 0 0 4px color-mix(in srgb,var(--sun) 30%,transparent)}.route u{flex:1;min-width:6px;border-top:2px dashed var(--dash)}.route u.y{border-top:3px solid var(--sun)}.route span{flex:none;margin-left:10px;font-family:var(--mono);font-size:calc(11px*var(--ts));color:var(--sub);white-space:nowrap}   /* v187: the days of the trip as stations on a dashed route (lit up to today) */
+.dl{font-style:normal}.dl small{margin-left:6px;font-size:inherit;opacity:.8}
+.stbar.in{width:auto;flex:none;min-height:44px;margin:-14px 0;padding:0 2px;border:0;border-radius:0;gap:6px}.stbar.in b{font-family:var(--mono);font-size:calc(11px*var(--ts));font-weight:500;color:var(--sub)}.stbar.in .strow{flex:none;gap:3px}.stbar.in .stp.sm{width:18px;height:18px;font-size:calc(9px*var(--ts));border-width:1.5px;box-shadow:none}   /* the stamps sit in the first day heading (v187), not in a box of their own */
 .stpop{position:fixed;left:50%;top:38%;z-index:60;pointer-events:none;text-align:center;transform:translate(-50%,-50%) rotate(-8deg)}
 .stpop .stp{width:128px;height:128px;font-size:50px;border-width:4px;transform:none;margin:0 auto}.stpop .stp:after{inset:-12px;border-width:2px}
 .stpop-t{display:inline-block;margin-top:24px;background:var(--ink);color:var(--paper);border-radius:99px;padding:6px 16px;font-weight:600;font-size:15px;transform:rotate(8deg)}
@@ -1873,9 +1876,9 @@ function expList(t, q){
   let h = showAll ? '<div class="fline"><span>' + (ui.catF ? esc((CAT[ui.catF] || CAT.other)[2]) + 'だけ・' : '') + list.length + '件・合計 ' + yen(list.reduce((n, e) => n + e.amount, 0)) + '</span>' + (ui.catF ? '<button class="link" data-a="cat-filter" data-v="" style="width:auto;padding:4px 0">すべて表示</button>' : '') + '</div>' : '';
   const days = {};
   list.forEach(e => { (days[e.date] = days[e.date] || []).push(e); });
-  Object.keys(days).sort().reverse().forEach(d => {
-    const sub = days[d].reduce((s, e) => s + e.amount, 0);
-    h += '<div class="sec"><h2>' + fmtDay(d) + '<span>' + yen(sub) + '</span></h2><div class="list">' + days[d].slice().reverse().map(e => expRow(t, e)).join('') + '</div></div>';
+  Object.keys(days).sort().reverse().forEach((d, di) => {
+    const sub = days[d].reduce((s, e) => s + e.amount, 0), dn = dayNoOf(t, d);
+    h += '<div class="sec"><h2><em class="dl">' + fmtDay(d) + (dn ? '<small>' + dn + '日目</small>' : '') + '</em>' + (di === 0 && !showAll ? stampInline(t) : '') + '<span>' + yen(sub) + '</span></h2><div class="list">' + days[d].slice().reverse().map(e => expRow(t, e)).join('') + '</div></div>';
   });
   if (!searching && !list.length) h += '<div class="sub sm" style="margin:10px 2px 8px">未精算の支出はありません。</div>';   // everything is settled: say so above the folded rounds
   rn.forEach(n => {
@@ -2019,6 +2022,18 @@ function motionMoney(){
 /* ---- stamps (v146) ---- */
 const STAMP_SEEN = 'tabiwari.stampseen';   // this device only: which stamps were already shown as "pressed" (per trip), so each pops once. Not synced, not in backups.
 const stampEl = (x, sm, i) => '<span class="stp' + (sm ? ' sm' : '') + (x.on ? '' : ' off') + '" style="--r:' + [-6, 5, -3, 7, -8][i % 5] + 'deg">' + x.k + '</span>';
+const dayNoOf = (t, d) => (t.start && d >= t.start && d <= t.end) ? dayDiff(t.start, d) + 1 : 0;
+function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today. Only while travelling, and only for 2 to 14 days.
+  if (status(t)[0] !== '旅行中') return '';
+  const days = dayDiff(t.start, t.end) + 1, cur = dayDiff(t.start, todayStr()) + 1; if (days < 2 || days > 14) return '';
+  let h = '';
+  for (let k = 1; k <= days; k++){ h += '<i class="' + (k <= cur ? 'on' : '') + (k === cur ? ' now' : '') + '"></i>' + (k < days ? '<u class="' + (k < cur ? 'y' : '') + '"></u>' : ''); }
+  return '<div class="route" role="img" aria-label="' + days + '日の旅の、' + cur + '日目">' + h + '<span>' + cur + '日目 / ' + days + '日</span></div>';
+}
+function stampInline(t){   // the same stamp button, small, to sit in the first day heading
+  const all = stampsOf(t), on = all.filter(x => x.on), n = on.length, show = on.concat(all.filter(x => !x.on)).slice(0, 3);
+  return '<button type="button" class="stbar in" data-a="stamps-open" aria-label="旅のスタンプ。' + n + '個押されています。開く"><b>スタンプ ' + n + '/' + all.length + '</b><span class="strow" aria-hidden="true">' + show.map((x, i) => stampEl(x, true, i)).join('') + '</span></button>';
+}
 function stampBar(t){
   const all = stampsOf(t), on = all.filter(x => x.on), n = on.length, show = on.concat(all.filter(x => !x.on)).slice(0, 6);
   return '<button type="button" class="stbar" data-a="stamps-open" aria-label="旅のスタンプ。' + n + '個押されています。開く"><span class="strow" aria-hidden="true">' + show.map((x, i) => stampEl(x, true, i)).join('') + '</span>' +
@@ -2130,16 +2145,17 @@ const welcomeCard = t => lsGet('tabiwari.welcome.' + t.id) ? '<div class="instal
 const tabHtml = (t, k) => k === 'exp' ? tabExp(t) : k === 'settle' ? tabSettle(t) : tabSave(t);
 /* two small first-time lines (they go away by themselves): how to write the one-line entry, and that a row can be swiped left to delete */
 const HINT_SWIPE = 'tabiwari.hint.swipe';
-const quickHint = t => t.expenses.length < 3 ? '<div class="hint"><span>' + (status(t)[0] === '準備中' ? '予約など、旅行前の支払いも、記録できます。<span class="nb">「宿 30000円」</span>のように書いて［記録］。' : '「夕食 2000円」のように書いて［記録］。レシートは、カメラの写真から。') + '</span></div>' : '';
-const swipeHint = t => !lsGet(HINT_SWIPE) && t.expenses.some(e => !isSettled(t, e)) ? '<div class="hint swiphint"><span>左にスワイプすると、支出を削除できます。</span><button class="link" data-a="hint-swipe-no">わかった</button></div>' : '';
+const quickHint = t => !t.expenses.length ? '<div class="hint"><span>' + (status(t)[0] === '準備中' ? '予約など、旅行前の支払いも、記録できます。<span class="nb">「宿 30000円」</span>のように書いて［記録］。' : '「夕食 2000円」のように書いて［記録］。レシートは、カメラの写真から。') + '</span></div>' : '';
+const swipeHint = t => !lsGet(HINT_SWIPE) && t.expenses.length >= 3 && t.expenses.some(e => !isSettled(t, e)) ? '<div class="hint swiphint"><span>左にスワイプすると、支出を削除できます。</span><button class="link" data-a="hint-swipe-no">わかった</button></div>' : '';
 function tabExp(t){
   ui.canFind = t.expenses.length >= 6;   // the search box opens from the magnifier in the quick row
   const coach = coachCard(t), help = coach ? '' : quickHint(t) || swipeHint(t);   // ONE helper line at a time: the first-steps card, else the how-to-write line, else the swipe line
-  if (!t.expenses.length && coach) return welcomeCard(t) + coach + quickForm() + stampBar(t);   // the first-steps card says what to do: the empty-state block waits (so the tab still fits on one page)
-  if (!t.expenses.length) return welcomeCard(t) + quickForm() + help + stampBar(t) + '<div class="empty exp0">' + ILL.note.replace('class="ill"', 'class="ill lg"') + '<b>まだ何も記録していません</b><span>最初の一件は、たとえば「夕食 2000円」。</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
+  if (!t.expenses.length && coach) return routeStrip(t) + welcomeCard(t) + coach + quickForm() + stampBar(t);   // the first-steps card says what to do: the empty-state block waits (so the tab still fits on one page)
+  if (!t.expenses.length) return routeStrip(t) + welcomeCard(t) + quickForm() + help + stampBar(t) + '<div class="empty exp0">' + ILL.note.replace('class="ill"', 'class="ill lg"') + '<b>まだ何も記録していません</b><span>最初の一件は、たとえば「夕食 2000円」。</span><button class="btn" data-a="add-exp">支出を記録する</button></div>';
   const done = status(t)[0] === '終了' ? '<div class="install" style="margin-bottom:8px"><div class="grow"><b>旅行おつかれさまでした。</b><div class="sub sm">まとめを、画像にして送れます。</div></div><button class="btn line" data-a="recap" style="font-size:calc(14px*var(--ts));padding:8px 14px">まとめ画像</button></div>' : '';
   const box = done + (ui.canFind && (ui.qOpen || ui.q) ? '<input class="field" id="q-exp" type="search" enterkeyhint="search" autocomplete="off" aria-label="支出を探す" placeholder="支出を探す（内容・人・金額）" value="' + esc(ui.q) + '" style="margin-top:4px">' : '');
-  return welcomeCard(t) + coach + quickForm() + help + stampBar(t) + box + '<div id="exp-list">' + expList(t, ui.canFind ? ui.q : '') + '</div>';
+  const el = expList(t, ui.canFind ? ui.q : '');   // the stamps sit in the first day heading; if there is none (everything settled, a search, a filter) they keep their own row
+  return routeStrip(t) + welcomeCard(t) + coach + quickForm() + help + (el.indexOf('data-a="stamps-open"') < 0 ? stampBar(t) : '') + box + '<div id="exp-list">' + el + '</div>';
 }
 
 const netLine = (t, nets) => Object.keys(nets).filter(id => nets[id]).map(id => esc(nameOf(t, id)) + ' ' + (nets[id] > 0 ? '+' : '−') + Math.abs(nets[id]).toLocaleString('ja-JP')).join('・');
