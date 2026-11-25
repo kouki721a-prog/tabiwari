@@ -1052,6 +1052,30 @@ try {
     await f.waitForSelector('.maru', { timeout: 6000 }); assert.ok((await f.innerText('.maru')).includes('半分まで'), 'the 50% station: ' + await f.innerText('.maru'));
     await cf.close(); }
 
+  // たびまるに聞く: the button beside the members opens ready-made questions; an answer comes from this trip's numbers (stage by stage); the sheet closes; and a slow pace is said once a day.
+  { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい'); await f.click('[data-a=save-trip]'); await f.waitForSelector('.nav'); await f.click('[data-a=coach-ok]').catch(() => {});
+    await f.evaluate(() => { const t = state.trips[0]; t.start = addDays(todayStr(), 36); t.end = addDays(t.start, 3); t.savings[t.members[0].id] = 40000; ui.tab = 'save'; save(); render(); });
+    { const g = await f.evaluate(() => { const b = document.querySelector('[data-a=maru-open]').getBoundingClientRect(), i = document.querySelector('.mem-row [data-a=invite]').getBoundingClientRect(), r = document.querySelector('.mem-row').getBoundingClientRect(); return { bR: b.right, iL: i.left, rowR: r.right, w: innerWidth }; }); assert.ok(g.bR <= g.iL && g.rowR <= g.w, 'the button sits left of ＋招待 and the row stays on the screen: ' + JSON.stringify(g)); }
+    await f.click('[data-a=maru-open]'); await f.waitForSelector('.maru-qs'); assert.deepStrictEqual((await f.locator('.maru-qs .chip').allInnerTexts()).map(x => x.trim()), ['あと いくら積めばいい？', 'みんなの積立は、いまいくら？'], 'before the trip: the savings questions');
+    await f.click('[data-v=save-left]'); assert.ok((await f.innerText('.maru-ans')).includes('あと 60,000円'), await f.innerText('.maru-ans')); assert.strictEqual(await f.getAttribute('[data-v=save-left]', 'class').then(c => c.includes('on')), true, 'the asked question is marked');
+    await f.click('[data-v=save-all]'); assert.ok((await f.innerText('.maru-ans')).includes('40,000円') && (await f.innerText('.maru-ans')).includes('40%'), await f.innerText('.maru-ans')); await f.click('.sheet [data-a=close-sheet]'); await f.waitForFunction(() => !document.querySelector('.sheet-bg'));
+    // while travelling: the questions change; who owes whom; the settlement
+    await f.evaluate(() => { const t = state.trips[0], me = t.members[0].id; t.members.push({ id: 'k', name: 'けんた', pos: 1 }); t.start = addDays(todayStr(), -1); t.end = addDays(todayStr(), 2);
+      t.expenses.push({ id: 'a1', title: '新幹線', amount: 24000, payer: me, cat: 'transport', date: addDays(todayStr(), -1), split: [me, 'k'] }, { id: 'a2', title: '夕食', amount: 8000, payer: 'k', cat: 'food', date: todayStr(), split: [me, 'k'] }); ui.tab = 'exp'; save(); render(); });
+    await f.click('[data-a=maru-open]'); await f.waitForSelector('.maru-qs'); assert.deepStrictEqual((await f.locator('.maru-qs .chip').allInnerTexts()).map(x => x.trim()), ['今日は、あと いくら使える？', '予算は、足りそう？', '誰が、いくら立て替えてる？', '精算は、いくらになる？'], 'while travelling');
+    await f.click('[data-v=who]'); assert.ok((await f.innerText('.maru-ans')).includes('あおい +8,000円') && (await f.innerText('.maru-ans')).includes('けんた −8,000円'), await f.innerText('.maru-ans'));
+    await f.click('[data-v=settle]'); assert.ok((await f.innerText('.maru-ans')).includes('けんた → あおい 8,000円'), await f.innerText('.maru-ans')); await f.click('.sheet [data-a=close-sheet]'); await f.waitForFunction(() => !document.querySelector('.sheet-bg'));
+    await cf.close(); }
+  { // a fast pace: one line a day, only on the record tab of the running trip, and not right after a record
+    const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'no-preference', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.addInitScript(() => { const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1');
+      if (!localStorage.getItem('tabiwari.v1')) localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '福岡', start: day(-1), end: day(2), budget: 80000, paid: {}, savings: {}, settlements: [], adjustments: [], members: [{ id: 'a', name: 'こうき', pos: 0 }], expenses: [{ id: 'e1', title: '新幹線', amount: 30000, payer: 'a', cat: 'transport', date: day(-1), split: ['a'] }, { id: 'e2', title: '宿', amount: 20000, payer: 'a', cat: 'stay', date: day(0), split: ['a'] }] }] })); });
+    await f.route('**/api/**', r => r.fulfill({ status: 404, json: {} })); await f.goto('http://localhost:8797/'); await f.waitForSelector('.trip'); await f.click('.trip'); await f.waitForSelector('.nav');
+    await f.waitForSelector('.maru', { timeout: 6000 }); assert.ok((await f.innerText('.maru')).includes('このペースだと') && (await f.innerText('.maru')).includes('超えそうです'), await f.innerText('.maru')); await f.waitForFunction(() => !document.querySelector('.maru'), null, { timeout: 6000 });
+    await f.click('[data-a=home]'); await f.waitForSelector('.trip'); await f.click('.trip'); await f.waitForTimeout(3200); assert.strictEqual(await f.locator('.maru').count(), 0, 'once a day per trip: it does not say it again');
+    await cf.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
