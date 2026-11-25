@@ -165,7 +165,8 @@ html,body{overscroll-behavior-x:none}
 .btn.inv.join{margin-top:14px;color:var(--sub);font-weight:500;border-style:dashed}
 .home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;margin:0 -16px;padding:0 16px calc(env(safe-area-inset-bottom) * .5 + 12px)}   /* full width: the scroll bar sits on the screen edge, not over the cards */
 #app.fit>.home0{flex:1 1 auto;height:auto}
-.home0-cta{margin:0 -16px;padding:10px 16px calc(env(safe-area-inset-bottom) * .5 + 12px);background:linear-gradient(to bottom,transparent,var(--paper) 30%);position:relative;z-index:5}
+#app.fit.nonav:has(>.home0-cta){padding-bottom:0}   /* the bottom space is the button's own (v186): the outer frame added the safe area a second time, leaving a blank band under the button */
+.home0-cta{margin:0 -16px;padding:10px 16px calc(env(safe-area-inset-bottom) * .5 + 8px);background:linear-gradient(to bottom,transparent,var(--paper) 30%);position:relative;z-index:5}
 .brandact{display:flex;align-items:center;gap:8px}.lineg.sm.hd{width:auto;height:34px;font-size:calc(12.5px*var(--ts));border-radius:6px}.lineg.sm.hd img{width:34px;height:34px}.lineg.sm.hd span{padding:0 12px}
 .home0>*{flex:none}
 /* the first page (no trip yet): a page to read, not one screen. Hero, the three moments with real screens, the settle-up features, notifications, how to start, FAQ. */
