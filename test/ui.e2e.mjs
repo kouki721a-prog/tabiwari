@@ -1084,6 +1084,21 @@ try {
     await f.click('[data-a=home]'); await f.waitForSelector('.trip'); await f.click('.trip'); await f.waitForTimeout(3200); assert.strictEqual(await f.locator('.maru').count(), 0, 'once a day per trip: it does not say it again');
     await cf.close(); }
 
+  // 金額の安全装置: an extra zero is asked about once; the impossible is refused; an ordinary amount goes straight through; the one-line record refuses the impossible; the top buttons are 44px
+  { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい'); await f.click('[data-a=save-trip]'); await f.waitForSelector('#q-quick'); await f.click('[data-a=coach-ok]').catch(() => {});
+    const n = () => f.evaluate(() => state.trips[0].expenses.length), gone = () => f.waitForFunction(() => !document.querySelector('.sheet-bg'));
+    for (const sel of ['.top [data-a=home]', '[data-a=maru-open]', '[data-a=invite]', '.qchip']) assert.ok(await f.$eval(sel, e => { const r = e.getBoundingClientRect(); return r.height >= 43.5 && r.width >= 43.5; }), sel + ' is at least 44px');
+    await f.click('.nav .plus'); await f.waitForSelector('#f-amount'); await f.fill('#f-amount', '2000'); await f.click('[data-a=save-exp]'); await gone(); assert.strictEqual(await n(), 1, 'an ordinary amount: straight through');
+    await f.fill('#q-quick', '昼食 900円'); await f.press('#q-quick', 'Enter'); await f.waitForSelector('.toast [data-a=undo]'); assert.strictEqual(await n(), 2);
+    await f.click('.nav .plus'); await f.waitForSelector('#f-amount'); await f.fill('#f-amount', '1200000000'); await f.click('[data-a=save-exp]'); await f.waitForSelector('.sheet .err'); assert.ok((await f.innerText('.sheet .err')).includes('10億円まで'), 'too big: refused'); assert.strictEqual(await n(), 2);
+    await f.fill('#f-amount', '60000'); await f.click('[data-a=save-exp]'); await f.waitForFunction(() => /60,000円ですね/.test(document.querySelector('.sheet .err') ? document.querySelector('.sheet .err').textContent : '')); assert.strictEqual(await n(), 2, 'asked once: not saved yet');
+    assert.strictEqual(await f.locator('.toast').count(), 0, 'the message in the sheet is not covered by the notice of an earlier record');
+    await f.fill('#f-amount', '70000'); await f.click('[data-a=save-exp]'); await f.waitForFunction(() => /70,000円ですね/.test(document.querySelector('.sheet .err').textContent)); assert.strictEqual(await n(), 2, 'a changed amount asks again');
+    await f.click('[data-a=save-exp]'); await gone(); assert.strictEqual(await n(), 3, 'the second press saves'); assert.strictEqual(await f.evaluate(() => state.trips[0].expenses[2].amount), 70000);
+    await f.fill('#q-quick', '夕食 2000000000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(700); assert.strictEqual(await n(), 3, 'the one-line record does not take it either (it cannot read such an amount)'); assert.ok((await f.innerText('body')).includes('2000000000') || (await f.locator('.err, .qerr, [role=alert]').count()) >= 1, 'and says so');
+    await cf.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }

@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -437,3 +437,12 @@ console.log('save log restore tests passed');
   assert.strictEqual(P(T({ expenses: [ex('e1', 1, 'a', '2026-12-01')] }), '2026-12-02'), null, 'fewer than 2 records: too early to say'); assert.strictEqual(P(fast, '2026-12-04'), null, 'the last day: nothing left to adjust'); assert.strictEqual(P(fast, '2026-11-30'), null, 'not travelling'); assert.strictEqual(P(fast, '2026-12-05'), null);
   assert.ok(get(A(fast, '2026-12-02', 'a'), 'pace').includes('超えます'), get(A(fast, '2026-12-02', 'a'), 'pace')); assert.ok(get(A(T({ expenses: [ex('e1', 1000, 'a', '2026-12-01')] }), '2026-12-02', 'a'), 'pace').includes('見通しが立てられません')); }
 console.log('maru help tests passed');
+
+// 金額の安全装置: refuse the impossible, ask once about the unusual, say nothing about the ordinary
+{ const C = L.amountCheck;
+  assert.strictEqual(C(0, 100000, 'food'), null); assert.strictEqual(C(-5, 100000, 'food'), null, 'not an amount: the other checks speak'); assert.strictEqual(C(2000, 100000, 'food'), null);
+  assert.ok(C(1000000001, 100000, 'food').stop.includes('10億円'), 'over what the server accepts: stop'); assert.strictEqual(C(1000000000, 1e9, 'stay'), null, 'exactly 1,000,000,000 is allowed (and is the budget)');
+  assert.ok(C(60000, 100000, 'food').ask.includes('60,000円ですね') && C(60000, 100000, 'food').ask.includes('60%'), C(60000, 100000, 'food').ask); assert.strictEqual(C(49999, 100000, 'food'), null); assert.ok(C(50000, 100000, 'gift').ask, 'half of the budget asks');
+  assert.strictEqual(C(60000, 100000, 'stay'), null, 'a stay is big by nature'); assert.strictEqual(C(60000, 100000, 'transport'), null, 'so is a ride'); assert.ok(C(120000, 100000, 'stay').ask.includes('120%'), 'but more than the whole budget always asks');
+  assert.strictEqual(C(5000, 0, 'food'), null, 'no budget to compare with'); }
+console.log('amount check tests passed');
