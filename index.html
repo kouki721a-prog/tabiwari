@@ -481,7 +481,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 :root[data-theme=dark] [data-trip=sunset]{--navy:#7a3d46}
 :root[data-theme=dark] [data-trip=sakura]{--navy:#744471}
 :root[data-theme=dark] [data-trip=snow]{--navy:#3b4f78}
-.tmark{display:inline-grid;place-items:center;width:22px;height:22px;margin-right:6px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;font-weight:700;vertical-align:1px;box-shadow:0 0 0 2px color-mix(in srgb,var(--navy) 22%,transparent)}.tmark.lg{width:32px;height:32px;margin:0;font-size:16px}
+.tmark{display:inline-grid;place-items:center;width:22px;height:22px;margin-right:6px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;font-weight:700;vertical-align:1px;box-shadow:0 0 0 2px color-mix(in srgb,var(--navy) 22%,transparent)}.tmark svg{width:15px;height:15px}.tmark.lg{width:32px;height:32px;margin:0}.tmark.lg svg{width:22px;height:22px}.thtile .tmark.lg{width:44px;height:44px}.thtile .tmark.lg svg{width:30px;height:30px}
 .tmark-btn{flex:none;min-width:44px;min-height:44px;display:grid;place-items:center;margin-right:-6px}
 .thgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.thtile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px 9px;border-radius:16px;border:2px solid var(--line);background:var(--cream);color:var(--ink);font-size:calc(12px*var(--ts))}.thtile .tmark{background:var(--navy);box-shadow:none}.thtile[aria-pressed=true]{border-color:var(--sun);background:color-mix(in srgb,var(--sun) 22%,var(--cream))}.thtile[aria-pressed=true] b{font-weight:700}
 .trip-name .tmark{margin-right:7px}
@@ -1120,7 +1120,15 @@ const THEME_STORE = 'tabiwari.themes';
 const themeMap = () => { try { return JSON.parse(lsGet(THEME_STORE)) || {}; } catch(e){ return {}; } };
 const themeOf = t => themeKey(t.id, themeMap()[t.id]);
 function setTheme(t, key){ const m = themeMap(); if (THEME_KEYS.indexOf(key) >= 0) m[t.id] = key; else delete m[t.id]; const ks = Object.keys(m); ks.slice(0, Math.max(0, ks.length - 60)).forEach(k => delete m[k]); lsSet(THEME_STORE, Object.keys(m).length ? JSON.stringify(m) : null); }
-const tmark = (t, big) => '<span class="tmark' + (big ? ' lg' : '') + '" aria-hidden="true">' + THEMES[themeOf(t)][0] + '</span>';
+/* the stamp's picture (v184): a one-colour line drawing in the stamp's circle, instead of a kanji. The names stay as the text (the labels and the sheet). */
+const THEME_ART = {
+  sea: '<path d="M3 11c3-3 5 3 8 0s5 3 8 0 4 1 6 0M3 17c3-3 5 3 8 0s5 3 8 0 4 1 6 0"/>',
+  mountain: '<path d="M3 23l8-14 5 8 3-4 6 10zM9 13l2-1 2 2"/>',
+  sunset: '<path d="M6 20a8 8 0 0116 0M3 20h22M7 24h14M14 6v2M6 10l1.5 1.5M22 10l-1.5 1.5"/>',
+  sakura: '<ellipse cx="14" cy="7.5" rx="3" ry="4.6" transform="rotate(0 14 14)"/><ellipse cx="14" cy="7.5" rx="3" ry="4.6" transform="rotate(72 14 14)"/><ellipse cx="14" cy="7.5" rx="3" ry="4.6" transform="rotate(144 14 14)"/><ellipse cx="14" cy="7.5" rx="3" ry="4.6" transform="rotate(216 14 14)"/><ellipse cx="14" cy="7.5" rx="3" ry="4.6" transform="rotate(288 14 14)"/><circle cx="14" cy="14" r="1.6"/>',
+  snow: '<path d="M14 3v22M4.5 8.5l19 11M4.5 19.5l19-11M11 4l3 3 3-3M11 24l3-3 3 3"/>' };
+const themeArt = k => '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + THEME_ART[k] + '</svg>';
+const tmark = (t, big) => '<span class="tmark' + (big ? ' lg' : '') + '" aria-hidden="true">' + themeArt(themeOf(t)) + '</span>';
 const pill = st => '<span class="pill ' + st[1] + '">' + st[0] + '</span>';
 const midx = (t, id) => Math.max(0, t.members.findIndex(m => m.id === id));
 const nameOf = (t, id) => { const m = t.members.filter(x => x.id === id)[0]; return m ? m.name : '(削除済み)'; };
@@ -2459,7 +2467,7 @@ function viewSheet(){
     const cur = themeOf(t), set = themeMap()[t.id];
     ttl = '旅のカラー';
     body = '<div class="sub" style="margin:0 0 10px">この旅行の色と、判子です。この端末での見た目で、友だちの画面は、変わりません。</div><div class="thgrid" role="group" aria-label="旅のカラー">' +
-      THEME_KEYS.map(k => '<button type="button" class="thtile" data-trip="' + k + '" data-a="theme-pick" data-v="' + k + '" aria-pressed="' + (k === cur) + '"><span class="tmark lg">' + THEMES[k][0] + '</span><b>' + THEMES[k][1] + '</b></button>').join('') + '</div>' +
+      THEME_KEYS.map(k => '<button type="button" class="thtile" data-trip="' + k + '" data-a="theme-pick" data-v="' + k + '" aria-pressed="' + (k === cur) + '"><span class="tmark lg">' + themeArt(k) + '</span><b>' + THEMES[k][1] + '</b></button>').join('') + '</div>' +
       (set ? '<button class="link" data-a="theme-pick" data-v="auto" style="margin-top:8px">自動にもどす</button>' : '<div class="sub sm" style="margin-top:8px">決めないときは、旅行ごとに、自動で決まります。</div>');
     foot = '<button class="btn" data-a="close-sheet">とじる</button>';
   }
