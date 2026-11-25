@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -446,3 +446,11 @@ console.log('maru help tests passed');
   assert.strictEqual(C(60000, 100000, 'stay'), null, 'a stay is big by nature'); assert.strictEqual(C(60000, 100000, 'transport'), null, 'so is a ride'); assert.ok(C(120000, 100000, 'stay').ask.includes('120%'), 'but more than the whole budget always asks');
   assert.strictEqual(C(5000, 0, 'food'), null, 'no budget to compare with'); }
 console.log('amount check tests passed');
+
+// 旅のカラー: a saved choice wins; otherwise the colour comes from the trip's id (the same everywhere, so friends of a shared trip see the same one)
+{ const K = L.themeKey, keys = L.THEME_KEYS;
+  assert.deepStrictEqual(keys, ['sea', 'mountain', 'sunset', 'sakura', 'snow']); assert.strictEqual(K('abc', 'sakura'), 'sakura', 'the chosen colour wins'); assert.strictEqual(K('abc', 'nope'), K('abc'), 'an unknown choice is ignored'); assert.strictEqual(K('abc', null), K('abc'));
+  assert.strictEqual(K('trip-1'), K('trip-1'), 'the same id gives the same colour'); assert.ok(keys.includes(K('')) && keys.includes(K(undefined)), 'never fails on a missing id');
+  const seen = {}; for (let i = 0; i < 400; i++) seen[K('id-' + i + '-' + (i * 7919))] = (seen[K('id-' + i + '-' + (i * 7919))] || 0) + 1;
+  assert.deepStrictEqual(Object.keys(seen).sort(), keys.slice().sort(), 'all five colours come up'); assert.ok(Object.values(seen).every(n => n > 40 && n < 130), 'and fairly evenly: ' + JSON.stringify(seen)); }
+console.log('trip colour tests passed');

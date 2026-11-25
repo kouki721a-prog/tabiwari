@@ -101,7 +101,7 @@ try {
     await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.click('.plus'); await q.waitForSelector('#f-amount');
     const on = sel => q.$$eval(sel + '.on', els => els.map(e => e.textContent.trim())), css = sel => q.$eval(sel, e => { const c = getComputedStyle(e); return [c.backgroundColor, c.color]; });
     assert.deepStrictEqual(await on('[data-a=split-all]'), ['全員'], 'starts with 全員 selected'); assert.strictEqual((await on('[data-a=toggle-split]')).length, 0, 'single people are not selected while 全員 is');
-    assert.deepStrictEqual(await css('[data-a=split-all].on'), ['rgb(15, 39, 66)', 'rgb(255, 255, 255)'], 'selected: dark background, white text');
+    { const sel = await css('[data-a=split-all].on'), col = await q.$eval('#app', n => getComputedStyle(n).getPropertyValue('--navy').trim()); assert.ok(sel[1] === 'rgb(255, 255, 255)' && /^rgb\(/.test(sel[0]) && sel[0] !== 'rgb(255, 255, 255)', 'selected: dark background (the colour of the trip), white text: ' + sel + ' / ' + col); }
     const off = await q.$eval('[data-a=toggle-split][data-v=m1]', e => { const c = getComputedStyle(e); return [c.backgroundColor, c.borderTopWidth]; }); assert.ok(off[0] === 'rgb(255, 253, 245)' && off[1] !== '0px', 'not selected: the paper colour with a border: ' + off);
     await q.click('[data-a=toggle-split][data-v=m1]'); assert.strictEqual((await on('[data-a=split-all]')).length, 0, 'a single person turns 全員 off'); assert.strictEqual((await on('[data-a=toggle-split]')).length, 1);
     await q.click('[data-a=toggle-split][data-v=m2]'); assert.strictEqual((await on('[data-a=toggle-split]')).length, 2);
@@ -584,7 +584,7 @@ try {
       const trips = [far('p1', '古い旅', '2020-01-01', '2020-01-02'), far('p2', '新しい旅', '2021-01-01', '2021-01-02')];
       if (!only) trips.push(far('fut', '先の旅', '2099-01-01', '2099-01-02'), { ...base, id: 'open', name: '精算待ちの旅', start: '2020-06-01', end: '2020-06-02', budget: 50000, expenses: [{ id: 'e1', title: '夕食', amount: 4000, payer: 'a', cat: 'food', date: '2020-06-01', split: ['a', 'b'] }] });
       localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips })); });
-    const names = () => q.locator('.trip .trip-name').allTextContents(), tabs = () => q.locator('.ut button').allTextContents();
+    const names = () => q.locator('.trip .trip-name').evaluateAll(els => els.map(x => [...x.childNodes].filter(c => c.nodeType === 3).map(c => c.textContent).join(''))), tabs = () => q.locator('.ut button').allTextContents();
     await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip');
     assert.deepStrictEqual((await tabs()).map(x => x.replace(/\s+/g, ' ').trim()), ['これから・旅行中 2', '終了した旅行 2'], 'two tabs, with the counts'); assert.strictEqual(await q.getAttribute('.ut button >> nth=0', 'aria-selected'), 'true');
     assert.deepStrictEqual(await names(), ['先の旅', '精算待ちの旅'], 'the upcoming trip and the ended trip that still needs settling'); assert.strictEqual(await q.locator('[data-a=join-paste]').count(), 1); assert.strictEqual(await q.locator('[data-a=new]').count(), 1);
@@ -618,7 +618,7 @@ try {
     const seed = trips => async () => { const x = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), y = await x.newPage(); await y.route('**/api/**', z => z.fulfill({ status: 404, json: {} }));
       await y.addInitScript(tr => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: tr })); }, trips); await y.goto('http://localhost:8797/'); await y.waitForSelector('.trip'); return [x, y]; };
     const T = (id, name, start, end) => ({ id, name, start, end, budget: 1000, members: [{ id: 'a', name: 'こうき', pos: 0 }], paid: {}, savings: {}, settlements: [], adjustments: [], expenses: [] });
-    { const [x, y] = await seed([T('p1', '古い旅', '2020-01-01', '2020-01-02'), T('p2', '新しい旅', '2021-01-01', '2021-01-02')])(); assert.deepStrictEqual(await y.locator('.trip .trip-name').allTextContents(), ['新しい旅', '古い旅'], 'nothing in the first tab: the ended trips are shown at once'); assert.strictEqual(await y.locator('.ut').count(), 1); await x.close(); }
+    { const [x, y] = await seed([T('p1', '古い旅', '2020-01-01', '2020-01-02'), T('p2', '新しい旅', '2021-01-01', '2021-01-02')])(); assert.deepStrictEqual(await y.locator('.trip .trip-name').evaluateAll(els => els.map(x => [...x.childNodes].filter(c => c.nodeType === 3).map(c => c.textContent).join(''))), ['新しい旅', '古い旅'], 'nothing in the first tab: the ended trips are shown at once'); assert.strictEqual(await y.locator('.ut').count(), 1); await x.close(); }
     { const [x, y] = await seed([T('n', '先の旅', '2099-01-01', '2099-01-02')])(); assert.strictEqual(await y.locator('.ut').count(), 1, 'the tabs are always there'); assert.deepStrictEqual((await y.locator('.ut button').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()), ['これから・旅行中 1', '終了した旅行 0']); await y.click('[data-a=home-tab][data-v=past]'); await y.waitForSelector('text=帰ってきた旅行は、まだありません'); assert.strictEqual(await y.locator('.trip').count(), 0, 'an empty tab says so'); await y.click('[data-a=home-tab][data-v=now]'); await y.waitForSelector('.trip'); await x.close(); }
     assert.deepStrictEqual(qerrs, []); await c10.close(); }
 
@@ -1097,6 +1097,24 @@ try {
     await f.fill('#f-amount', '70000'); await f.click('[data-a=save-exp]'); await f.waitForFunction(() => /70,000円ですね/.test(document.querySelector('.sheet .err').textContent)); assert.strictEqual(await n(), 2, 'a changed amount asks again');
     await f.click('[data-a=save-exp]'); await gone(); assert.strictEqual(await n(), 3, 'the second press saves'); assert.strictEqual(await f.evaluate(() => state.trips[0].expenses[2].amount), 70000);
     await f.fill('#q-quick', '夕食 2000000000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(700); assert.strictEqual(await n(), 3, 'the one-line record does not take it either (it cannot read such an amount)'); assert.ok((await f.innerText('body')).includes('2000000000') || (await f.locator('.err, .qerr, [role=alert]').count()) >= 1, 'and says so');
+    await cf.close(); }
+
+  // 旅のカラー: every trip has a colour and a stamp mark (worked out from its id); the mark on the trip screen opens the choice; the choice is kept on this device; "auto" takes it back; the yellow accent stays
+  { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.addInitScript(() => { const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1');
+      if (!localStorage.getItem('tabiwari.v1')) localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 'th-1', name: '福岡', start: day(-1), end: day(2), budget: 100000, paid: {}, savings: {}, settlements: [], adjustments: [], members: [{ id: 'a', name: 'こうき', pos: 0 }], expenses: [] }] })); });
+    await f.route('**/api/**', r => r.fulfill({ status: 404, json: {} })); await f.goto('http://localhost:8797/'); await f.waitForSelector('.trip');
+    const cardMark = await f.$eval('.trip .tmark', e => e.textContent), auto = await f.$eval('.trip', e => e.getAttribute('data-trip')); assert.ok(['海', '山', '夕', '桜', '雪'].includes(cardMark), 'the home card has a stamp mark: ' + cardMark);
+    await f.click('.trip'); await f.waitForSelector('.nav'); const ticket = () => f.$eval('.ticket', e => getComputedStyle(e).backgroundColor);
+    assert.strictEqual(await f.getAttribute('#app', 'data-trip'), auto, 'the trip screen has the same colour as its card'); const c0 = await ticket();
+    assert.ok(await f.$eval('.tmark-btn', e => { const r = e.getBoundingClientRect(); return r.width >= 43.5 && r.height >= 43.5; }), 'the mark is a 44px button');
+    await f.click('[data-a=theme-open]'); await f.waitForSelector('.thgrid'); assert.strictEqual(await f.locator('.thtile').count(), 5); assert.strictEqual(await f.locator('.thtile[aria-pressed=true]').count(), 1, 'the current one is marked');
+    const other = ['sea', 'mountain', 'sunset', 'sakura', 'snow'].find(k => k !== auto); await f.click('.thtile[data-v=' + other + ']'); await f.waitForTimeout(150);
+    assert.strictEqual(await f.getAttribute('#app', 'data-trip'), other, 'the choice is applied at once'); const c1 = await ticket(); assert.notStrictEqual(c1, c0, 'the ticket changes colour: ' + c0 + ' -> ' + c1);
+    assert.strictEqual(await f.$eval('.nav .plus', e => getComputedStyle(e).backgroundColor), 'rgb(255, 200, 61)', 'the yellow accent never changes'); assert.ok((await f.innerText('.sheet')).includes('自動にもどす'), 'a way back to automatic');
+    await f.click('.sheet [data-a=close-sheet]'); await f.waitForFunction(() => !document.querySelector('.sheet-bg')); await f.reload(); await f.waitForSelector('.trip'); assert.strictEqual(await f.$eval('.trip', e => e.getAttribute('data-trip')), other, 'kept on this device');
+    await f.click('.trip'); await f.waitForSelector('.nav'); await f.click('[data-a=theme-open]'); await f.waitForSelector('.thgrid'); await f.click('[data-a=theme-pick][data-v=auto]'); await f.waitForTimeout(150); assert.strictEqual(await f.getAttribute('#app', 'data-trip'), auto, '"auto" takes the colour back to what the id says');
+    assert.ok(await f.evaluate(() => document.querySelector('.thgrid').scrollWidth <= document.querySelector('.thgrid').clientWidth + 1), 'the five tiles fit the width');
     await cf.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
