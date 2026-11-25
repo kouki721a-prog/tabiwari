@@ -163,7 +163,10 @@ html,body{overscroll-behavior-x:none}
 .foot1{text-align:center;white-space:nowrap}.foot1 button{color:var(--sub);text-decoration:underline;font:inherit;padding:8px 0}.foot1 a{display:inline-block;padding:8px 0}
 .btn.inv{margin-top:8px;padding:10px 14px;font-size:calc(14px*var(--ts));border-radius:14px}
 .btn.inv.join{margin-top:14px;color:var(--sub);font-weight:500;border-style:dashed}
-.home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom) * .5 + 12px)}
+.home0{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;margin:0 -16px;padding:0 16px calc(env(safe-area-inset-bottom) * .5 + 12px)}   /* full width: the scroll bar sits on the screen edge, not over the cards */
+#app.fit>.home0{flex:1 1 auto;height:auto}
+.home0-cta{margin:0 -16px;padding:10px 16px calc(env(safe-area-inset-bottom) * .5 + 12px);background:linear-gradient(to bottom,transparent,var(--paper) 30%);position:relative;z-index:5}
+.brandact{display:flex;align-items:center;gap:8px}.lineg.sm.hd{width:auto;height:34px;font-size:calc(12.5px*var(--ts));border-radius:6px}.lineg.sm.hd img{width:34px;height:34px}.lineg.sm.hd span{padding:0 12px}
 .home0>*{flex:none}
 /* the first page (no trip yet): a page to read, not one screen. Hero, the three moments with real screens, the settle-up features, notifications, how to start, FAQ. */
 .lp-hero{padding:20px 0 6px;overflow-x:clip}
@@ -1527,7 +1530,7 @@ const ILL = {
   map: ILL_OPEN + '<path d="M10 24L34 18L62 26L86 18V72L62 80L34 72L10 80Z" fill="var(--cream)"/><path d="M34 18V72M62 26V80" stroke-width="2"/><path d="M18 62Q30 40 44 52T74 36" stroke-dasharray="2 6" stroke-width="2.6"/><path d="M74 20Q74 12 80 12Q86 12 86 20Q86 27 80 33Q74 27 74 20Z" fill="var(--sun)" transform="translate(-8,6) scale(.9)"/><circle cx="72" cy="22" r="2" fill="currentColor" stroke="none"/></svg>'
 };
 const APP_NAME = 'Tabiflow';
-const brandRow = () => '<div class="brandrow"><h1 class="brand">Tabiflow</h1><button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></div>';
+const brandRow = (extra) => '<div class="brandrow"><h1 class="brand">Tabiflow</h1><span class="brandact">' + (extra || '') + '<button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></span></div>';
 /* first-page motion (v151): when each part first came into view (ui.lpAt), and when the hero started (ui.lpHero0). Kept in memory, so a re-draw carries the move on instead of restarting it. */
 const lpRv = (id, cls, line) => { const t = ui.lpAt && ui.lpAt[id], base = (cls ? cls + ' ' : '') + (line ? 'lp-rl' : 'lp-rv');
   if (t == null) return ' class="' + base + '" data-rv="' + id + '"'; const e = performance.now() - t;
@@ -1554,9 +1557,10 @@ function viewHomeEmpty(){
   const he = performance.now() - ui.lpHero0, hero = he > 1800 ? { cls: ' done', st: '' } : { cls: '', st: ' style="--lp-e:' + Math.round(he) + 'ms"' };
   const ticket = '<div class="lp-tk" aria-hidden="true"><div class="lp-tk-top"><div class="lp-tk-hd"><span>TRIP TICKET</span><span>SAMPLE</span></div><div class="lp-tk-grid"><div><small>行き先</small><b>箱根 1泊2日</b></div><div><small>日程</small><b>11/18 – 19</b></div><div><small>メンバー</small><b>あおい・けんた・みく</b></div><div><small>予算</small><b>80,000円</b></div></div></div>' +
     '<div class="lp-tk-bot"><div><small>1人あたり</small><b>26,667円</b></div><i class="lp-bars"></i></div><span class="lp-tk-stamp">初</span></div>';
-  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow() + remoteCard() + installBanner() +
+  const topLine = lineAcct.login && !lineAcct.user && !lineAcct.waiting ? '<button class="lineg sm hd" data-a="line-login" aria-label="LINEでログイン"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button>' : '';
+  return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow(topLine) + remoteCard() + installBanner() +
     '<div class="lp-hero' + hero.cls + '"' + hero.st + '><h2 class="lp-h">「いくら出したっけ」を、<br>なくします。</h2><p class="lp-lead">友だちやパートナーとの国内旅行で、誰がいくら出したか分からなくなる。それを、出発前から帰ったあとまで、片づけるアプリです。</p>' +
-    '<button class="btn" data-a="new">旅行をつくる</button><button class="btn line" data-a="join-paste" style="margin-top:10px">友だちに招待された方は、こちら</button>' +
+    '<button class="btn line" data-a="join-paste">友だちに招待された方は、こちら</button>' +
     '<div class="home0-tags">無料。登録も、インストールも、いりません。</div>' + ticket + '</div>' +
     '<section class="lp-sec"><div class="lp-hd"><h2>出発前から、帰ったあとまで</h2>' + ILL.train + '</div><div' + lpRv('rail', 'lp-rail', true) + '>' +
       stages.map(x => '<div' + lpRv('st' + x[0], 'lp-stage') + '><span class="n" aria-hidden="true">' + x[0] + '</span><small>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><div class="lp-shot"><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div></div>').join('') + '</div></section>' +
@@ -1566,8 +1570,8 @@ function viewHomeEmpty(){
       '<div' + lpRv('n2', 'lp-note') + '><b>アプリの通知（積立・記録のし忘れ）</b><div class="lp-bub">箱根まで、あと7日です。あなたの積立は、あと 16,667円 で目標です。</div></div></section>' +
     '<section class="lp-sec"><div class="lp-hd"><h2>はじめ方</h2>' + ILL.map + '</div><ol' + lpRv('steps', 'lp-steps') + '>' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
     '<section class="lp-sec lp-faq"><h2>よくある質問</h2><div' + lpRv('faq', '') + '>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</div></section>' +
-    '<div' + lpRv('cta', 'lp-cta') + '><button class="btn" data-a="new">旅行をつくる</button></div>' +
-    '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。（ログインなしでも使えます）<div class="home0-note-sub">ログインしていないと、スマホを替えたときや、閲覧履歴を消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>';
+    '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。（ログインなしでも使えます）<div class="home0-note-sub">ログインしていないと、スマホを替えたときや、閲覧履歴を消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>' +
+    '<div class="cta home0-cta"><button class="btn" data-a="new">旅行をつくる</button></div>';   // the one thing to do, fixed at the bottom while the page scrolls
 }
 /* the one line on a home card that says what to do next */
 function homeHint(t){
