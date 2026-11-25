@@ -463,6 +463,28 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
 .wr-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px}.wr-bot:before,.wr-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.wr-bot:before{left:0;border-radius:0 11px 11px 0}.wr-bot:after{right:0;border-radius:11px 0 0 11px}
 .wr-ticket .send-stp{position:absolute;right:16px;top:-16px;width:76px;height:76px;font-size:calc(30px*var(--ts));--r:-8deg;z-index:2;margin:0}
+/* 旅のカラー (v182): the paper-and-ticket colour of a trip; the yellow accent never changes */
+[data-trip=sea]{--navy:#0e3b5c}
+[data-trip=mountain]{--navy:#1b4637}
+[data-trip=sunset]{--navy:#5c2f35}
+[data-trip=sakura]{--navy:#5b3358}
+[data-trip=snow]{--navy:#2d3b57}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]) [data-trip=sea]{--navy:#1b4a73}
+  :root:not([data-theme=light]) [data-trip=mountain]{--navy:#24573f}
+  :root:not([data-theme=light]) [data-trip=sunset]{--navy:#7a3d46}
+  :root:not([data-theme=light]) [data-trip=sakura]{--navy:#744471}
+  :root:not([data-theme=light]) [data-trip=snow]{--navy:#3b4f78}
+}
+:root[data-theme=dark] [data-trip=sea]{--navy:#1b4a73}
+:root[data-theme=dark] [data-trip=mountain]{--navy:#24573f}
+:root[data-theme=dark] [data-trip=sunset]{--navy:#7a3d46}
+:root[data-theme=dark] [data-trip=sakura]{--navy:#744471}
+:root[data-theme=dark] [data-trip=snow]{--navy:#3b4f78}
+.tmark{display:inline-grid;place-items:center;width:22px;height:22px;margin-right:6px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;font-weight:700;vertical-align:1px;box-shadow:0 0 0 2px color-mix(in srgb,var(--navy) 22%,transparent)}.tmark.lg{width:32px;height:32px;margin:0;font-size:16px}
+.tmark-btn{flex:none;min-width:44px;min-height:44px;display:grid;place-items:center;margin-right:-6px}
+.thgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.thtile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px 9px;border-radius:16px;border:2px solid var(--line);background:var(--cream);color:var(--ink);font-size:calc(12px*var(--ts))}.thtile .tmark{background:var(--navy);box-shadow:none}.thtile[aria-pressed=true]{border-color:var(--sun);background:color-mix(in srgb,var(--sun) 22%,var(--cream))}.thtile[aria-pressed=true] b{font-weight:700}
+.trip-name .tmark{margin-right:7px}
 .maru-btn{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:99px;border:1.5px solid var(--dash);background:var(--cream);margin-right:6px}.maru-chat{display:flex;align-items:flex-end;gap:10px;margin:2px 0 12px}.maru-bubble.big{max-width:none;font-size:calc(14px*var(--ts));padding:10px 14px}.maru-ans{background:var(--cream);border:1.5px dashed var(--dash);border-radius:14px;padding:12px 14px;line-height:1.7;margin-bottom:12px;font-variant-numeric:tabular-nums}.maru-qs{display:flex;flex-direction:column;gap:8px;align-items:stretch}.maru-qs .chip{text-align:left;justify-content:flex-start;padding:11px 14px}.maru-qs .chip.on{background:var(--sun);border-color:var(--sun);color:var(--sun-ink)}
 .maru{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom) + 158px);z-index:45;display:flex;align-items:flex-end;gap:8px;pointer-events:none;max-width:calc(100vw - 28px)}.maru-bubble{max-width:236px;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:14px 14px 14px 4px;padding:7px 11px;font-size:calc(12.5px*var(--ts));line-height:1.5;box-shadow:0 6px 16px rgba(15,39,66,.18)}.maru-face{flex:none;display:block}
 .wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
@@ -987,6 +1009,15 @@ function amountCheck(amount, budget, cat){
   var pct = Math.round(amount / budget * 100), big = amount > budget || (amount >= budget * 0.5 && cat !== 'stay' && cat !== 'transport');
   return big ? { ask: yen(amount) + 'ですね。予算の ' + pct + '% です。よければ、もう一度［記録する］を押してください。' } : null;
 }
+/* 旅のカラー (v182): five colours of a trip. The person may choose one (kept on this device only, like the text size); otherwise it is worked out from the trip's id,
+   which is the same on every device of a shared trip, so friends see the same colour by default. */
+var THEME_KEYS = ['sea', 'mountain', 'sunset', 'sakura', 'snow'];
+function themeKey(id, saved){
+  if (saved && THEME_KEYS.indexOf(saved) >= 0) return saved;
+  var h = 5381, s = String(id || '');
+  for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return THEME_KEYS[h % THEME_KEYS.length];
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -1082,6 +1113,12 @@ function status(t){
   if (d > t.end) return ['終了', 'done'];
   return ['旅行中', 'now'];
 }
+const THEMES = { sea: ['海', '海'], mountain: ['山', '山'], sunset: ['夕', '夕焼け'], sakura: ['桜', '桜'], snow: ['雪', '雪'] };   // key: [the mark on the stamp, the name]
+const THEME_STORE = 'tabiwari.themes';
+const themeMap = () => { try { return JSON.parse(lsGet(THEME_STORE)) || {}; } catch(e){ return {}; } };
+const themeOf = t => themeKey(t.id, themeMap()[t.id]);
+function setTheme(t, key){ const m = themeMap(); if (THEME_KEYS.indexOf(key) >= 0) m[t.id] = key; else delete m[t.id]; const ks = Object.keys(m); ks.slice(0, Math.max(0, ks.length - 60)).forEach(k => delete m[k]); lsSet(THEME_STORE, Object.keys(m).length ? JSON.stringify(m) : null); }
+const tmark = (t, big) => '<span class="tmark' + (big ? ' lg' : '') + '" aria-hidden="true">' + THEMES[themeOf(t)][0] + '</span>';
 const pill = st => '<span class="pill ' + st[1] + '">' + st[0] + '</span>';
 const midx = (t, id) => Math.max(0, t.members.findIndex(m => m.id === id));
 const nameOf = (t, id) => { const m = t.members.filter(x => x.id === id)[0]; return m ? m.name : '(削除済み)'; };
@@ -1431,6 +1468,7 @@ function render(){
   const skipGo = ui.noGo; ui.noGo = false;   // a swipe back has already slid the screen away
   lastView = key;
   app.className = ui.view === 'trip' && trip() ? 'fit' : ui.view === 'new' ? 'fit nonav' : (ui.view === 'home' && !state.trips.length) ? 'fit nonav' : '';
+  if (ui.view === 'trip' && trip()) app.dataset.trip = themeOf(trip()); else delete app.dataset.trip;
   if (dv && !skipGo) app.className += (app.className ? ' ' : '') + (dv > 0 ? 'go-f' : 'go-b');
   const oldSheet = document.querySelector('.sheet-bg'), oldToast = document.querySelector('.toast'), oldBars = [...document.querySelectorAll('#app .t-bar i, #app .seg i')].map(e => e.style.width), oldKey = app.dataset.view;
   const oldSh = oldSheet && oldSheet.querySelector('.sheet'), trans = oldSh && ui.sheet && sheetWasOpen && sheetKind !== ui.sheet.type && !(oldSh.style.transform) ? (ui.sheetBack ? 'pop' : (ui.sheet.back && ui.sheet.back.type === sheetKind ? 'push' : '')) : '';   // 設定 ⇄ アカウント: the page slides sideways inside the same sheet
@@ -1612,7 +1650,7 @@ const isPast = t => status(t)[0] === '終了' && !settlePending(t);   // ended a
 function tripCard(t){
   const sp = total(t), left = t.budget - sp, pre = status(t)[0] === '準備中', pct = pre ? savedPct(t) : Math.min(100, Math.round(sp / t.budget * 100));
   const hint = homeHint(t);
-  let h = '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-a="open" data-id="' + t.id + '"><div class="trip-l"><div class="row between"><div class="trip-name">' + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
+  let h = '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-trip="' + themeOf(t) + '" data-a="open" data-id="' + t.id + '"><div class="trip-l"><div class="row between"><div class="trip-name">' + tmark(t) + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
     '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '<span class="hint-row"><span class="hint">' + esc(hint) + '</span></span>' : '') + '</div>' +
     '<div class="avs" style="margin-top:12px">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
     '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></div>' +
@@ -1695,7 +1733,7 @@ function viewTrip(){
   } else {
     a = ['使った合計', sp]; b = ['1人あたり', Math.round(sp / t.members.length)];
   }
-  let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1>' + pill(st) + '</div>' +
+  let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="旅行の一覧に戻る">' + icon('back') + '</button><h1>' + esc(t.name) + '</h1><button class="tmark-btn" data-a="theme-open" aria-label="旅のカラーを選ぶ（いまは' + THEMES[themeOf(t)][1] + '）">' + tmark(t, true) + '</button>' + pill(st) + '</div>' +
     '<div class="sub subrow"><span>' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (t.share ? '・共有中' : '') + (t.share && t.share.dirty ? '・同期待ち' + (syncErr[t.id] ? '（' + syncErr[t.id] + '）' : '') : '') + '</span>' + memRow(t) + '</div>';
   const lab = over ? '予算オーバー' : '予算の残り', amt = '<div class="t-amount ' + (over ? 'neg' : '') + '">' + yen(Math.abs(left)) + '</div>', bar = '<div class="t-bar ' + (over ? 'over' : '') + '"><i style="width:' + pct + '%"></i></div>';
   if (ui.tab === 'exp') h += '<i class="sp"></i>' + budgetCard(t, st, sp, left, today, a, b, bWarn, over, pct);   // record tab: the budget in a short card, so the list gets the room
@@ -2414,6 +2452,14 @@ function viewSheet(){
     else if (!lineAcct.user){ body = '<div class="sub" style="margin-top:14px">LINEでログインしてから、もう一度、このページを開いてください。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
     else { body = '<div class="sub" style="margin-top:10px">Cloudflare に登録した、運営者の合言葉を入れてください。このアカウントが、運営者になります。</div><input class="field" id="adm-token" type="password" autocomplete="off" autocapitalize="none" aria-label="運営者の合言葉" placeholder="合言葉" style="margin-top:14px">';
       foot = (s.err ? '<div class="err" role="alert" style="margin:0 0 8px">' + esc(s.err) + '</div>' : '') + '<button class="btn" data-a="adm-claim"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '確認しています…' : '運営者になる') + '</button><button class="link" data-a="close-sheet">やめる</button>'; }
+  }
+  if (s.type === 'theme'){   // the colour of this trip (this device only)
+    const cur = themeOf(t), set = themeMap()[t.id];
+    ttl = '旅のカラー';
+    body = '<div class="sub" style="margin:0 0 10px">この旅行の色と、判子です。この端末での見た目で、友だちの画面は、変わりません。</div><div class="thgrid" role="group" aria-label="旅のカラー">' +
+      THEME_KEYS.map(k => '<button type="button" class="thtile" data-trip="' + k + '" data-a="theme-pick" data-v="' + k + '" aria-pressed="' + (k === cur) + '"><span class="tmark lg">' + THEMES[k][0] + '</span><b>' + THEMES[k][1] + '</b></button>').join('') + '</div>' +
+      (set ? '<button class="link" data-a="theme-pick" data-v="auto" style="margin-top:8px">自動にもどす</button>' : '<div class="sub sm" style="margin-top:8px">決めないときは、旅行ごとに、自動で決まります。</div>');
+    foot = '<button class="btn" data-a="close-sheet">とじる</button>';
   }
   if (s.type === 'maru'){   // ask たびまる: ready-made questions, answered from this trip's numbers
     const qs = maruAnswers(t, todayStr(), meId(t)), cur = qs.find(x => x.id === s.pick), st = status(t)[0];
@@ -3161,6 +3207,8 @@ document.addEventListener('click', e => {
     if (mine){ if (v) mine.note = v; else delete mine.note; state.payNote = v || undefined; save(); }   // kept on this device too: it starts the memo of the next trip
     ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
   }
+  else if (a === 'theme-open'){ ui.sheet = { type: 'theme' }; }
+  else if (a === 'theme-pick'){ setTheme(t, el.getAttribute('data-v')); }
   else if (a === 'maru-open'){ ui.sheet = { type: 'maru', pick: null }; }
   else if (a === 'maru-q'){ ui.sheet.pick = el.getAttribute('data-v'); }
   else if (a === 'maru-toggle'){ lsSet(MARU_KEY, maruOn() ? '0' : null); render(); return; }
