@@ -1022,6 +1022,35 @@ try {
     const [c2, p2] = await mkCtx(null); await p2.waitForTimeout(1500); assert.strictEqual(await p2.locator('.sheet').count(), 0, 'a trip with no "first seen" day (made today, or from an older version): no greeting'); await c2.close();
     const [c3, p3] = await mkCtx(0); await p3.waitForTimeout(1500); assert.strictEqual(await p3.locator('.sheet').count(), 0, 'first seen today: no greeting'); await c3.close(); }
 
+  // たびまる: a short line at moments only (over today's guide, a station passed on the savings bar), each once, off in 設定. With "reduce motion" the line still shows, without the motion.
+  for (const [motion, moves] of [['no-preference', true], ['reduce', false]]) {
+    const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion, viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '一泊'); await f.fill('#d-budget', '10000'); await f.fill('#d-me', 'あおい'); await f.click('[data-a=save-trip]'); await f.waitForSelector('#q-quick'); await f.click('[data-a=coach-ok]').catch(() => {});
+    assert.strictEqual(await f.locator('.maru').count(), 0, 'quiet by default: no line on a plain record');
+    await f.fill('#q-quick', '昼食 1000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(2800); assert.strictEqual(await f.locator('.maru').count(), 0, 'a small record: nothing to say');
+    await f.fill('#q-quick', 'ホテル 12000円'); await f.press('#q-quick', 'Enter'); await f.waitForSelector('.maru', { timeout: 6000 }); assert.ok((await f.innerText('.maru')).includes('目安を、少し超えました'), 'over the guide: ' + await f.innerText('.maru'));
+    assert.strictEqual(await f.evaluate(() => document.querySelector('.maru-face').getAnimations().length > 0), moves, motion + ': the friend hops (or stays still)');
+    await f.waitForFunction(() => !document.querySelector('.maru'), null, { timeout: 6000 });   // it leaves by itself
+    await f.fill('#q-quick', 'タクシー 3000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(3200); assert.strictEqual(await f.locator('.maru').count(), 0, 'once a day: it does not say it again');
+    // off in 設定
+    await f.evaluate(() => { localStorage.setItem('tabiwari.maru', '0'); localStorage.removeItem('tabiwari.maruseen'); }); await f.fill('#q-quick', 'お土産 5000円'); await f.press('#q-quick', 'Enter'); await f.waitForTimeout(3200); assert.strictEqual(await f.locator('.maru').count(), 0, 'turned off: nothing');
+    await f.click('[data-a=home]'); await f.waitForSelector('[data-a=app-settings]'); await f.click('[data-a=app-settings]'); await f.waitForSelector('[data-a=maru-toggle]'); assert.strictEqual(await f.getAttribute('[data-a=maru-toggle]', 'aria-checked'), 'false'); await f.click('[data-a=maru-toggle]'); assert.strictEqual(await f.getAttribute('[data-a=maru-toggle]', 'aria-checked'), 'true', 'the switch turns it on again'); await f.click('[data-a=close-sheet]');
+    await cf.close(); }
+  // the first record on the last day: one line about settling (once a trip)
+  { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'no-preference', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '日帰り'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい');
+    await f.evaluate(() => { ui.draft.end = ui.draft.start; render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('#q-quick'); await f.click('[data-a=coach-ok]').catch(() => {});
+    await f.fill('#q-quick', '昼食 1000円'); await f.press('#q-quick', 'Enter'); await f.waitForSelector('.maru', { timeout: 7000 }); assert.ok((await f.innerText('.maru')).includes('最終日ですね'), 'the last day: ' + await f.innerText('.maru'));
+    await cf.close(); }
+  { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'no-preference', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい');
+    await f.evaluate(() => { const s = addDays(todayStr(), 40); ui.draft.start = s; ui.draft.end = addDays(s, 3); render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('.stn'); await f.click('[data-a=coach-ok]').catch(() => {});
+    await f.click('.item [data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '30000'); await f.click('[data-a=save-saving]'); await f.waitForFunction(() => !document.querySelector('.sheet-bg'));
+    await f.waitForSelector('.maru', { timeout: 6000 }); assert.ok((await f.innerText('.maru')).includes('4分の1まで'), 'the 25% station: ' + await f.innerText('.maru')); await f.waitForFunction(() => !document.querySelector('.maru'), null, { timeout: 6000 });
+    await f.click('.item [data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '30000'); await f.click('[data-a=save-saving]'); await f.waitForFunction(() => !document.querySelector('.sheet-bg'));
+    await f.waitForSelector('.maru', { timeout: 6000 }); assert.ok((await f.innerText('.maru')).includes('半分まで'), 'the 50% station: ' + await f.innerText('.maru'));
+    await cf.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
