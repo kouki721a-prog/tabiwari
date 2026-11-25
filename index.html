@@ -114,7 +114,7 @@ html,body{overscroll-behavior-x:none}
 .item.slim{padding:6px 12px;gap:10px;line-height:1.4}
 .top{display:flex;align-items:center;gap:10px;margin-bottom:0}
 .top h1{font-size:calc(18px*var(--ts));font-weight:700;margin:0;flex:1;min-width:0;overflow-wrap:anywhere;text-wrap:balance}
-.iconbtn{width:40px;height:40px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;flex:none}
+.iconbtn{width:44px;height:44px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;flex:none}
 .pill{font-size:calc(12px*var(--ts));font-weight:500;padding:3px 10px;border-radius:99px;white-space:nowrap;background:var(--soft);color:var(--sub)}
 .pill.now{background:var(--sun);color:var(--sun-ink)}
 
@@ -293,7 +293,7 @@ html,body{overscroll-behavior-x:none}
 .usage.in .lc{border-color:rgba(255,255,255,.28);color:rgba(255,255,255,.85)}.usage.in .lc[aria-pressed=true]{border-color:var(--sun);background:rgba(255,255,255,.18);color:#fff}.usage.in .lc b{color:#fff}
 .fline{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 2px 0;font-size:calc(13px*var(--ts));color:var(--sub)}.fline .link{color:var(--ink);font-weight:600}
 .usage{display:block;width:100%;text-align:left;font:inherit;color:inherit}.usage.thin{padding:8px 14px;font-size:calc(13px*var(--ts));color:var(--sub);text-align:center}.legend2 .over{color:var(--bad);font-weight:700}
-.subrow{display:flex;align-items:center;justify-content:space-between;gap:8px}.subrow .mem-row{margin:0;flex:none}.subrow .mem-row .btn.sm{padding:5px 12px;font-size:calc(13px*var(--ts))}
+.subrow{display:flex;align-items:center;justify-content:space-between;gap:8px}.subrow .mem-row{margin:0;flex:none}.subrow .mem-row .btn.sm{min-height:44px;padding:5px 14px;font-size:calc(13px*var(--ts))}
 .usage.in{background:none;border:0;border-radius:0;padding:0 18px 12px;color:#fff}.usage.in .seg{background:rgba(255,255,255,.18);height:8px;margin:0 0 7px}.usage.in .legend2{color:rgba(255,255,255,.78)}.usage.in .legend2 .over{color:#ff9a92}.usage.in.thin{padding:8px 0 12px;color:rgba(255,255,255,.7);text-align:left;border-top:2px dashed rgba(255,255,255,.28);margin:0 18px;width:auto}
 .legend2 .dot{width:8px;height:8px;border-radius:50%;background:hsl(var(--h) 70% 55%)}
 .legend2 b{color:var(--ink)}
@@ -356,7 +356,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 /* sheet */
 .sheet-bg{position:fixed;inset:0;background:rgba(5,12,22,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 .sheet:focus{outline:none}
-.sheet{background:var(--paper);width:100%;max-width:520px;max-height:97%;display:flex;flex-direction:column;border-radius:26px 26px 0 0;padding:16px 16px 0;overflow:hidden}
+.sheet{background:var(--paper);width:100%;max-width:520px;max-height:97%;display:flex;flex-direction:column;border-radius:26px 26px 0 0;padding:10px 16px 0;overflow:hidden}   /* 10px, not 16: the close button is 44px now, and the sheets must still fit one screen */
 .sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:6px}
 .sheet-foot{flex:none;padding:8px 0 calc(env(safe-area-inset-bottom) + 14px)}
 .sheet .lab{margin:10px 0 5px}
@@ -413,7 +413,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .swp{position:relative;overflow:hidden;border-top:1px solid var(--line)}.swp:first-child{border-top:0}.swp .item{border-top:0;background:var(--card);position:relative;z-index:1;transition:transform .18s ease-out}.swp.open .item{transform:translateX(-84px)}
 .swp-del{position:absolute;right:0;top:0;bottom:0;width:84px;background:#d4372f;color:#fff;font-weight:700;font-size:calc(15px*var(--ts));display:grid;place-items:center;padding:0}
 .list>.item+.swp,.list>.swp+.item{border-top:1px solid var(--line)}
-.qchips{display:flex;gap:8px;overflow-x:auto;margin:8px 0 0;padding-bottom:2px;scrollbar-width:none;touch-action:pan-x}.qchips::-webkit-scrollbar{display:none}.qchip{flex:none;padding:6px 12px!important;font-size:calc(13px*var(--ts))}
+.qchips{display:flex;gap:8px;overflow-x:auto;margin:8px 0 0;padding-bottom:2px;scrollbar-width:none;touch-action:pan-x}.qchips::-webkit-scrollbar{display:none}.qchip{flex:none;padding:6px 14px!important;min-height:44px;font-size:calc(13px*var(--ts))}
 @media (max-height:640px){.qchips{display:none}}
 #ptr{position:fixed;left:50%;top:0;width:40px;height:40px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:5;pointer-events:none;opacity:0}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--ts));border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
@@ -463,7 +463,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
 .wr-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px}.wr-bot:before,.wr-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.wr-bot:before{left:0;border-radius:0 11px 11px 0}.wr-bot:after{right:0;border-radius:11px 0 0 11px}
 .wr-ticket .send-stp{position:absolute;right:16px;top:-16px;width:76px;height:76px;font-size:calc(30px*var(--ts));--r:-8deg;z-index:2;margin:0}
-.maru-btn{flex:none;width:34px;height:34px;display:grid;place-items:center;border-radius:99px;border:1.5px solid var(--dash);background:var(--cream);margin-right:6px}.maru-chat{display:flex;align-items:flex-end;gap:10px;margin:2px 0 12px}.maru-bubble.big{max-width:none;font-size:calc(14px*var(--ts));padding:10px 14px}.maru-ans{background:var(--cream);border:1.5px dashed var(--dash);border-radius:14px;padding:12px 14px;line-height:1.7;margin-bottom:12px;font-variant-numeric:tabular-nums}.maru-qs{display:flex;flex-direction:column;gap:8px;align-items:stretch}.maru-qs .chip{text-align:left;justify-content:flex-start;padding:11px 14px}.maru-qs .chip.on{background:var(--sun);border-color:var(--sun);color:var(--sun-ink)}
+.maru-btn{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:99px;border:1.5px solid var(--dash);background:var(--cream);margin-right:6px}.maru-chat{display:flex;align-items:flex-end;gap:10px;margin:2px 0 12px}.maru-bubble.big{max-width:none;font-size:calc(14px*var(--ts));padding:10px 14px}.maru-ans{background:var(--cream);border:1.5px dashed var(--dash);border-radius:14px;padding:12px 14px;line-height:1.7;margin-bottom:12px;font-variant-numeric:tabular-nums}.maru-qs{display:flex;flex-direction:column;gap:8px;align-items:stretch}.maru-qs .chip{text-align:left;justify-content:flex-start;padding:11px 14px}.maru-qs .chip.on{background:var(--sun);border-color:var(--sun);color:var(--sun-ink)}
 .maru{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom) + 158px);z-index:45;display:flex;align-items:flex-end;gap:8px;pointer-events:none;max-width:calc(100vw - 28px)}.maru-bubble{max-width:236px;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:14px 14px 14px 4px;padding:7px 11px;font-size:calc(12.5px*var(--ts));line-height:1.5;box-shadow:0 6px 16px rgba(15,39,66,.18)}.maru-face{flex:none;display:block}
 .wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
 .ill{width:64px;height:64px;flex:none;color:var(--ink)}.ill.lg{width:92px;height:92px;display:block;margin:0 auto 8px}
@@ -977,6 +977,16 @@ function maruPace(t, today){
   var projected = Math.round(spent / elapsed * days);
   return { projected: projected, over: Math.max(0, projected - t.budget), elapsed: elapsed, days: days };
 }
+/* 金額の安全装置 (v181): what to say about an amount before it is saved. null = fine. { stop: text } cannot be saved at all (the server refuses more than 1,000,000,000, so a shared trip would stop syncing);
+   { ask: text } is saved only after a second press: it is bigger than the whole budget, or at least half of it for anything but a stay or a ride (those are big by nature). */
+function amountCheck(amount, budget, cat){
+  var yen = function(n){ return Number(n).toLocaleString('ja-JP') + '円'; };
+  if (!(amount > 0)) return null;
+  if (amount > 1000000000) return { stop: '金額が、大きすぎます（10億円まで）。桁を、確かめてください。' };
+  if (!(budget > 0)) return null;
+  var pct = Math.round(amount / budget * 100), big = amount > budget || (amount >= budget * 0.5 && cat !== 'stay' && cat !== 'transport');
+  return big ? { ask: yen(amount) + 'ですね。予算の ' + pct + '% です。よければ、もう一度［記録する］を押してください。' } : null;
+}
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -1410,6 +1420,7 @@ function shareSection(t, s){
 function render(){
   if (GEST.check()){ GEST.pending = true; return; }
   GEST.pending = false; sweepPeeks();
+  if (ui.sheet && ui.sheet.err && ui.toast){ ui.toast = null; ui.undo = null; toastN++; }   // a message in the sheet must be readable: the notice of the earlier record steps aside
   const app = document.getElementById('app');
   const old = document.querySelector('.sheet-body'), keep = old ? old.scrollTop : 0;
   const oldList = document.querySelector('.scroll'), keepList = oldList && !ui.resetScroll ? oldList.scrollTop : 0; ui.resetScroll = false;
@@ -2549,6 +2560,7 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   const left = t.members.filter(m => r.excluded.indexOf(m.name) < 0).map(m => m.id);
   if (!left.length){ ui.quickErr = '全員を外すことは、できません。誰かひとりは、残してください。'; render(); return; }
   const rec = { id: uid(), title: r.title, amount: r.amount, payer: meId(t), cat: r.cat, date: date, split: left }, tid = t.id, wp = {}, said = [], fx = {};
+  { const ac = amountCheck(r.amount, t.budget, r.cat); if (ac && ac.stop){ ui.quickErr = ac.stop; render(); return; } }
   t.members.forEach(m => { if (left.indexOf(m.id) >= 0 && r.fixed[m.name] !== undefined){ fx[m.id] = r.fixed[m.name]; } });
   if (Object.keys(fx).length){
     const sum = Object.keys(fx).reduce((a, id) => a + fx[id], 0);
@@ -3085,7 +3097,10 @@ document.addEventListener('click', e => {
   }
   else if (a === 'save-exp'){
     readSheet(); const dd = s.data, amt = parseYen(dd.amount);
+    const was = s.editId ? t.expenses.find(x => x.id === s.editId) : null, ac = was && was.amount === amt && was.cat === dd.cat ? null : amountCheck(amt, t.budget, dd.cat);   // an old expense saved again without a new amount is not asked about
     if (!(amt > 0)) s.err = '金額を、1以上の数字で入力してください。';
+    else if (ac && ac.stop) s.err = ac.stop;
+    else if (ac && ac.ask && s.sure !== amt){ s.sure = amt; s.err = ac.ask; }   // the second press (same amount) goes through
     else if (!dd.split.length) s.err = '誰の分かを、1人以上選んでください。';
     else if (fixedErr(dd)) s.err = fixedErr(dd);
     else {
