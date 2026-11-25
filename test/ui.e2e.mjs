@@ -531,7 +531,7 @@ try {
       await q.click('[data-a=undo]').catch(() => {}); await q.waitForTimeout(200); }
     await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 2,000円を記録しました');
     assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 1); assert.strictEqual(await q.inputValue('#q-quick'), '', 'the field is emptied');
-    assert.ok((await q.textContent('.item[data-a=edit-exp]')).includes('あおいが払った・全員で割り勘') && (await q.textContent('.item[data-a=edit-exp]')).includes('2,000円'));
+    assert.ok((await q.textContent('.item[data-a=edit-exp]')).includes('あおいが払った・ふたりで割り勘') && (await q.textContent('.item[data-a=edit-exp]')).includes('2,000円'));
     await q.fill('#q-quick', 'タクシー 1,200'); await q.click('.quick .btn'); await see(q, 'タクシー 1,200円を記録しました'); assert.strictEqual(await q.locator('.item[data-a=edit-exp]').count(), 2, 'the button works too');
     await q.click('[data-a=undo]'); await q.waitForFunction(() => document.querySelectorAll('.item[data-a=edit-exp]').length === 1);
     await q.fill('#q-quick', '夕食 3000円 けんたは半分'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 3,000円（けんた 0.5倍）を記録しました');
@@ -555,7 +555,7 @@ try {
     await q.click('[data-a=save-exp]'); await see(q, '割合を指定して割り勘'); assert.deepStrictEqual(await q.evaluate(() => state.trips[0].expenses[0].parts), { a: 2, b: 1 });
     await q.click('[data-a=tab][data-t=settle]'); await see(q, 'こども → あおい'); assert.ok((await q.textContent('.xfer')).includes('1,000円'), 'the child owes 1,000 yen (not 1,500)');
     await q.click('[data-a=tab][data-t=exp]'); await q.click('.item[data-a=edit-exp]'); await q.waitForSelector('.prow'); assert.deepStrictEqual(await q.locator('.pval').allTextContents(), ['1倍', '0.5倍'], 'the weights come back when editing');
-    await q.locator('[data-a=part-inc]').nth(1).click(); await q.click('[data-a=save-exp]'); await see(q, '全員で割り勘'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses[0].parts), undefined, 'equal again: no weights kept'); assert.deepStrictEqual(qerrs, []); await c8.close(); }
+    await q.locator('[data-a=part-inc]').nth(1).click(); await q.click('[data-a=save-exp]'); await see(q, 'ふたりで割り勘'); assert.strictEqual(await q.evaluate(() => state.trips[0].expenses[0].parts), undefined, 'equal again: no weights kept'); assert.deepStrictEqual(qerrs, []); await c8.close(); }
 
   // 同じメンバーで次の旅行: only an ended trip with friends gets the button; it fills the form from that trip, and opens the invite after making it
   { const c9 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c9.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
@@ -1022,7 +1022,7 @@ try {
         if (!localStorage.getItem('tabiwari.v1')) { localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't0', name: '福岡', start: day(0), end: day(2), budget: 300000, paid: {}, savings: { a: 120000 }, settlements: [], adjustments: [], members: [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }], expenses: [] }] }));
           if (fs0 !== null) localStorage.setItem('tabiwari.firstseen', JSON.stringify({ t0: day(fs0) })); } }, firstSeen);
       await p.goto('http://localhost:8797/'); return [c, p]; };
-    const [c1, p1] = await mkCtx(-5); await p1.waitForSelector('.sheet [data-a=sendoff-go]', { timeout: 4000 }); let tx = await p1.innerText('.sheet'); assert.ok(tx.includes('いってらっしゃい') && tx.includes('福岡') && tx.includes('120,000円') && tx.includes('今日の目安') && tx.includes('2人で、出発'), tx);
+    const [c1, p1] = await mkCtx(-5); await p1.waitForSelector('.sheet [data-a=sendoff-go]', { timeout: 4000 }); let tx = await p1.innerText('.sheet'); assert.ok(tx.includes('いってらっしゃい') && tx.includes('福岡') && tx.includes('120,000円') && tx.includes('今日の目安') && tx.includes('ふたりで、出発'), tx);
     assert.strictEqual(await p1.evaluate(() => document.querySelector('.send-stp').getAnimations().length > 0), moves, motion + ': the stamp is pressed (or not)');
     { const g = await p1.evaluate(() => { const s = document.querySelector('.send-stp'), k = document.querySelector('.wr-ticket'), n = document.querySelector('.wr-name'); return { right: s.offsetLeft + s.offsetWidth, ticketW: k.offsetWidth, left: s.offsetLeft, nameTop: n.getBoundingClientRect().top - k.getBoundingClientRect().top }; }); assert.ok(g.right <= g.ticketW && g.left > 100, 'the stamp sits at the right edge of the ticket (layout, not the animation): ' + JSON.stringify(g)); assert.ok(g.nameTop < 70, 'no empty band above the name (the stamp does not take room): ' + JSON.stringify(g)); }
     await p1.click('[data-a=sendoff-go]'); await p1.waitForSelector('.nav'); assert.strictEqual(await p1.evaluate(() => ui.view + ':' + ui.tab), 'trip:exp', 'the button starts the record');
@@ -1115,6 +1115,16 @@ try {
     await f.click('.sheet [data-a=close-sheet]'); await f.waitForFunction(() => !document.querySelector('.sheet-bg')); await f.reload(); await f.waitForSelector('.trip'); assert.strictEqual(await f.$eval('.trip', e => e.getAttribute('data-trip')), other, 'kept on this device');
     await f.click('.trip'); await f.waitForSelector('.nav'); await f.click('[data-a=theme-open]'); await f.waitForSelector('.thgrid'); await f.click('[data-a=theme-pick][data-v=auto]'); await f.waitForTimeout(150); assert.strictEqual(await f.getAttribute('#app', 'data-trip'), auto, '"auto" takes the colour back to what the id says');
     assert.ok(await f.evaluate(() => document.querySelector('.thgrid').scrollWidth <= document.querySelector('.thgrid').clientWidth + 1), 'the five tiles fit the width');
+    await cf.close(); }
+
+  // the small text on the tickets keeps a margin over the legibility limit (4.5:1; measured at 5.0 at worst before, now more): every colour of a trip, bright and dark
+  for (const scheme of ['light', 'dark']) { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', colorScheme: scheme, viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
+    await f.route('**/api/**', r => r.fulfill({ status: 404, json: {} })); await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '100000'); await f.fill('#d-me', 'あおい'); await f.click('[data-a=save-trip]'); await f.waitForSelector('.ticket');
+    const lum = c => { const k = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * k(c[0]) + 0.7152 * k(c[1]) + 0.0722 * k(c[2]); };
+    for (const key of ['sea', 'mountain', 'sunset', 'sakura', 'snow']) { await f.evaluate(k => { document.getElementById('app').dataset.trip = k; }, key);
+      const r = await f.evaluate(() => { const tk = document.querySelector('.ticket'), l = document.querySelector('.ticket .t-label'), p = c => c.match(/[\d.]+/g).map(Number); let op = 1, n = l; while (n && n !== document.body) { op *= parseFloat(getComputedStyle(n).opacity); n = n.parentElement; } return { bg: p(getComputedStyle(tk).backgroundColor).slice(0, 3), fg: p(getComputedStyle(l).color), op }; });
+      const a2 = (r.fg[3] == null ? 1 : r.fg[3]) * r.op, mix = [0, 1, 2].map(i => r.fg[i] * a2 + r.bg[i] * (1 - a2)), x = lum(mix), y = lum(r.bg), ratio = (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+      assert.ok(ratio >= 5.6, scheme + ' ' + key + ': the small label on the ticket is legible with margin: ' + ratio.toFixed(2)); }
     await cf.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
