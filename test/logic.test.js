@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {crewWord, themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -454,3 +454,11 @@ console.log('amount check tests passed');
   const seen = {}; for (let i = 0; i < 400; i++) seen[K('id-' + i + '-' + (i * 7919))] = (seen[K('id-' + i + '-' + (i * 7919))] || 0) + 1;
   assert.deepStrictEqual(Object.keys(seen).sort(), keys.slice().sort(), 'all five colours come up'); assert.ok(Object.values(seen).every(n => n > 40 && n < 130), 'and fairly evenly: ' + JSON.stringify(seen)); }
 console.log('trip colour tests passed');
+
+// ふたり旅の言い方: exactly two people are "ふたり"; one person or three and more are "みんな"
+{ const C = L.crewWord, ms = n => ({ members: Array.from({ length: n }, (_, i) => ({ id: 'm' + i })) });
+  assert.deepStrictEqual([0, 1, 2, 3, 4, 8].map(n => C(ms(n))), ['みんな', 'みんな', 'ふたり', 'みんな', 'みんな', 'みんな']);
+  const A = L.maruAnswers, two = { budget: 100000, members: [{ id: 'a', name: 'あおい' }, { id: 'b', name: 'けんた' }], savings: { a: 20000, b: 5000 }, expenses: [], settlements: [], adjustments: [], start: '2026-12-26', end: '2026-12-28' };
+  const q2 = A(two, '2026-11-10', 'a').find(x => x.id === 'save-all'); assert.ok(q2.q.startsWith('ふたりの積立は') && q2.a.startsWith('ふたりで 25,000円'), q2.q + ' / ' + q2.a);
+  const q3 = A(Object.assign({}, two, { members: two.members.concat([{ id: 'c', name: 'みく' }]) }), '2026-11-10', 'a').find(x => x.id === 'save-all'); assert.ok(q3.q.startsWith('みんなの積立は') && q3.a.startsWith('みんなで '), q3.q + ' / ' + q3.a); }
+console.log('pair wording tests passed');

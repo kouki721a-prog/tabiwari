@@ -210,7 +210,7 @@ html,body{overscroll-behavior-x:none}
 /* ticket */
 .ticket{background:var(--navy);color:#fff;border-radius:24px}
 .t-top{padding:12px 20px 10px}
-.t-label{font-size:calc(13px*var(--ts));opacity:.75}
+.t-label{font-size:calc(13px*var(--ts));opacity:.85}
 .t-amount{font-size:calc(38px*var(--ts));font-weight:700;line-height:1.2;letter-spacing:-.02em}
 .t-amount.neg{color:#ff9a92}
 .t-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.18);margin-top:8px;overflow:hidden}
@@ -225,7 +225,7 @@ html,body{overscroll-behavior-x:none}
 .t-bot b{display:block;font-size:calc(18px*var(--ts));font-weight:700}
 .t-bot .warn{color:#ff9a92}
 .sav-amt{font-weight:700;font-size:calc(16px*var(--ts));white-space:nowrap}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good);font-weight:500}
-.ticket.c .t-sub{font-size:calc(12px*var(--ts));opacity:.75;margin-top:6px}
+.ticket.c .t-sub{font-size:calc(12px*var(--ts));opacity:.85;margin-top:6px}
 .t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
 .ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:calc(30px*var(--ts));line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
 .ticket.m .t-bot{margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28)}.ticket.m .t-bot b{font-size:calc(16px*var(--ts))}.ticket.m .t-bot .t-label{font-size:calc(12px*var(--ts))}
@@ -973,7 +973,7 @@ function maruAnswers(t, today, me){
     var target = Math.ceil(t.budget / N), have = (t.savings && t.savings[me]) || 0, plan = savePlanOf(target, have, today, t.start), all = 0;
     t.members.forEach(function(m){ all += (t.savings && t.savings[m.id]) || 0; });
     out.push({ id: 'save-left', q: 'あと いくら積めばいい？', a: have >= target ? 'あなたの積立は、目標に届いています。' : 'あなたの目標まで、あと ' + yen(target - have) + ' です。' + (plan && plan.kind !== 'once' ? (plan.kind === 'weekly' ? '毎週' : '毎月') + '、約 ' + yen(plan.per) + ' ずつで届きます。' : plan ? '出発まで ' + plan.days + '日です。' : '') });
-    out.push({ id: 'save-all', q: 'みんなの積立は、いまいくら？', a: 'みんなで ' + yen(all) + '。予算 ' + yen(t.budget) + ' の ' + pctFloor(all, t.budget) + '% です。' });
+    out.push({ id: 'save-all', q: crewWord(t) + 'の積立は、いまいくら？', a: crewWord(t) + 'で ' + yen(all) + '。予算 ' + yen(t.budget) + ' の ' + pctFloor(all, t.budget) + '% です。' });
     if (spent > 0) out.push({ id: 'pre-paid', q: '旅行前に、いくら払った？', a: '旅行前の支出は、合計 ' + yen(spent) + ' です。予算の残りは ' + yen(left) + ' です。' });
     return out;
   }
@@ -1018,6 +1018,8 @@ function themeKey(id, saved){
   for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
   return THEME_KEYS[h % THEME_KEYS.length];
 }
+/* ふたり旅の言い方 (v183): with exactly two people the app says "ふたり" instead of "みんな" / "全員" / "2人". */
+function crewWord(t){ return t.members.length === 2 ? 'ふたり' : 'みんな'; }
 /* ===== LOGIC_END ===== */
 
 const CATS = [['transport','交','交通',214],['stay','宿','宿泊',262],['food','食','食事',30],['sight','遊','観光',158],['gift','土','お土産',332],['other','他','その他',200]];
@@ -1740,7 +1742,7 @@ function viewTrip(){
   else if (ui.tab === 'save'){   // savings tab: the card shows the savings themselves (the budget is not what matters before the trip)
     const ssum = t.members.reduce((a, m) => a + (t.savings[m.id] || 0), 0), spct = pctFloor(ssum, t.budget);
     const saveMiss = t.budget - savedOf(t);
-    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">みんなの積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div>' + stnHtml(spct) + '<div class="t-sub">' + ['予算 ' + yen(t.budget) + ' の ' + spct + '%'].concat(st[0] === '準備中' ? ['出発まで あと' + dayDiff(today, t.start) + '日'] : [], [saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)]).map(x => '<span class="nb">' + x + '</span>').join('・') + '</div>' + '</div>';
+    h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + crewWord(t) + 'の積立</span><div class="t-amount">' + yen(ssum) + '</div></div><div class="t-bar"><i style="width:' + spct + '%"></i></div>' + stnHtml(spct) + '<div class="t-sub">' + ['予算 ' + yen(t.budget) + ' の ' + spct + '%'].concat(st[0] === '準備中' ? ['出発まで あと' + dayDiff(today, t.start) + '日'] : [], [saveMiss <= 0 ? '目標に届きました' : 'あと ' + yen(saveMiss)]).map(x => '<span class="nb">' + x + '</span>').join('・') + '</div>' + '</div>';
   } else   // settlement tab: one thin line
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
@@ -1863,7 +1865,7 @@ function expRow(t, e, inRound){
   const c = CAT[e.cat] || CAT.other, swp = !isSettled(t, e);   // an unsettled row can be swiped left to delete (a settled one is deleted from its edit sheet, which explains the difference)
   const row = '<button class="item' + (ui.fresh && ui.fresh[e.id] ? ' fresh' : '') + '" data-a="edit-exp" data-id="' + e.id + '">' + tag(c) +
     '<div class="grow"><div class="t">' + esc(e.title || c[2]) + (e.editor ? '<span class="chgtag">変更あり</span>' : '') + '</div><div class="sub">' + esc(nameOf(t, e.payer)) + 'が払った・' +
-    (e.fixed ? '金額を指定して割り勘' : e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? '全員で割り勘' : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (!inRound && isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
+    (e.fixed ? '金額を指定して割り勘' : e.parts ? '割合を指定して割り勘' : e.split.length === t.members.length ? (t.members.length === 2 ? 'ふたりで割り勘' : '全員で割り勘') : e.split.length === 1 ? esc(nameOf(t, e.split[0])) + 'の分' : e.split.length + '人で割り勘') + (!inRound && isSettled(t, e) ? '・第' + roundNo(t, e.settleId) + '回で精算済み' : '') + '</div></div>' +
     '<div class="amt">' + yen(e.amount) + '</div></button>';
   return swp ? '<div class="swp' + (ui.swp === e.id ? ' open' : '') + '" data-swp="' + e.id + '">' + row + '<button class="swp-del" data-a="swipe-del" data-id="' + e.id + '" aria-label="「' + esc(e.title || c[2]) + '」を削除">削除</button></div>' : row;
 }
@@ -2476,7 +2478,7 @@ function viewSheet(){
     else {
       ttl = 'いってらっしゃい'; const today = todayStr(), left = w.budget - total(w), dl = Math.max(1, dayDiff(today, w.end) + 1), per = Math.max(0, Math.floor(left / dl)), md = x => Number(x.slice(5, 7)) + '/' + Number(x.slice(8, 10));
       body = '<div class="wr-ticket"><span class="stp send-stp" aria-hidden="true">発</span><div class="wr-top"><div class="wr-eye">出発の日　' + md(w.start) + (w.end !== w.start ? ' – ' + md(w.end) : '') + '</div><div class="wr-name">' + esc(w.name) + '</div><div class="wr-grid"><div><small>積立</small><b>' + yen(savedOf(w)) + '</b></div><div><small>今日の目安</small><b>' + yen(per) + '</b></div></div></div>' +
-        '<div class="wr-bot"><small>' + w.members.length + '人で、出発</small><div class="wr-st">' + w.members.slice(0, 8).map(m => av(w, m.id)).join('') + '</div></div></div>' +
+        '<div class="wr-bot"><small>' + (w.members.length === 2 ? 'ふたり' : w.members.length + '人') + 'で、出発</small><div class="wr-st">' + w.members.slice(0, 8).map(m => av(w, m.id)).join('') + '</div></div></div>' +
         '<div class="wr-msg">いよいよ、今日です。いい旅になりますように。支出は、［＋］か、ひとことで、その場で記録できます。</div>';
       foot = '<button class="btn" data-a="sendoff-go" data-id="' + esc(w.id) + '">記録をはじめる</button><button class="link" data-a="close-sheet">あとで</button>';
     }
