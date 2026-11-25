@@ -487,13 +487,13 @@ try {
       const sv = await q.textContent('.ticket.c'); assert.ok(sv.includes('出発まで あと3日') && sv.includes('あと 20,000円') && !sv.includes('1日 約'), sv);
       // the plan: under a week it is just what is missing; further away, a weekly amount; a reached target brings the plain explanation back
       { const planTx = async () => (await q.locator('.plan').count()) ? await q.innerText('.plan') : '';
-        assert.ok((await planTx()).includes('あなたの積立のめやす') && (await planTx()).includes('出発までに、あと'), 'under a week: ' + await planTx()); assert.ok(!(await q.innerText('.sec')).includes('履歴を見たり、直したりできます'), 'the plan stands in for the explanation');
+        assert.ok((await planTx()).includes('あなたの積立のめやす') && (await planTx()).includes('出発までに、あと'), 'under a week: ' + await planTx()); assert.ok(!(await q.innerText('.sec')).includes('積み立てた記録は、下の一覧に残ります'), 'the plan stands in for the explanation');
         await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.start = addDays(todayStr(), 36); t.end = addDays(t.start, 1); render(); });
         assert.ok(/毎週.曜日に、約 [\d,]+円/.test(await planTx()) && (await planTx()).includes('次は') && (await planTx()).includes('回'), 'weekly: ' + await planTx());
         await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.start = addDays(todayStr(), 120); t.end = addDays(t.start, 1); render(); });
         assert.ok(/毎月 \d+日に、約 [\d,]+円/.test(await planTx()), 'monthly: ' + await planTx());
         await q.evaluate(() => { const t = state.trips.find(x => x.name === '準備中の旅'); t.savings[meId(t)] = Math.ceil(t.budget / t.members.length); render(); });
-        assert.strictEqual(await q.locator('.plan').count(), 0, 'target reached: no plan'); assert.ok((await q.innerText('.sec')).includes('履歴を見たり、直したりできます'), 'the explanation is back'); }
+        assert.strictEqual(await q.locator('.plan').count(), 0, 'target reached: no plan'); assert.ok((await q.innerText('.sec')).includes('積み立てた記録は、下の一覧に残ります'), 'the explanation is back'); }
       await q.click('[data-a=home]'); }
     // trip recap image: offered on a finished trip with expenses (and in the trip settings), made on the device as a 1080x1350 PNG
     await q.locator('.trip', { hasText: '旅行中の旅' }).click(); await q.waitForSelector('.nav'); assert.strictEqual(await q.locator('[data-a=recap]').count(), 0, 'nothing recorded: no recap'); await q.click('[data-a=home]');
@@ -831,7 +831,7 @@ try {
     assert.strictEqual(await q.locator('.legend2').count(), 0, 'the category split is folded into one line'); assert.ok((await q.textContent('.foot-more')).includes('内訳'), 'with a limit but nothing recorded: the fold line'); await q.click('[data-a=usage-toggle]'); await q.waitForSelector('.legend2');
     assert.ok((await q.textContent('.legend2')).includes('食事 0／5,000') && (await q.textContent('.legend2')).includes('お土産 0／3,000'), 'the categories with a limit show even when unused');
     await q.fill('#q-quick', '夕食 4000円'); await q.press('#q-quick', 'Enter'); await see(q, '夕食 4,000円を記録しました'); assert.ok(!(await q.textContent('.toast, [role=status]').catch(() => '')).includes('超えました'));
-    await q.click('[data-a=tab][data-t=save]'); await see(q, 'ひとりずつの積立'); { assert.ok((await q.innerText('body')).includes('履歴を見たり、直したりできます'), 'the savings tab says what it is'); await q.click('[data-a=tab][data-t=exp]').catch(() => {}); }
+    await q.click('[data-a=tab][data-t=save]'); await see(q, 'ひとりずつの積立'); { assert.ok((await q.innerText('body')).includes('積み立てた記録は、下の一覧に残ります'), 'the savings tab says what it is'); await q.click('[data-a=tab][data-t=exp]').catch(() => {}); }
     // a long notice (like the offline one) wraps inside the screen instead of being cut off at both edges
     await q.evaluate(() => flash('ネットワークにつながりません。接続を確認して、もう一度お試しください。')); await see(q, 'ネットワークにつながりません'); { const r = await q.$eval('.toast', e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: innerWidth, h: b.height }; }); assert.ok(r.l >= 8 && r.r <= r.w - 8, 'the long notice stays inside the screen: ' + JSON.stringify(r)); }
     await q.fill('#q-quick', '夕食 2000円'); await q.press('#q-quick', 'Enter'); await see(q, '食事が、上限を 1,000円 超えました。');
@@ -966,7 +966,7 @@ try {
     // 99.8% is shown as 99%: the last station and "100%" wait for the goal
     await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = t.budget - 600; render(); }); assert.ok((await f.innerText('.ticket.c')).includes('99%') && !(await f.innerText('.ticket.c')).includes('100%'), 'almost there: 99%'); assert.strictEqual(await f.locator('.stn i.on').count(), 3, 'the last station is not lit yet');
     await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = 0; ui.stnLvl = {}; render(); });
-    assert.ok((await f.innerText('.slog')).includes('履歴 ›'), 'the row says it opens the history'); assert.strictEqual(await f.locator('.stn i').count(), 4); assert.strictEqual(await f.locator('.stn i.on').count(), 0, 'nothing saved: no station is lit');
+    assert.strictEqual(await f.locator('.stn i').count(), 4); assert.strictEqual(await f.locator('.stn i.on').count(), 0, 'nothing saved: no station is lit');
     { const xs = await f.$$eval('.stn i', es => es.map(e => Math.round(e.getBoundingClientRect().left))), bar = await f.$eval('.stn', e => e.getBoundingClientRect()); assert.ok(xs.every((x, i) => i === 0 || x > xs[i - 1] + 20) && xs[0] > bar.left + 10 && xs[3] > bar.left + bar.width - 20, 'the four stations are spread along the bar: ' + xs); }
     // the + button is the stage's main action: on the savings tab it puts money aside; the plan card has a button with this time's amount already in
     assert.strictEqual(await f.getAttribute('.nav .plus', 'data-a'), 'add-save', 'savings tab: + puts money aside'); { const go = await f.locator('.plan-go'), v = await go.getAttribute('data-v'); assert.ok(/^\d+$/.test(v) && (await go.innerText()).includes('を積み立てる'), 'the plan card button: ' + v);
@@ -986,27 +986,27 @@ try {
     assert.strictEqual(await f.locator('.stn i.on').count(), 3, '85,000: 25, 50 and 75 are lit'); if (moves) assert.strictEqual(await f.evaluate(() => ['50', '75'].every(m => document.querySelector('.stn i[data-m="' + m + '"]').getAnimations().length > 0)), true, 'two stations passed at once: both pop');
     await cf.close(); }
 
-  // 積立の履歴: a row opens that person's history; an older trip's total is one grey "unlogged" line; a deposit adds an entry; an entry can be edited or deleted (with undo); the total always follows
+  // 積立の記録 (v174): the records are listed below the people (like the expenses); an older trip's total is one grey "unlogged" row; a deposit adds a row; a row can be edited or deleted (with undo); the total always follows
   { const cf = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', viewport: { width: 390, height: 780 } }), f = await cf.newPage(); f.on('pageerror', e => errs.push(e.message));
     await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '300000'); await f.fill('#d-me', 'あおい');
     await f.evaluate(() => { const s = addDays(todayStr(), 40); ui.draft.start = s; ui.draft.end = addDays(s, 3); render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('.stn');
-    const gone = () => f.waitForFunction(() => !document.querySelector('.sheet-bg')), tot = () => f.evaluate(() => { const t = state.trips[0]; return t.savings[t.members[0].id] || 0; }), sheet = () => f.innerText('.sheet');
+    const gone = () => f.waitForFunction(() => !document.querySelector('.sheet-bg')), tot = () => f.evaluate(() => { const t = state.trips[0]; return t.savings[t.members[0].id] || 0; }), list = () => f.innerText('#app .scroll');
+    assert.ok((await list()).includes('積立の記録') && (await list()).includes('積み立てると、ここに、記録が残ります'), 'the list is there from the start (empty, with a line that says what it is)');
     await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = 10000; delete t.savelog; render(); });   // what an older version saved: a total, no history
-    await f.click('.slog'); await f.waitForSelector('.sheet [data-a=sl-edit]'); let sh = await sheet(); assert.ok(sh.includes('それ以前の積立') && sh.includes('記録なし') && sh.includes('+10,000円') && sh.includes('10,000円'), 'the old total is one grey line: ' + sh); assert.strictEqual(await f.locator('.sheet .slog-rest').count(), 1);
-    await f.click('.sheet [data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '5000'); await f.click('[data-a=save-saving]'); await gone(); assert.strictEqual(await tot(), 15000);
-    await f.click('.slog'); await f.waitForSelector('.sheet [data-a=sl-edit]'); sh = await sheet(); assert.ok(sh.includes('+5,000円') && sh.includes('あおいが記録') && sh.includes('+10,000円'), 'the new entry and the unlogged part: ' + sh); assert.strictEqual(await f.locator('.sheet [data-a=sl-edit]').count(), 2);
-    // edit the entry: 5,000 -> 7,000 (the total follows); an empty / zero amount is refused; undo brings 5,000 back
-    await f.click('.sheet [data-a=sl-edit]:not(.slog-rest)'); await f.waitForSelector('#f-sl-a'); assert.strictEqual(await f.inputValue('#f-sl-a'), '5000'); await f.fill('#f-sl-a', '0'); await f.click('[data-a=sl-save]'); await f.waitForSelector('.sheet .err'); assert.strictEqual(await tot(), 15000, 'refused: nothing moved');
-    await f.fill('#f-sl-a', '7000'); await f.click('[data-a=sl-save]'); await f.waitForSelector('.sheet [data-a=sl-edit]'); assert.strictEqual(await tot(), 17000, 'edited: +2,000'); assert.ok((await sheet()).includes('+7,000円'));
+    let ls = await list(); assert.ok(ls.includes('それ以前の積立') && ls.includes('記録なし') && ls.includes('+10,000円'), 'the old total is one grey row: ' + ls); assert.strictEqual(await f.locator('#app .slog-rest').count(), 1);
+    await f.click('.item [data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '5000'); await f.click('[data-a=save-saving]'); await gone(); assert.strictEqual(await tot(), 15000);
+    ls = await list(); assert.ok(ls.includes('+5,000円') && ls.includes('+10,000円'), 'the new row and the unlogged part: ' + ls); assert.strictEqual(await f.locator('#app [data-a=sl-edit]').count(), 2); assert.strictEqual(await f.locator('#app [data-a=sl-edit]').first().getAttribute('class').then(c => c.includes('slog-rest')), false, 'dated rows first, the unlogged part last');
+    // edit the row: 5,000 -> 7,000 (the total follows); a zero amount is refused; undo brings 5,000 back
+    await f.click('#app [data-a=sl-edit]:not(.slog-rest)'); await f.waitForSelector('#f-sl-a'); assert.strictEqual(await f.inputValue('#f-sl-a'), '5000'); await f.fill('#f-sl-a', '0'); await f.click('[data-a=sl-save]'); await f.waitForSelector('.sheet .err'); assert.strictEqual(await tot(), 15000, 'refused: nothing moved');
+    await f.fill('#f-sl-a', '7000'); await f.click('[data-a=sl-save]'); await gone(); assert.strictEqual(await tot(), 17000, 'edited: +2,000'); assert.ok((await list()).includes('+7,000円'));
     await f.click('.toast [data-a=undo]'); await f.waitForTimeout(200); assert.strictEqual(await tot(), 15000, 'undo of the edit');
     // delete it (undo too); then take the unlogged part away
-    await f.click('.sheet [data-a=sl-edit]:not(.slog-rest)'); await f.waitForSelector('[data-a=sl-del]'); await f.click('[data-a=sl-del]'); await f.waitForSelector('.sheet .slog-rest'); assert.strictEqual(await tot(), 10000, 'deleted'); assert.strictEqual(await f.locator('.sheet [data-a=sl-edit]:not(.slog-rest)').count(), 0);
-    await f.click('.toast [data-a=undo]'); await f.waitForTimeout(200); assert.strictEqual(await tot(), 15000, 'undo of the delete'); assert.strictEqual(await f.locator('.sheet [data-a=sl-edit]:not(.slog-rest)').count(), 1, 'the entry is back');
-    await f.click('.sheet .slog-rest'); await f.waitForSelector('#f-sl-a'); assert.strictEqual(await f.inputValue('#f-sl-a'), '10000'); assert.strictEqual(await f.locator('#f-sl-d').count(), 0, 'the unlogged part has no date'); await f.fill('#f-sl-a', '0'); await f.click('[data-a=sl-save]'); await f.waitForSelector('.sheet [data-a=sl-edit]'); assert.strictEqual(await tot(), 5000, 'the unlogged part is gone'); assert.strictEqual(await f.locator('.sheet .slog-rest').count(), 0);
+    await f.click('#app [data-a=sl-edit]:not(.slog-rest)'); await f.waitForSelector('[data-a=sl-del]'); await f.click('[data-a=sl-del]'); await gone(); assert.strictEqual(await tot(), 10000, 'deleted'); assert.strictEqual(await f.locator('#app [data-a=sl-edit]:not(.slog-rest)').count(), 0);
+    await f.click('.toast [data-a=undo]'); await f.waitForTimeout(200); assert.strictEqual(await tot(), 15000, 'undo of the delete'); assert.strictEqual(await f.locator('#app [data-a=sl-edit]:not(.slog-rest)').count(), 1, 'the row is back');
+    await f.click('#app .slog-rest'); await f.waitForSelector('#f-sl-a'); assert.strictEqual(await f.inputValue('#f-sl-a'), '10000'); assert.strictEqual(await f.locator('#f-sl-d').count(), 0, 'the unlogged part has no date'); await f.fill('#f-sl-a', '0'); await f.click('[data-a=sl-save]'); await gone(); assert.strictEqual(await tot(), 5000, 'the unlogged part is gone'); assert.strictEqual(await f.locator('#app .slog-rest').count(), 0);
     // the card and the bar read the same total
-    await f.click('[data-a=close-sheet]'); await gone(); assert.ok((await f.innerText('.ticket.c')).includes('5,000円'), 'the card follows: ' + await f.innerText('.ticket.c'));
+    assert.ok((await f.innerText('.ticket.c')).includes('5,000円'), 'the card follows: ' + await f.innerText('.ticket.c'));
     await cf.close(); }
-
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }

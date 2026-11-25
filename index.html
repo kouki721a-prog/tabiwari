@@ -411,7 +411,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
-.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.slog{display:flex;align-items:center;gap:12px;flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit}.slog>svg{flex:none;color:var(--sub)}.slog-rest{opacity:.75}.slog-link{float:right;color:var(--ink);font-weight:600;padding-left:10px}.item b.neg{color:var(--bad)}
+.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.slog-rest{opacity:.75}.item b.neg{color:var(--bad)}
 .plan-go{width:100%;margin-top:10px;padding:11px 14px}
 .fly{position:fixed;z-index:56;pointer-events:none;white-space:nowrap;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:6px;padding:8px 16px;font-family:var(--mono);font-weight:600;font-size:calc(15px*var(--ts));font-variant-numeric:tabular-nums;box-shadow:0 6px 16px rgba(15,39,66,.22)}
 .stn{position:relative;height:12px;margin:3px 0 1px}.stn:before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1.5px dashed rgba(255,255,255,.22)}.stn i{position:absolute;top:1px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);background:var(--navy);box-sizing:border-box}.stn i:last-child{margin-left:-9px}.stn i.on{background:var(--sun);border-color:var(--sun)}
@@ -2060,14 +2060,25 @@ function savePlanHtml(t, today){
 }
 function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length), plan = savePlanHtml(t, todayStr());
-  let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。名前の行を押すと、履歴を見たり、直したりできます。</div>') + '<div class="list">';
+  let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。積み立てた記録は、下の一覧に残ります。</div>') + '<div class="list">';
   h += t.members.map(m => {
     const v = t.savings[m.id] || 0, p = pctFloor(v, target), done = v >= target;
-    return '<div class="item"><button type="button" class="slog" data-a="save-log" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'の積立の履歴を開く">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
-      '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '<span class="slog-link">履歴 ›</span></div></div></button>' +
+    return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
+      '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '</div></div>' +
       '<button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;padding:9px 14px;font-size:calc(14px*var(--ts))">積み立てる</button></div>';
-  }).join('') + '</div></div>';
+  }).join('') + '</div></div>' + saveLogList(t);
   return h;
+}
+/* the records of the savings, below the people (v174): everybody's entries, newest first, like the list of expenses; a row opens its editor. The part nobody logged is one grey row per person. */
+function saveLogList(t){
+  const rows = []; let any = false;
+  t.members.forEach(m => { const v = saveEntries(t, m.id); v.entries.forEach((x, i) => rows.push({ m: m, x: x, ord: i })); if (v.rest) rows.push({ m: m, rest: v.rest }); if (v.entries.length || v.rest) any = true; });
+  const dated = rows.filter(r => r.x).sort((p, q) => p.x.d < q.x.d ? 1 : p.x.d > q.x.d ? -1 : p.ord - q.ord), undated = rows.filter(r => !r.x);
+  const sg = n => (n < 0 ? '−' : '+') + yen(Math.abs(n)), many = t.members.length > 1;
+  const row = r => r.x
+    ? '<button class="item slim" data-a="sl-edit" data-id="' + esc(r.x.id) + '" data-m="' + esc(r.m.id) + '"><div class="grow"><div class="t">' + (many ? esc(r.m.name) + '・' : '') + fmtDay(r.x.d) + '</div>' + (r.x.by && r.x.by !== r.m.id && t.members.some(y => y.id === r.x.by) ? '<div class="sub sm">' + esc(nameOf(t, r.x.by)) + 'が記録</div>' : '') + '</div><b class="' + (r.x.a < 0 ? 'neg' : '') + '">' + sg(r.x.a) + '</b></button>'
+    : '<button class="item slim slog-rest" data-a="sl-edit" data-id="rest" data-m="' + esc(r.m.id) + '"><div class="grow"><div class="t">' + (many ? esc(r.m.name) + '・' : '') + 'それ以前の積立</div><div class="sub sm">記録なし・いつ積んだか、分かりません</div></div><b>' + sg(r.rest) + '</b></button>';
+  return '<div class="sec"><h2>積立の記録<span>新しい順</span></h2>' + (any ? '<div class="list">' + dated.map(row).join('') + undated.map(row).join('') + '</div>' : '<div class="sub sm" style="margin:-4px 2px 0">積み立てると、ここに、記録が残ります。押すと、直したり、消したりできます。</div>') + '</div>';
 }
 
 function viewSheet(){
@@ -2144,22 +2155,13 @@ function viewSheet(){
       '<div class="chips" style="margin-top:10px">' + [1000, 3000, 5000, 10000].map(n => '<button class="chip plain" data-a="quick-save" data-v="' + n + '">+' + n.toLocaleString('ja-JP') + '</button>').join('') + '</div>' +
       '<div class="sub" style="margin-top:10px">間違えたときは、積立の行を押すと、履歴から、直したり、消したりできます。</div>';
     foot = err + '<button class="btn" data-a="save-saving">記録する</button>';
-  } else if (s.type === 'savelog'){   // one person's history (v172): newest first; a row opens its editor; the unlogged part is one grey row
-    const v = saveEntries(t, s.id), target = Math.ceil(t.budget / t.members.length), sg = n => (n < 0 ? '−' : '+') + yen(Math.abs(n)), who = x => x.by && t.members.some(m => m.id === x.by) ? '・' + esc(nameOf(t, x.by)) + 'が記録' : '';
+  } else if (s.type === 'savelog'){   // the editor of one record of the savings (the list is on the savings tab)
+    const v = saveEntries(t, s.id), isRest = s.edit === 'rest', x = isRest ? { a: v.rest, d: '' } : ((t.savelog && t.savelog[s.id]) || []).find(y => y.id === s.edit) || { a: 0, d: todayStr() };
     ttl = esc(nameOf(t, s.id)) + ' の積立';
-    if (s.edit){
-      const isRest = s.edit === 'rest', x = isRest ? { a: v.rest, d: '' } : (t.savelog[s.id] || []).find(y => y.id === s.edit) || { a: 0, d: todayStr() };
-      body = '<div class="sub" style="margin:0 0 8px">' + (isRest ? '「それ以前の積立」を、直します。0円にすると、消えます。' : '金額は、マイナスにもできます（間違えた分を、引くとき）。') + '</div>' +
-        '<label class="lab" for="f-sl-a">金額（円）</label><input class="field" id="f-sl-a" type="text" inputmode="numeric" value="' + esc(s.va != null ? s.va : String(x.a)) + '">' +
-        (isRest ? '' : '<label class="lab" for="f-sl-d">日付</label><input class="field" id="f-sl-d" type="date" value="' + esc(s.vd != null ? s.vd : x.d) + '">');
-      foot = err + '<button class="btn" data-a="sl-save">保存する</button><div class="row" style="justify-content:space-between;margin-top:6px"><button class="link" data-a="sl-back" style="width:auto">戻る</button><button class="link" data-a="sl-del" style="width:auto;color:var(--bad)">' + (isRest ? '0円にして消す' : 'この記録を削除') + '</button></div>';
-    } else {
-      body = '<div class="panel" style="margin:0 0 10px"><div class="row between"><span class="sub sm">合計</span><b>' + yen(v.total) + '</b></div><div class="row between"><span class="sub sm">目標（1人）</span><span>' + yen(target) + '</span></div></div>' +
-        (v.entries.length || v.rest ? '<div class="list">' + v.entries.map(x => '<button class="item slim" data-a="sl-edit" data-id="' + esc(x.id) + '"><div class="grow"><div class="t">' + fmtDay(x.d) + '</div><div class="sub sm">' + (who(x).slice(1) || '&nbsp;') + '</div></div><b class="' + (x.a < 0 ? 'neg' : '') + '">' + sg(x.a) + '</b>' + icon('chev', 16) + '</button>').join('') +
-          (v.rest ? '<button class="item slim slog-rest" data-a="sl-edit" data-id="rest"><div class="grow"><div class="t">それ以前の積立</div><div class="sub sm">記録なし・いつ積んだか、分かりません</div></div><b>' + sg(v.rest) + '</b>' + icon('chev', 16) + '</button>' : '') + '</div>'
-          : '<div class="empty"><b>まだ、積立の記録が、ありません</b><span>［積み立てる］で入れると、ここに、残ります。</span></div>');
-      foot = err + '<button class="btn" data-a="add-save" data-id="' + esc(s.id) + '">積み立てる</button>';
-    }
+    body = '<div class="sub" style="margin:0 0 8px">' + (isRest ? '「それ以前の積立」を、直します。0円にすると、消えます。' : '金額は、マイナスにもできます（間違えた分を、引くとき）。') + '</div>' +
+      '<label class="lab" for="f-sl-a">金額（円）</label><input class="field" id="f-sl-a" type="text" inputmode="numeric" value="' + esc(s.va != null ? s.va : String(x.a)) + '">' +
+      (isRest ? '' : '<label class="lab" for="f-sl-d">日付</label><input class="field" id="f-sl-d" type="date" value="' + esc(s.vd != null ? s.vd : x.d) + '">');
+    foot = err + '<button class="btn" data-a="sl-save">保存する</button><div class="row" style="justify-content:space-between;margin-top:6px"><button class="link" data-a="sl-back" style="width:auto">閉じる</button><button class="link" data-a="sl-del" style="width:auto;color:var(--bad)">' + (isRest ? '0円にして消す' : 'この記録を削除') + '</button></div>';
   } else if (s.type === 'settings'){
     const d = s.data, used = id => t.expenses.some(e => e.payer === id || e.split.indexOf(id) >= 0) || (t.adjustments || []).some(a => a.nets[id]);
     ttl = s.confirmDel ? '旅行を削除' : '旅行の設定';
@@ -2986,18 +2988,17 @@ document.addEventListener('click', e => {
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }
-  else if (a === 'save-log'){ ui.sheet = { type: 'savelog', id: id, err: '', edit: null }; }   // a row of the savings tab: that person's history
-  else if (a === 'sl-edit'){ readSheet(); s.edit = id; s.va = null; s.vd = null; s.err = ''; }
-  else if (a === 'sl-back'){ s.edit = null; s.va = null; s.vd = null; s.err = ''; }
+  else if (a === 'sl-edit'){ ui.sheet = { type: 'savelog', id: el.getAttribute('data-m'), err: '', edit: id, va: null, vd: null }; }   // a row of the records below the people
+  else if (a === 'sl-back'){ ui.sheet = null; }
   else if (a === 'sl-save'){
     readSheet(); const isRest = s.edit === 'rest', n = parseYen(s.va != null ? s.va : '');
     if (isNaN(n) || (!isRest && n === 0) || Math.abs(n) > 1e9) s.err = isRest ? '金額を、数字で入力してください（0円なら、消えます）。' : '金額を、0以外の数字で入力してください（例：5000、−1000）。';
     else if (!isRest && !/^\d{4}-\d{2}-\d{2}$/.test(s.vd || '')) s.err = '日付を入力してください。';
-    else { const un = saveApply(t, s.id, isRest ? { kind: 'rest', rest: n } : { kind: 'edit', id: s.edit, a: n, d: s.vd }); s.edit = null; s.va = null; s.vd = null; s.err = ''; save(); render(); flash('直しました', () => { saveApply(t, s.id, un); save(); render(); }); return; }
+    else { const mid = s.id, un = saveApply(t, mid, isRest ? { kind: 'rest', rest: n } : { kind: 'edit', id: s.edit, a: n, d: s.vd }); ui.sheet = null; save(); render(); flash('直しました', () => { saveApply(t, mid, un); save(); render(); }); return; }
   }
   else if (a === 'sl-del'){
     const mid = s.id, un = saveApply(t, mid, s.edit === 'rest' ? { kind: 'rest', rest: 0 } : { kind: 'del', id: s.edit });
-    if (un){ s.edit = null; s.va = null; s.vd = null; s.err = ''; save(); render(); flash('削除しました', () => { saveApply(t, mid, un); save(); render(); }); return; }
+    if (un){ ui.sheet = null; save(); render(); flash('削除しました', () => { saveApply(t, mid, un); save(); render(); }); return; }
   }
   else if (a === 'plan-save'){ ui.sheet = { type: 'save', id: meId(t), err: '', val: el.getAttribute('data-v') }; }   // from the plan card: the amount of this time is already in
   else if (a === 'note-edit'){ ui.sheet = { type: 'note', err: '' }; }
