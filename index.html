@@ -451,6 +451,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
 .wr-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px}.wr-bot:before,.wr-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.wr-bot:before{left:0;border-radius:0 11px 11px 0}.wr-bot:after{right:0;border-radius:11px 0 0 11px}
 .wr-ticket .send-stp{position:absolute;right:16px;top:-16px;width:76px;height:76px;font-size:calc(30px*var(--ts));--r:-8deg;z-index:2;margin:0}
+.maru{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom) + 158px);z-index:45;display:flex;align-items:flex-end;gap:8px;pointer-events:none;max-width:calc(100vw - 28px)}.maru-bubble{max-width:236px;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:14px 14px 14px 4px;padding:7px 11px;font-size:calc(12.5px*var(--ts));line-height:1.5;box-shadow:0 6px 16px rgba(15,39,66,.18)}.maru-face{flex:none;display:block}
 .wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
 .ill{width:64px;height:64px;flex:none;color:var(--ink)}.ill.lg{width:92px;height:92px;display:block;margin:0 auto 8px}
 .lp-hd{display:flex;align-items:center;justify-content:space-between;gap:12px}.lp-hd .ill{width:58px;height:58px;margin-top:-6px}
@@ -1676,7 +1677,7 @@ function motionStations(now){
   const t = trip(), dots = [...document.querySelectorAll('.stn i')];
   if (t && dots.length){   // the stations already lit, remembered per trip: a higher count than last time means a deposit just passed one
     const lit = dots.filter(d => d.classList.contains('on')).map(d => +d.dataset.m), L = ui.stnLvl || (ui.stnLvl = {}), prev = L[t.id]; L[t.id] = lit.length;
-    if (prev != null && lit.length > prev && calm()) ui.stnAnim = { id: t.id, marks: lit.slice(prev), t0: now + (ui.stnWait || 0) };
+    if (prev != null && lit.length > prev && calm()){ ui.stnAnim = { id: t.id, marks: lit.slice(prev), t0: now + (ui.stnWait || 0) }; const hi = lit.slice(prev).filter(m => m < 100).pop(), tid = t.id; if (hi) setTimeout(() => { const cur = trip(); if (cur && cur.id === tid) maruSay('stn|' + tid + '|' + hi, MARU_STN[hi]); }, 1500); }
   }
   ui.stnWait = 0;
   const sa = ui.stnAnim; if (!sa) return;
@@ -1942,6 +1943,35 @@ function openRecap(t){
   makeRecap(t).then(blob => { if (ui.sheet !== cur) return; if (!blob){ cur.err = 'まとめをつくれませんでした。支出を記録してから、もう一度お試しください。'; } else { cur.file = new File([blob], 'tabiwari-recap.png', { type: 'image/png' }); cur.url = URL.createObjectURL(blob); } render(); },
     () => { if (ui.sheet === cur){ cur.err = 'まとめをつくれませんでした。もう一度お試しください。'; render(); } });
 }
+/* たびまるの ひとこと (v176): the small ticket-shaped friend steps in from the left, hops, says ONE short line and leaves (3 s). Only at moments (never on every record): today's spending over the day's guide, a station passed on the savings bar,
+   the first record on the last day, a settlement confirmed. Each moment once (remembered on this device). It waits while a reward (a stamp) or a sheet is up, and can be turned off in 設定. */
+const MARU_KEY = 'tabiwari.maru', MARU_SEEN = 'tabiwari.maruseen', MARU_MS = 3000;
+const maruOn = () => lsGet(MARU_KEY) !== '0';
+function maruSay(key, line, retry){
+  if (!maruOn()) return false;
+  if (ui.maruBusy || document.querySelector('.stpop, .sheet-bg:not(.ghost)')){   // a reward or a sheet is up: wait and try once more (it is NOT counted as shown)
+    if (retry == null) setTimeout(() => maruSay(key, line, 0), 2200); return false; }
+  let seen = {}; try { seen = JSON.parse(lsGet(MARU_SEEN)) || {}; } catch(e){ seen = {}; }
+  if (seen[key]) return false;
+  seen[key] = 1; const ks = Object.keys(seen); ks.slice(0, Math.max(0, ks.length - 200)).forEach(k => delete seen[k]); lsSet(MARU_SEEN, JSON.stringify(seen));
+  ui.maruBusy = true;
+  const el = document.createElement('div'); el.className = 'maru'; el.setAttribute('aria-live', 'polite'); el.innerHTML = '<span class="maru-face">' + tabimaru(34) + '</span><span class="maru-bubble">' + esc(line) + '</span>';
+  document.body.appendChild(el);
+  const done = () => { el.remove(); ui.maruBusy = false; };
+  if (calm()){
+    const a = el.animate([{ opacity: 0, transform: 'translateX(-26px)' }, { opacity: 1, transform: 'none', offset: .1 }, { opacity: 1, transform: 'none', offset: .88 }, { opacity: 0, transform: 'translateX(-14px)' }], { duration: MARU_MS, easing: 'ease-out' }); a.onfinish = a.oncancel = done;
+    el.querySelector('.maru-face').animate([{ transform: 'translateY(0) rotate(0)' }, { transform: 'translateY(-10px) rotate(-8deg)', offset: .3 }, { transform: 'translateY(0) rotate(0)', offset: .55 }, { transform: 'translateY(-5px) rotate(6deg)', offset: .78 }, { transform: 'none' }], { duration: 1000, delay: 320, easing: 'ease-out' });
+  } else setTimeout(done, MARU_MS);
+  return true;
+}
+/* after a record is saved: today over the guide (once a day), or the first record on the last day (once a trip) */
+function maruAfterRecord(t){
+  const today = todayStr(); if (status(t)[0] !== '旅行中') return;
+  const sp = total(t), dl = Math.max(1, dayDiff(today, t.end) + 1), per = Math.max(0, Math.floor((t.budget - sp) / dl)), todays = t.expenses.filter(e => e.date === today), ts = todays.reduce((a, e) => a + e.amount, 0);
+  if (ts > 0 && ts > per && maruSay('over|' + t.id + '|' + today, '今日は、目安を、少し超えました。明日で、ならしましょう。')) return;
+  if (today === t.end && todays.length === 1) maruSay('last|' + t.id, '最終日ですね。帰ったら、精算を、ひらきましょう。');
+}
+const MARU_STN = { 25: '4分の1まで、来ました。', 50: '半分まで、来ました。', 75: '4分の3まで、来ました。あと少しです。' };
 /* 旅のおつかれさま (v153): once per trip, when the app is opened after the trip has ended (within 14 days). Remembered on this device only. One per app visit. */
 const WRAP_SEEN = 'tabiwari.wrapseen', WRAP_DAYS = 14;
 function wrapCheck(){
@@ -2213,6 +2243,7 @@ function viewSheet(){
         ? '<button class="item slim acc" data-a="line-account">' + meAv + '<div class="grow"><div class="t">' + esc(nm0) + '</div><div class="sub sm">バックアップ、通知、ログアウト</div></div>' + chev + '</button>'
         : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 20px 16px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
       (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener">' + ico('userplus') + '<div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「Tabiflow」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
+      sec('たびまる') + '<div class="list"><div class="item slim"><div class="grow"><div class="t">たびまるの、ひとこと</div><div class="sub sm">節目のときだけ、ひとこと言います。目安を超えたとき・積立の節目・最終日・精算の確定。</div></div><button class="sw" role="switch" aria-checked="' + maruOn() + '" aria-label="たびまるのひとこと" data-a="maru-toggle"></button></div></div>' +
       sec('文字の大きさ') + '<div class="list"><div class="item slim acc tsize" role="group" aria-label="文字の大きさ">' + [['1', '標準'], ['2', '少し大きく'], ['3', '大きく']].map(x => '<button type="button" class="lc" data-a="text-size" data-v="' + x[0] + '" aria-pressed="' + (textSize() === x[0]) + '">' + x[1] + '</button>').join('') + '</div></div>' +
       (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html">' + ico('doc') + '<div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
       sec('サポート') + '<div class="list"><button class="item slim acc" data-a="contact-open">' + ico('mail') + '<div class="grow"><div class="t">ご意見・お問い合わせ</div><div class="sub sm">使い方・不具合・ご要望</div></div>' + chev + '</button>' +
@@ -2459,7 +2490,7 @@ document.addEventListener('submit', e => {   // "ひとことで記録": a line 
   t.members.forEach(m => { if (left.indexOf(m.id) >= 0 && fx[m.id] === undefined && r.weights[m.name] && wp[m.id] === undefined){ wp[m.id] = r.weights[m.name]; said.push(m.name + ' ' + partLabel(r.weights[m.name])); } });
   r.excluded.forEach(n => said.push(n + 'なし'));
   const pp = cleanParts(wp, rec.split.slice()), full = {}; if (pp){ rec.split.forEach(id => { full[id] = wp[id] || 2; }); const fp = cleanParts(full, rec.split); if (fp) rec.parts = fp; }
-  const before = catSums(t), fl0 = flyFrom('q-quick'); stampNew(t, rec); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render(); recFly((r.title || (CAT[r.cat] || CAT.other)[2]) + ' −' + yen(r.amount), fl0);
+  const before = catSums(t), fl0 = flyFrom('q-quick'); stampNew(t, rec); t.expenses.push(rec); ui.fresh = { [rec.id]: 1 }; ui.quick = ''; ui.quickErr = ''; save(); render(); recFly((r.title || (CAT[r.cat] || CAT.other)[2]) + ' −' + yen(r.amount), fl0); setTimeout(() => maruAfterRecord(t), 1100);
   const cn = capNotice(t, before);
   flash((r.title || (CAT[r.cat] || CAT.other)[2]) + ' ' + yen(r.amount) + (said.length ? '（' + said.join('、') + '）' : '') + 'を記録しました' + (cn ? '。' + cn : ''), () => { const tt = state.trips.find(x => x.id === tid); if (!tt) return; tt.expenses = tt.expenses.filter(q => q.id !== rec.id); save(); render(); });
 });
@@ -3002,7 +3033,7 @@ document.addEventListener('click', e => {
         if (adj) t.adjustments = (t.adjustments || []).concat([adj]);
       }
       else { const ne = stampNew(t, Object.assign({ id: uid() }, rec)); t.expenses.push(ne); ui.fresh = { [ne.id]: 1 }; lsSet('tabiwari.last.' + t.id, JSON.stringify({ payer: ne.payer, split: ne.split })); }
-      const wasEdit = !!s.editId, fl0 = wasEdit ? null : flyFrom(), fl1 = (rec.title || (CAT[rec.cat] || CAT.other)[2]) + ' −' + yen(rec.amount); save(); ui.sheet = null; render(); recFly(fl1, fl0); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
+      const wasEdit = !!s.editId, fl0 = wasEdit ? null : flyFrom(), fl1 = (rec.title || (CAT[rec.cat] || CAT.other)[2]) + ' −' + yen(rec.amount); save(); ui.sheet = null; render(); recFly(fl1, fl0); if (!wasEdit) setTimeout(() => maruAfterRecord(t), 1100); flash((wasEdit ? '保存しました' : '記録しました') + (capNotice(t, before) ? '。' + capNotice(t, before) : '')); return;
     }
   }
   else if (a === 'settled-cancel'){ s.confirmSettled = false; }
@@ -3022,7 +3053,7 @@ document.addEventListener('click', e => {
   else if (a === 'toggle-recv'){ const k = el.getAttribute('data-k'); t.received = t.received || {}; if (!t.paid[k]) return; if (t.received[k]) delete t.received[k]; else t.received[k] = true; save(); }
   else if (a === 'settle-ask'){ if (openItems(t).expenses.length || openItems(t).adjustments.length) ui.sheet = { type: 'settle-confirm', err: '' }; }
   else if (a === 'settle-go'){
-    const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; ui.tear = true; save(); render(); flash('第' + n + '回の精算を確定しました'); return;
+    const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; ui.tear = true; save(); render(); flash('第' + n + '回の精算を確定しました'); setTimeout(() => maruSay('settle|' + t.id + '|' + n, 'おつかれさまでした。送金は、それぞれで。済んだら、チェックを。'), 1600); return;
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }
@@ -3046,6 +3077,7 @@ document.addEventListener('click', e => {
     if (mine){ if (v) mine.note = v; else delete mine.note; state.payNote = v || undefined; save(); }   // kept on this device too: it starts the memo of the next trip
     ui.sheet = null; render(); flash(v ? '受け取り方を書きました' : '受け取り方を消しました'); return;
   }
+  else if (a === 'maru-toggle'){ lsSet(MARU_KEY, maruOn() ? '0' : null); render(); return; }
   else if (a === 'text-size'){ const v = el.getAttribute('data-v'); if (!TEXT_SIZES[v]) return; lsSet(TEXT_KEY, v === '1' ? null : v); applyTextSize(); render(); return; }
   else if (a === 'usage-toggle'){ const open = ui.usageOpen || !!ui.catF; if (open){ ui.usageOpen = false; ui.catF = null; } else ui.usageOpen = true; render(); return; }
   else if (a === 'hint-swipe-no'){ lsSet(HINT_SWIPE, '1'); render(); return; }
