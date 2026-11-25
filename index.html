@@ -450,6 +450,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .wr-eye{font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub)}.wr-name{font-size:calc(24px*var(--ts));font-weight:700;margin:6px 0 14px;overflow-wrap:anywhere}
 .wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
 .wr-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px}.wr-bot:before,.wr-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.wr-bot:before{left:0;border-radius:0 11px 11px 0}.wr-bot:after{right:0;border-radius:11px 0 0 11px}
+.wr-ticket .send-stp{position:absolute;right:16px;top:-16px;width:76px;height:76px;font-size:calc(30px*var(--ts));--r:-8deg;z-index:2;margin:0}
 .wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
 .ill{width:64px;height:64px;flex:none;color:var(--ink)}.ill.lg{width:92px;height:92px;display:block;margin:0 auto 8px}
 .lp-hd{display:flex;align-items:center;justify-content:space-between;gap:12px}.lp-hd .ill{width:58px;height:58px;margin-top:-6px}
@@ -1396,7 +1397,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
-  stampWatch(); lpObserve(); motionMoney(); wrapCheck();
+  stampWatch(); lpObserve(); motionMoney(); motionSendoff(performance.now()); sendoffCheck(); wrapCheck();
 }
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
@@ -1950,6 +1951,31 @@ function wrapCheck(){
   ui.wrapDone = true;   // one per visit, even if it could not be shown right now
   setTimeout(() => { if (ui.sheet || ui.view !== 'home' || !state.trips.includes(t)) return; seen[t.id] = 1; const ks = Object.keys(seen); ks.slice(0, Math.max(0, ks.length - 60)).forEach(k => delete seen[k]); lsSet(WRAP_SEEN, JSON.stringify(seen)); ui.sheet = { type: 'wrap', id: t.id }; render(); }, 700);
 }
+/* いってらっしゃい (v175): on the day of departure, the first time the app is opened on the home screen, a small ticket says so (the stamp 発 is pressed). Once per trip, on this device only.
+   Only for a trip the person had before that day: ui "firstseen" remembers the day each trip was first seen here, so a trip made on the day itself does not greet you. */
+const SEND_SEEN = 'tabiwari.sendoffseen', FIRST_SEEN = 'tabiwari.firstseen';
+function firstSeenMark(){
+  const today = todayStr(); let m = {}; try { m = JSON.parse(lsGet(FIRST_SEEN)) || {}; } catch(e){ m = {}; }
+  let changed = false; state.trips.forEach(t => { if (!m[t.id]){ m[t.id] = today; changed = true; } });
+  if (changed){ const ks = Object.keys(m); ks.slice(0, Math.max(0, ks.length - 80)).forEach(k => delete m[k]); lsSet(FIRST_SEEN, JSON.stringify(m)); }
+  return m;
+}
+function sendoffCheck(){
+  const first = firstSeenMark();
+  if (ui.wrapDone || ui.sheet || ui.view !== 'home') return;
+  const today = todayStr(); let seen = {}; try { seen = JSON.parse(lsGet(SEND_SEEN)) || {}; } catch(e){ seen = {}; }
+  const t = state.trips.find(x => x.start === today && status(x)[0] === '旅行中' && first[x.id] && first[x.id] < today && !seen[x.id]); if (!t) return;
+  ui.wrapDone = true;   // one celebration per visit
+  setTimeout(() => { if (ui.sheet || ui.view !== 'home' || !state.trips.includes(t)) return; seen[t.id] = 1; const ks = Object.keys(seen); ks.slice(0, Math.max(0, ks.length - 60)).forEach(k => delete seen[k]); lsSet(SEND_SEEN, JSON.stringify(seen)); ui.sheet = { type: 'sendoff', id: t.id }; ui.sendoffAt = performance.now(); render(); }, 700);
+}
+/* the stamp 発 is pressed onto the ticket a moment after the sheet came up (the state is in memory: a redraw in the middle carries on) */
+const SEND_MS = 520, SEND_DELAY = 450;
+function motionSendoff(now){
+  const at = ui.sendoffAt; if (!at) return;
+  if (!calm() || now - at > SEND_DELAY + SEND_MS + 100){ ui.sendoffAt = 0; return; }
+  const el = document.querySelector('.send-stp'); if (!el) return; const e = now - (at + SEND_DELAY); if (e >= SEND_MS) return;
+  const a = el.animate([{ opacity: 0, transform: 'rotate(-34deg) scale(2.3)' }, { opacity: 1, transform: 'rotate(-8deg) scale(.9)', offset: .68 }, { opacity: 1, transform: 'rotate(-8deg) scale(1)' }], { duration: SEND_MS, delay: e < 0 ? -e : 0, fill: 'backwards', easing: 'cubic-bezier(.3,1.2,.5,1)' }); if (e > 0) a.currentTime = e;
+}
 function stampWatch(){
   const t = trip(); if (!t) return;
   let seen = {}; try { seen = JSON.parse(lsGet(STAMP_SEEN)) || {}; } catch(e){ seen = {}; }
@@ -2286,6 +2312,17 @@ function viewSheet(){
     else if (!lineAcct.user){ body = '<div class="sub" style="margin-top:14px">LINEでログインしてから、もう一度、このページを開いてください。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
     else { body = '<div class="sub" style="margin-top:10px">Cloudflare に登録した、運営者の合言葉を入れてください。このアカウントが、運営者になります。</div><input class="field" id="adm-token" type="password" autocomplete="off" autocapitalize="none" aria-label="運営者の合言葉" placeholder="合言葉" style="margin-top:14px">';
       foot = (s.err ? '<div class="err" role="alert" style="margin:0 0 8px">' + esc(s.err) + '</div>' : '') + '<button class="btn" data-a="adm-claim"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '確認しています…' : '運営者になる') + '</button><button class="link" data-a="close-sheet">やめる</button>'; }
+  }
+  if (s.type === 'sendoff'){
+    const w = state.trips.find(x => x.id === s.id);
+    if (!w){ ttl = 'いってらっしゃい'; body = '<div class="empty">見つかりませんでした。</div>'; foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
+    else {
+      ttl = 'いってらっしゃい'; const today = todayStr(), left = w.budget - total(w), dl = Math.max(1, dayDiff(today, w.end) + 1), per = Math.max(0, Math.floor(left / dl)), md = x => Number(x.slice(5, 7)) + '/' + Number(x.slice(8, 10));
+      body = '<div class="wr-ticket"><span class="stp send-stp" aria-hidden="true">発</span><div class="wr-top"><div class="wr-eye">出発の日　' + md(w.start) + (w.end !== w.start ? ' – ' + md(w.end) : '') + '</div><div class="wr-name">' + esc(w.name) + '</div><div class="wr-grid"><div><small>積立</small><b>' + yen(savedOf(w)) + '</b></div><div><small>今日の目安</small><b>' + yen(per) + '</b></div></div></div>' +
+        '<div class="wr-bot"><small>' + w.members.length + '人で、出発</small><div class="wr-st">' + w.members.slice(0, 8).map(m => av(w, m.id)).join('') + '</div></div></div>' +
+        '<div class="wr-msg">いよいよ、今日です。いい旅になりますように。支出は、［＋］か、ひとことで、その場で記録できます。</div>';
+      foot = '<button class="btn" data-a="sendoff-go" data-id="' + esc(w.id) + '">記録をはじめる</button><button class="link" data-a="close-sheet">あとで</button>';
+    }
   }
   if (s.type === 'wrap'){
     const w = state.trips.find(x => x.id === s.id);
@@ -2837,6 +2874,7 @@ document.addEventListener('click', e => {
     const inp = document.getElementById('adm-token'), tok = inp ? inp.value : ''; if (!tok || s.busy) return; s.busy = true; s.err = ''; const cur = s; render();
     ctCall('/api/admin/claim', { token: tok }).then(r => { if (ui.sheet !== cur) return; cur.busy = false; if (r.ok){ cur.done = true; if (lineAcct.user) lineAcct.user.admin = true; } else cur.err = r.status === 403 ? '合言葉が、違います。' : r.status === 429 ? '何度も間違えました。1時間ほど、あけてください。' : r.status === 503 ? 'サーバーに、運営者の合言葉が、まだ登録されていません。' : r.status === 401 ? 'LINEでログインしてから、もう一度お試しください。' : '確認できませんでした。もう一度お試しください。'; render(); }); return;
   }
+  else if (a === 'sendoff-go'){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.resetScroll = true; ui.enterAt = performance.now() + 220; }
   else if (a === 'wrap-settle'){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'settle'; ui.resetScroll = true; }
   else if (a === 'wrap-recap'){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.resetScroll = true; const wt = state.trips.find(x => x.id === id); if (wt){ openRecap(wt); return; } }
   else if (a === 'coach-ok'){ if (t) lsSet(coachKey(t), null); }
