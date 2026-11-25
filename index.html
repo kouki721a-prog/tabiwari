@@ -398,16 +398,6 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) * .5 + 14px);width:calc(100% - 32px);max-width:488px;box-shadow:0 8px 20px rgba(0,0,0,.22);z-index:10}
 .toast button{margin-left:14px;color:#fff;text-decoration:underline;font-weight:700;font-size:calc(14px*var(--ts))}
 .toast{display:flex;align-items:center;max-width:calc(100vw - 32px);width:max-content;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 100px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:22px;line-height:1.5;font-size:calc(14px*var(--ts));font-weight:500;z-index:40}
-/* 文字の大きさ (v180): three stops on a dashed route; the "あ" above each stop is drawn at that size, and the route is lit up to the chosen one. Each column is one big button. */
-.tsize{position:relative;display:grid!important;grid-template-columns:repeat(3,1fr);gap:0;padding:6px 0 4px!important}
-.tsize:before,.tsize:after{content:"";position:absolute;left:16.667%;top:62px;border-top:3px dashed var(--dash)}.tsize:before{right:16.667%}
-.tsize:after{border-top:3px solid var(--sun);width:calc(var(--i)*33.333%);transition:width .25s var(--ease)}
-.tsstop{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:2px 0 8px;color:var(--sub);font:inherit}
-.tsstop b{display:flex;align-items:flex-end;height:38px;line-height:1;font-weight:700;color:var(--ink)}
-.tsstop .dot{display:block;width:22px;height:22px;border-radius:50%;border:2.5px solid var(--dash);background:var(--cream);box-sizing:border-box;transition:background .2s,border-color .2s,transform .2s var(--ease)}
-.tsstop.on .dot{background:var(--sun);border-color:var(--sun)}.tsstop[aria-pressed=true] .dot{transform:scale(1.25);box-shadow:0 0 0 4px color-mix(in srgb,var(--sun) 30%,transparent)}
-.tsstop span{font-size:12.5px;white-space:nowrap}.tsstop[aria-pressed=true] span{color:var(--ink);font-weight:700}
-@media (prefers-reduced-motion:reduce){.tsize:after,.tsstop .dot{transition:none}}
 .chgtag{display:inline-block;margin-left:6px;padding:1px 7px;border:1px solid var(--line);border-radius:99px;font-size:calc(10.5px*var(--ts));font-weight:500;color:var(--sub);vertical-align:middle}.elog{margin:12px 2px 0;font-size:calc(12.5px*var(--ts));line-height:1.75;color:var(--sub)}.elog b{color:var(--ink);font-weight:600}
 .hint{margin:6px 4px 8px;font-size:calc(12.5px*var(--ts));line-height:1.55;color:var(--sub);display:flex;justify-content:space-between;align-items:center;gap:8px}.hint .link{width:auto;flex:none;padding:6px 8px;font-size:calc(12.5px*var(--ts));font-weight:700;color:var(--ink)}
 .swp{position:relative;overflow:hidden;border-top:1px solid var(--line)}.swp:first-child{border-top:0}.swp .item{border-top:0;background:var(--card);position:relative;z-index:1;transition:transform .18s ease-out}.swp.open .item{transform:translateX(-84px)}
@@ -1095,11 +1085,7 @@ const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, t
 const CFG = window.TABIWARI || {};
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
 const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch(e){} };
-/* 文字の大きさ: the person's own choice in 設定 (標準 / 少し大きく / 大きく). Only the text is enlarged (every font-size is calc(Npx * var(--ts))); the layout, the touch coordinates and the finger-following moves are not touched. Applied before the first screen is drawn */
-const TEXT_KEY = 'tabiwari.textsize', TEXT_SIZES = { '1': 1, '2': 1.12, '3': 1.25 };
-const textSize = () => TEXT_SIZES[lsGet(TEXT_KEY)] ? lsGet(TEXT_KEY) : '1';
-const applyTextSize = () => { try { document.documentElement.style.setProperty('--ts', String(TEXT_SIZES[textSize()])); } catch(e){} };
-applyTextSize();
+/* 文字の大きさの設定は、いったん外した（v185）。ただし、すべての font-size は calc(Npx * var(--ts)) のまま残してある（--ts は :root で 1）。戻すときは、設定の行と --ts を変える処理を足すだけ。昔の保存（tabiwari.textsize）は、読まない。 */
 const meId = t => (t.share && t.members.some(x => x.id === t.share.me)) ? t.share.me : t.members[0].id;
 const b64u8 = b => { const p = '='.repeat((4 - b.length % 4) % 4), r = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
 function downloadCsv(t){
@@ -2363,7 +2349,6 @@ function viewSheet(){
         : '<div class="item slim acc"><div class="grow"><div class="sub sm" style="margin:0">ログインすると、旅行をバックアップして、通知を使えます。</div></div></div><div style="padding:0 20px 16px"><button class="lineg" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>') + '</div>' : '') +
       (lineAcct.login ? sec('公式アカウント') + '<div class="list"><a class="item slim acc" href="' + OA_URL + '" target="_blank" rel="noopener">' + ico('userplus') + '<div class="grow"><div class="t">友だち追加する</div><div class="sub sm">LINEの公式アカウント「Tabiflow」を追加すると、精算のお知らせを、LINEでも受け取れます。</div></div>' + chev + '</a></div>' : '') +
       sec('たびまる') + '<div class="list"><div class="item slim acc"><span class="ico" aria-hidden="true">' + tabimaru(15) + '</span><div class="grow"><div class="t">たびまるの、ひとこと</div><div class="sub sm">節目のときだけ、ひとこと言います。目安を超えたとき・積立の節目・最終日・精算の確定。</div></div><button class="sw" role="switch" aria-checked="' + maruOn() + '" aria-label="たびまるのひとこと" data-a="maru-toggle"></button></div></div>' +
-      sec('文字の大きさ') + '<div class="list"><div class="item slim acc tsize" role="group" aria-label="文字の大きさ" style="--i:' + (Number(textSize()) - 1) + '">' + [['1', '標準', 16], ['2', '少し大きく', 22], ['3', '大きく', 29]].map(x => '<button type="button" class="tsstop' + (Number(x[0]) <= Number(textSize()) ? ' on' : '') + '" data-a="text-size" data-v="' + x[0] + '" aria-pressed="' + (textSize() === x[0]) + '"><b style="font-size:' + x[2] + 'px" aria-hidden="true">あ</b><i class="dot" aria-hidden="true"></i><span>' + x[1] + '</span></button>').join('') + '</div></div>' +
       (CFG.legalReady ? sec('規約') + '<div class="list"><a class="item slim acc" href="terms.html">' + ico('doc') + '<div class="grow"><div class="t">利用規約</div></div>' + chev + '</a><a class="item slim acc" href="privacy.html">' + ico('shield') + '<div class="grow"><div class="t">プライバシーポリシー</div></div>' + chev + '</a></div>' : '') +
       sec('サポート') + '<div class="list"><button class="item slim acc" data-a="contact-open">' + ico('mail') + '<div class="grow"><div class="t">ご意見・お問い合わせ</div><div class="sub sm">使い方・不具合・ご要望</div></div>' + chev + '</button>' +
         (lineAcct.user && lineAcct.user.admin ? '<button class="item slim acc" data-a="inbox-open">' + ico('doc') + '<div class="grow"><div class="t">お問い合わせの一覧</div><div class="sub sm">運営者だけに表示されます</div></div>' + chev + '</button>' : '') + '</div>' +
@@ -3222,7 +3207,6 @@ document.addEventListener('click', e => {
   else if (a === 'maru-open'){ ui.sheet = { type: 'maru', pick: null }; }
   else if (a === 'maru-q'){ ui.sheet.pick = el.getAttribute('data-v'); }
   else if (a === 'maru-toggle'){ lsSet(MARU_KEY, maruOn() ? '0' : null); render(); return; }
-  else if (a === 'text-size'){ const v = el.getAttribute('data-v'); if (!TEXT_SIZES[v]) return; lsSet(TEXT_KEY, v === '1' ? null : v); applyTextSize(); render(); return; }
   else if (a === 'usage-toggle'){ const open = ui.usageOpen || !!ui.catF; if (open){ ui.usageOpen = false; ui.catF = null; } else ui.usageOpen = true; render(); return; }
   else if (a === 'hint-swipe-no'){ lsSet(HINT_SWIPE, '1'); render(); return; }
   else if (a === 'copy-note'){ const m = t.members.find(x => x.id === id), v = m && m.note; if (!v) return; try { navigator.clipboard.writeText(v).then(() => flash('コピーしました'), () => flash(v)); } catch(err){ flash(v); } return; }
