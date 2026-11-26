@@ -450,6 +450,12 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .live-tk .lt-st{width:30px;height:30px;margin:-14px -4px -8px 0;border-radius:50%;display:grid;place-items:center;font-size:calc(14px*var(--ts));letter-spacing:0;font-weight:700;color:#0f2742;border:2px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(10deg);opacity:0}.live-tk .lt-st.on{opacity:1}
 @media (max-height:719px){.live-tk{display:none}}   /* the form must fit one screen: the ticket only shows where there is room (v194) */
 @media (prefers-reduced-motion: no-preference){@keyframes ltStamp{from{opacity:0;transform:scale(1.8) rotate(-16deg)}60%{opacity:1}to{opacity:1;transform:rotate(10deg)}}@keyframes ltPop{from{transform:translateY(3px);opacity:.4}to{transform:none;opacity:1}}.live-tk .lt-st.press{animation:ltStamp .42s var(--ease) both}.live-tk b.pop{animation:ltPop .22s var(--ease) both}}
+.issue{position:fixed;inset:0;z-index:57;pointer-events:none}.issue-bg{position:absolute;inset:0;background:rgba(15,39,66,.34)}
+.issue-slot{position:absolute;left:50%;top:21%;width:min(340px,88vw);height:10px;margin-left:calc(min(340px,88vw)/-2);border-radius:99px;background:#0f2742;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.issue-tk{position:absolute;left:50%;top:calc(21% + 4px);width:min(300px,80vw);margin-left:calc(min(300px,80vw)/-2);filter:drop-shadow(0 6px 10px rgba(0,0,0,.28))}
+.issue-in{position:relative;min-height:150px;padding:16px 18px 54px 22px;background:var(--cream);color:var(--ink);border-radius:12px;box-shadow:inset 5px 0 0 var(--navy)}.issue-in small{display:block;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub)}.issue-in b{display:block;margin:8px 0 6px;font-size:calc(21px*var(--ts));line-height:1.25}.issue-in span{display:block;font-size:calc(14px*var(--ts));color:var(--sub);line-height:1.6}
+.issue-bars{position:absolute;left:22px;bottom:14px;right:96px;height:26px;opacity:.85;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 5px,var(--ink) 5px 6px,transparent 6px 10px,var(--ink) 10px 14px,transparent 14px 17px)}
+.issue-st{position:absolute;left:50%;top:calc(21% + 108px);margin-left:calc(min(300px,80vw)/2 - 74px);width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:calc(24px*var(--ts));color:#0f2742;border:2.5px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);box-shadow:inset 0 0 0 3px rgba(255,255,255,.55)}
 /* the first page moves once (v151): the hero ticket, then each part rises as it comes into view. Only when "reduce motion" is off. A re-draw in the middle of a move does not restart it (a negative delay carries on). */
 @media (prefers-reduced-motion: no-preference){
   @keyframes lpUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -2134,6 +2140,34 @@ function stampBar(t){
 }
 /* the stamps that deserve more than a tap: everybody paid (済) and the savings reached the goal (積). They come first, the stamp is bigger, a ring spreads from it, and it says what happened. */
 const STAMP_BIG = { paid: 'みんなの精算が済みました', save: '積立が目標に届きました' }, STAMP_ORDER = ['paid', 'save', 'settle'];
+/* ---- celebrations (v200): paper confetti, and the ticket that is printed when a trip is made. Copies on <body> (a redraw cannot cut them), no pointer events, off with "reduce motion". ---- */
+const CONF_COLORS = ['#ffc83d', '#17895c', '#c2332d', '#2f6fed', '#ff8fb0', '#0f2742'];
+function confetti(x, y, n){
+  if (!calm() || !document.body.animate) return;
+  const box = document.createElement('div'); box.className = 'confetti'; box.setAttribute('aria-hidden', 'true'); box.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;z-index:58;pointer-events:none'; document.body.appendChild(box);
+  let left = n;
+  for (let i = 0; i < n; i++){
+    const p = document.createElement('i'), w = 6 + Math.random() * 4, h = 9 + Math.random() * 5;
+    p.style.cssText = 'position:absolute;left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px;background:' + CONF_COLORS[i % CONF_COLORS.length] + ';border-radius:' + (i % 4 === 0 ? '50%' : '1px');
+    const ang = -Math.PI / 2 + (Math.random() - .5) * 2.4, sp = 90 + Math.random() * 150, dx = Math.cos(ang) * sp, dy = Math.sin(ang) * sp, fall = 120 + Math.random() * 140, rot = (Math.random() - .5) * 720;
+    const a = p.animate([{ transform: 'translate(0,0) rotate(0deg) scale(.3)', opacity: 1 }, { transform: 'translate(' + dx * .6 + 'px,' + dy + 'px) rotate(' + rot * .5 + 'deg) scale(1)', opacity: 1, offset: .4 }, { transform: 'translate(' + dx + 'px,' + (dy + fall) + 'px) rotate(' + rot + 'deg) scale(1)', opacity: 0 }], { duration: 1000 + Math.random() * 180, easing: 'cubic-bezier(.2,.6,.4,1)' });
+    a.onfinish = a.oncancel = () => { if (--left === 0) box.remove(); }; box.appendChild(p);
+  }
+}
+function issueTicket(t){   // the trip has just been made: a ticket is printed out of a slot, the stamp 初 is pressed, confetti. About 2.3 seconds, over the trip screen, and it never blocks a tap.
+  if (!calm() || !document.body.animate) return;
+  const n = dayDiff(t.start, t.end), dates = fmtDate(t.start) + (n ? '–' + fmtDate(t.end) + '・' + n + '泊' + (n + 1) + '日' : '・日帰り');
+  const o = document.createElement('div'); o.className = 'issue'; o.setAttribute('aria-hidden', 'true');
+  o.innerHTML = '<div class="issue-bg"></div><div class="issue-slot"></div><div class="issue-tk"><div class="issue-in"><small>TRIP TICKET</small><b>' + esc(t.name) + '</b><span>' + esc(dates) + '</span><span>予算 ' + yen(t.budget) + '</span><i class="issue-bars"></i></div></div><div class="issue-st">初</div>';
+  document.body.appendChild(o);
+  const q = s => o.querySelector(s), ease = 'cubic-bezier(.3,.7,.3,1)';
+  q('.issue-bg').animate([{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .8 }, { opacity: 0 }], { duration: 2300, fill: 'both' });
+  q('.issue-slot').animate([{ opacity: 0, transform: 'scaleX(.4)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: ease, fill: 'both' });
+  q('.issue-tk').animate([{ clipPath: 'inset(0 0 100% 0)', transform: 'translateY(-8px)' }, { clipPath: 'inset(0 0 0 0)', transform: 'none' }], { duration: 800, delay: 200, easing: ease, fill: 'both' });
+  q('.issue-st').animate([{ opacity: 0, transform: 'scale(2.4) rotate(-18deg)' }, { opacity: 1, transform: 'rotate(10deg)', offset: .6 }, { opacity: 1, transform: 'rotate(10deg)' }], { duration: 360, delay: 1000, easing: 'cubic-bezier(.3,1.3,.5,1)', fill: 'both' });
+  const sp = q('.issue-st').getBoundingClientRect(); setTimeout(() => confetti(sp.left + sp.width / 2, sp.top + sp.height / 2, 28), 1180);
+  const fin = o.animate([{ opacity: 1 }, { opacity: 1, offset: .82 }, { opacity: 0 }], { duration: 2300 }); fin.onfinish = fin.oncancel = () => o.remove();
+}
 function stampPop(list){
   if (!calm() || !document.body.animate) return;   // "reduce motion": no pop (the count on the stamp row still changes)
   list = list.slice().sort((p, q) => { const i = STAMP_ORDER.indexOf(p.id), j = STAMP_ORDER.indexOf(q.id); return (i < 0 ? 9 : i) - (j < 0 ? 9 : j); });
@@ -2141,6 +2175,7 @@ function stampPop(list){
   d.innerHTML = (big ? '<i class="stpop-ring"></i>' : '') + stampEl(x, false, 0).replace(' style="--r:-6deg"', '') + '<div class="stpop-t">' + (big ? STAMP_BIG[x.id] : esc(x.name) + 'のスタンプ' + (list.length > 1 ? ' ほか' + (list.length - 1) + 'つ' : '')) + '</div>';
   document.body.appendChild(d);
   const ms = big ? 1900 : 1300, at = 'translate(-50%,-50%) ', a = d.animate([{ opacity: 0, transform: at + 'scale(1.9) rotate(-18deg)' }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: big ? .2 : .3 }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .8 }, { opacity: 0, transform: at + 'scale(.96) rotate(-8deg)' }], { duration: ms, easing: 'cubic-bezier(.22,1,.36,1)' });
+  if (big) setTimeout(() => confetti(innerWidth / 2, innerHeight * .38, 26), Math.round(ms * .2));   // v200: a big stamp (the savings reached the goal, everybody paid) gets confetti
   const ring = d.querySelector('.stpop-ring'); if (ring) ring.animate([{ transform: 'translate(-50%,-50%) scale(.9)', opacity: .8 }, { transform: 'translate(-50%,-50%) scale(2.1)', opacity: 0 }], { duration: 900, delay: Math.round(ms * .2), easing: 'ease-out', fill: 'backwards' });
   a.onfinish = a.oncancel = () => d.remove();
 }
@@ -3210,7 +3245,7 @@ document.addEventListener('click', e => {
       const nt = { id: uid(), name: d.name.trim(), start: d.start, end: d.end, budget: b, paid: {}, received: {}, savings: {}, settlements: [], adjustments: [],
         members: [Object.assign({ id: uid(), name: me, pos: 0 }, state.payNote ? { note: state.payNote } : {})], expenses: [] };
       const next = !!d.from;
-      state.trips.push(nt); if (!next) lsSet(coachKey(nt), '1'); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = phaseTab(nt); ui.draft = null;
+      state.trips.push(nt); if (!next) lsSet(coachKey(nt), '1'); save(); ui.view = 'trip'; ui.tripId = nt.id; ui.tab = phaseTab(nt); ui.draft = null; setTimeout(() => issueTicket(nt), 60);
       if (next) setTimeout(() => { const b = document.querySelector('[data-a="invite"][data-id="' + nt.id + '"]'); if (b) b.click(); }, 0);   // opens the invite right away, for the same friends
     }
   }

@@ -357,7 +357,7 @@ try {
     await q.context().close();
     q = await open({}, JSON.stringify({ st: ['transport', 'stay', 'first', 'all', 'save'] })); await q.waitForSelector('.stpop', { timeout: 2000 }); assert.ok((await q.innerText('.stpop')).includes('食事のスタンプ'), 'a stamp not yet shown pops'); await q.context().close();
     // the big rewards (v153): the savings reached the goal / everybody paid: a bigger stamp, a ring, and a sentence about what happened; they come before the ordinary stamps
-    q = await open({}, JSON.stringify({ st: ['transport', 'stay', 'first', 'all'] })); await q.waitForSelector('.stpop.big', { timeout: 2000 }); assert.ok((await q.innerText('.stpop')).includes('積立が目標に届きました'), await q.innerText('.stpop')); assert.strictEqual(await q.locator('.stpop-ring').count(), 1, 'a ring spreads from it');
+    q = await open({}, JSON.stringify({ st: ['transport', 'stay', 'first', 'all'] })); await q.waitForSelector('.stpop.big', { timeout: 2000 }); await q.waitForSelector('.confetti i', { timeout: 2000 }); assert.ok(await q.locator('.confetti i').count() >= 20, 'a big stamp: confetti (v200)'); assert.strictEqual(await q.getAttribute('.confetti', 'aria-hidden'), 'true'); assert.ok((await q.innerText('.stpop')).includes('積立が目標に届きました'), await q.innerText('.stpop')); assert.strictEqual(await q.locator('.stpop-ring').count(), 1, 'a ring spreads from it');
     await q.waitForFunction(() => !document.querySelector('.stpop'), null, { timeout: 4000 }); await q.context().close();
     { const tr = { ...seed, savings: {}, settlements: [{ id: 's1', n: 1, at: '2026-11-20', total: 14000, transfers: [{ from: 'b', to: 'a', amount: 1000 }] }], paid: { 'b-a-1000': true } };
       q = await open({}, JSON.stringify({ st: ['transport', 'food', 'stay', 'first', 'all'] }), tr); await q.waitForSelector('.stpop.big', { timeout: 2000 }); const tx = await q.innerText('.stpop'); assert.ok(tx.includes('みんなの精算が済みました'), tx); assert.ok(!/[！]/.test(tx), 'a quiet sentence'); await q.waitForFunction(() => !document.querySelector('.stpop'), null, { timeout: 4000 }); await q.context().close();
@@ -1210,6 +1210,19 @@ try {
       await q.waitForTimeout(1700); const i3 = await info(); assert.strictEqual(i3.hint[1], 'あと20日で出発', 'it ends on the real number'); assert.strictEqual(i3.anim, 0, 'and everything has stopped'); assert.strictEqual(await q.evaluate(() => { render(); return ui.homeAt; }), 0, 'the state is cleared by the next redraw (and it does not play again)'); assert.strictEqual((await info()).anim, 0, 'a later redraw does not replay it');
       await q.click('.trip:has-text("旅行中の旅")'); await q.waitForSelector('.nav'); await q.click('[data-a=home]'); await q.waitForTimeout(150); assert.ok((await info()).anim >= 1, 'coming back to the home screen plays it again');
       assert.ok(await q.evaluate(() => [...document.querySelectorAll('.trip')].every(e => { const r = e.getBoundingClientRect(); return r.right <= innerWidth + 70; })), 'nothing runs far off to the side'); }
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
+  // 旅行をつくると、切符が発券される（v200）: 動く設定では出る（押せるものをふさがない・あとで消える・紙吹雪）。「動きを減らす」では出ない
+  for (const motion of ['no-preference', 'reduce']) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('[data-a=new]'); await q.click('[data-a=new]'); await q.fill('#d-name', '箱根 紅葉旅行'); await q.fill('#d-budget', '80000'); await q.fill('#d-me', 'こうき'); await q.click('[data-a=save-trip]'); await q.waitForSelector('.nav');
+    if (motion === 'reduce'){ await q.waitForTimeout(400); assert.strictEqual(await q.locator('.issue').count(), 0, 'reduce motion: no printed ticket'); assert.strictEqual(await q.locator('.confetti').count(), 0, 'and no confetti'); }
+    else {
+      await q.waitForSelector('.issue', { timeout: 1500 }); const v = await q.evaluate(() => { const o = document.querySelector('.issue'); return { txt: o.innerText.replace(/\s+/g, ' '), pe: getComputedStyle(o).pointerEvents, aria: o.getAttribute('aria-hidden') }; });
+      assert.ok(v.txt.includes('箱根 紅葉旅行') && v.txt.includes('80,000円') && v.txt.includes('初'), 'the ticket says what was made: ' + v.txt); assert.strictEqual(v.pe, 'none', 'it never blocks a tap'); assert.strictEqual(v.aria, 'true');
+      await q.click('[data-a=tab][data-t=settle]'); assert.strictEqual(await q.evaluate(() => ui.tab), 'settle', 'a tap goes through it');
+      await q.waitForSelector('.confetti i', { timeout: 2500 }); assert.ok(await q.locator('.confetti i').count() >= 20, 'confetti once the stamp is pressed');
+      await q.waitForFunction(() => !document.querySelector('.issue') && !document.querySelector('.confetti'), null, { timeout: 4500 }); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
