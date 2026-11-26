@@ -24,7 +24,7 @@ const addExpense = async (p, amount, title) => { await p.click('[data-a=add-exp]
 try {
   // ---------- A creates a trip, records one expense, adds a member, shares
   const A = await person();
-  await A.p.goto(base + '/'); await see(A.p, 'いくら出したっけ');
+  await A.p.goto(base + '/'); await see(A.p, '旅のお金を、片づけます');
   await A.p.click('[data-a=new]'); await A.p.fill('#d-name', '共有テスト'); await A.p.fill('#d-budget', '30000'); await A.p.fill('#d-me', 'あおい'); await A.p.click('[data-a=save-trip]');
   await addExpense(A.p, 3000, '夕食');
   await A.p.setViewportSize({ width: 390, height: 780 });
@@ -133,7 +133,7 @@ try {
   assert.ok(sent2.includes('「招待旅行」') && /#t=[A-Za-z0-9_-]{32}/.test(sent2), sent2);
 
   // ---------- 積立の履歴 on a shared trip: A deposits (an entry), B joins and sees it, B edits it, A sees the edit; A deletes it, B sees the total fall back to an "unlogged" line
-  { const P1 = await person(); await P1.p.goto(base + '/'); await see(P1.p, 'いくら出したっけ');
+  { const P1 = await person(); await P1.p.goto(base + '/'); await see(P1.p, '旅のお金を、片づけます');
     await P1.p.click('[data-a=new]'); await P1.p.fill('#d-name', '積立共有'); await P1.p.fill('#d-budget', '60000'); await P1.p.fill('#d-me', 'あおい');
     await P1.p.evaluate(() => { const s = addDays(todayStr(), 30); ui.draft.start = s; ui.draft.end = addDays(s, 1); render(); }); await P1.p.click('[data-a=save-trip]'); await P1.p.waitForSelector('.stn');
     await P1.p.click('[data-a=add-save]'); await P1.p.waitForSelector('#f-save'); await P1.p.fill('#f-save', '20000'); await P1.p.click('[data-a=save-saving]'); await P1.p.waitForFunction(() => !document.querySelector('.sheet-bg'));

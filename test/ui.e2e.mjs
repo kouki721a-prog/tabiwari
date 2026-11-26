@@ -17,7 +17,7 @@ try {
   const ctx = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await ctx.newPage();
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   await p.setViewportSize({ width: 390, height: 780 });
-  await p.goto('http://localhost:8797/'); await see(p, 'いくら出したっけ');
+  await p.goto('http://localhost:8797/'); await see(p, '旅のお金を、片づけます');
   // the splash is plain HTML that is there before any script runs, and it is gone once the first screen is drawn
   assert.ok((await (await fetch('http://localhost:8797/')).text()).includes('<div id="splash"'), 'the splash is in the page itself'); await p.waitForFunction(() => !document.getElementById('splash'), null, { timeout: 3000 });
   // the first page (no trip yet) is a page to read: the hero with both buttons, the three moments with real screens, the features, notifications, how to start, FAQ, the second button, and the legal links at the very bottom
@@ -183,7 +183,7 @@ try {
 
   // undo after deleting a whole trip
   await p.click('[data-a=settings]'); await p.click('[data-a=ask-del-trip]'); await p.click('[data-a=del-trip]');
-  await see(p, '旅行を削除しました'); await see(p, 'いくら出したっけ');
+  await see(p, '旅行を削除しました'); await see(p, '旅のお金を、片づけます');
   await p.click('[data-a=undo]'); await see(p, '元に戻しました'); await see(p, '箱根');
   assert.strictEqual(await p.locator('h1').count(), 1, 'the home page has one level-1 heading'); assert.ok(/箱根/.test(await p.textContent('.trip .sr') + await p.textContent('.trip')) && /メンバー：あおい/.test(await p.textContent('.trip .sr')));
   await p.click('.trip'); await see(p, '夕食');
@@ -1311,6 +1311,9 @@ try {
     await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
     const sec = await q.evaluate(() => { const h = [...document.querySelectorAll('.lp-sec')].find(e => e.querySelector('h2') && e.querySelector('h2').textContent.includes('記録するたびに、旅が進む')); return h ? h.innerText.replace(/\s+/g, ' ') : null; });
     assert.ok(sec && sec.includes('今日のミッション') && sec.includes('連続の炎') && sec.includes('旅の道のり') && sec.includes('金の判子') && sec.includes('たびまる') && sec.includes('切符が出てきます'), 'the new section says what the app does now: ' + sec); assert.ok(!/[！!]/.test(sec) && !/至急|催促|成功しました/.test(sec), 'a quiet voice');
+    for (const w of [320, 360, 390, 430]){ await q.setViewportSize({ width: w, height: 844 }); const hl = await q.evaluate(() => { const h = document.querySelector('.lp-h'), fs = parseFloat(getComputedStyle(h).fontSize); return { lines: Math.round(h.getBoundingClientRect().height / (fs * 1.4)), fits: h.scrollWidth <= h.clientWidth + 1, text: h.textContent, fs: Math.round(fs) }; }); assert.ok(hl.lines === 1 && hl.fits && hl.text === '旅のお金を、片づけます。' && hl.fs >= 22, 'the headline is one line at ' + w + 'px: ' + JSON.stringify(hl)); }
+    for (const w of [360, 390, 430]){ await q.setViewportSize({ width: w, height: 844 }); const sh = await q.evaluate(() => [...document.querySelectorAll('.lp-hd h2')].map(h => ({ t: h.textContent, one: h.getBoundingClientRect().height < parseFloat(getComputedStyle(h).fontSize) * 1.8, fits: h.scrollWidth <= h.clientWidth + 1 }))); assert.ok(sh.every(x => x.one && x.fits), 'the section headings with a picture stay on one line at ' + w + 'px: ' + JSON.stringify(sh)); }
+    await q.setViewportSize({ width: 390, height: 844 });
     for (const n of ['mission', 'quest']){ await q.locator('.lp-shot img[src*="' + n + '"]').scrollIntoViewIfNeeded(); await q.waitForFunction(n2 => { const i = document.querySelector('.lp-shot img[src*="' + n2 + '"]'); return i && i.complete && i.naturalWidth === 732; }, n, { timeout: 4000 }); assert.ok(fs.existsSync(path.join(dist, 'icons', 'lp', n + '.png')), n + '.png is published'); }
     assert.ok((await q.innerText('.lp-faq')).includes('道のりやたびまるの成長は、友だちにも見えますか'), 'a question about what friends can see');
     assert.ok(await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll on the first page'); assert.strictEqual(await q.locator('[data-a=new]').count(), 1, 'still one make-a-trip button');
