@@ -1135,6 +1135,12 @@ try {
     await q.click('[data-a=stamps-open]'); await q.waitForSelector('.stgrid'); await q.click('.sheet [data-a=close-sheet]');
     await q.click('[data-a=home]'); await q.click('.trip:has-text("日帰り")'); await q.waitForSelector('.nav'); assert.strictEqual(await q.locator('.route').count(), 0, 'a one-day trip has no route');
     await q.click('[data-a=home]'); await q.click('.trip:has-text("来月")'); await q.waitForSelector('.nav'); assert.strictEqual(await q.locator('.route').count(), 0, 'a trip that has not started has no route');
+    // 押せる大きさ（v188）: 追加シートの［誰が払った］［誰の分］［全員］［割合・金額］、積立の［積み立てる］、精算の［済みにする］、切符の［内訳］は、44px 以上
+    await q.click('[data-a=home]'); await q.click('.trip:has-text("箱根")'); await q.waitForSelector('.nav'); const big = sel => q.$$eval(sel, els => els.map(e => { const r = e.getBoundingClientRect(); return Math.round(Math.min(r.width, r.height)); }));
+    assert.ok((await big('.foot-more')).every(x => x >= 44), 'the 内訳 link on the ticket is 44px');
+    await q.click('.nav .plus'); await q.waitForSelector('#f-amount'); for (const sel of ['[data-a=pick-payer]', '[data-a=toggle-split]', '[data-a=split-all]', '[data-a=parts-toggle]']) { const sz = await big('.sheet ' + sel); assert.ok(sz.length && sz.every(x => x >= 44), sel + ' is 44px: ' + sz); } await q.click('.sheet [data-a=close-sheet]');
+    await q.click('[data-a=tab][data-t=save]'); await q.waitForSelector('[data-a=add-save]'); { const sz = await big('.item [data-a=add-save]'); assert.ok(sz.length && sz.every(x => x >= 44), 'add-save is 44px: ' + sz); }
+    await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('[data-a=toggle-paid]'); { const sz = await big('[data-a=toggle-paid]'); assert.ok(sz.length && sz.every(x => x >= 44), 'toggle-paid is 44px: ' + sz); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
