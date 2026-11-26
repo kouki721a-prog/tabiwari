@@ -1148,6 +1148,23 @@ try {
     await q.click('[data-a=home]'); await q.click('[data-a=new]').catch(() => {}); if (await q.locator('[data-a=preset]').count()) { const sz = await big('[data-a=preset]'); assert.ok(sz.every(x => x >= 44), 'the amount presets are 44px: ' + sz); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
+  // 旅行をつくる: ライブ切符（v194）。打つたびに切符に入る・判子は名前が付いたときに一度・狭い画面では出ない・何も保存しない
+  { const c = await b.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('[data-a=new]'); await q.click('[data-a=new]'); await q.waitForSelector('#live-tk');
+    const g = () => q.evaluate(() => ({ name: document.getElementById('lt-name').textContent, dates: document.getElementById('lt-dates').textContent, nights: document.getElementById('lt-nights').textContent, budget: document.getElementById('lt-budget').textContent, on: document.getElementById('lt-st').classList.contains('on'), vis: getComputedStyle(document.getElementById('live-tk')).display !== 'none', ph: document.getElementById('lt-name').classList.contains('ph') }));
+    let v = await g(); assert.ok(v.vis && v.ph && v.name === 'どこへ行く？' && !v.on, 'empty: a placeholder, no stamp yet: ' + JSON.stringify(v));
+    await q.fill('#d-name', '箱根 紅葉旅行'); await q.fill('#d-start', '2026-11-26'); await q.fill('#d-end', '2026-11-27'); await q.fill('#d-budget', '80000');
+    v = await g(); assert.deepStrictEqual([v.name, v.dates, v.nights, v.budget, v.on, v.ph], ['箱根 紅葉旅行', '11/26–27', '日程・1泊2日', '80,000円', true, false], 'the ticket follows the form: ' + JSON.stringify(v));
+    await q.fill('#d-end', '2026-12-02'); v = await g(); assert.strictEqual(v.dates, '11/26–12/2', 'across a month: both dates'); await q.fill('#d-end', '2026-11-26'); v = await g(); assert.deepStrictEqual([v.dates, v.nights], ['11/26', '日程・日帰り'], 'one day');
+    await q.fill('#d-end', '2026-11-20'); v = await g(); assert.strictEqual(v.dates, '—', 'an end before the start: no dates');
+    await q.fill('#d-budget', '5000000000'); v = await g(); assert.strictEqual(v.budget, '—', 'an impossible budget is not shown');
+    await q.fill('#d-name', ''); v = await g(); assert.ok(v.ph && v.on, 'clearing the name: the placeholder comes back, the stamp stays (pressed once)');
+    await q.click('[data-a=preset][data-v="50000"]'); v = await g(); assert.strictEqual(v.budget, '50,000円', 'a preset fills the ticket after the redraw'); assert.ok(v.on, 'and the pressed stamp survives the redraw');
+    assert.strictEqual(await q.evaluate(() => JSON.parse(localStorage.getItem('tabiwari.v1') || '{"trips":[]}').trips.length), 0, 'nothing is saved by typing');
+    await q.setViewportSize({ width: 390, height: 664 }); assert.strictEqual((await g()).vis, false, 'a short screen: the ticket steps aside, the form still fits'); assert.ok(await q.evaluate(() => { const s = document.querySelector('.scroll'), k = [...s.children]; return k[k.length - 1].getBoundingClientRect().bottom <= s.getBoundingClientRect().bottom + 1; }), 'the form fits without the ticket');
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }

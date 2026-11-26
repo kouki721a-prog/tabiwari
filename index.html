@@ -443,6 +443,12 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 /* settle / savings / members: paper lists with dashed lines */
 .scroll .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
 .scroll .list .item,.scroll .list>.item+.swp,.scroll .list>.swp+.item{border-top:1.5px dashed var(--dash)}.scroll .list>:first-child .item,.scroll .list>.item:first-child{border-top:0}
+.live-tk{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;margin:10px 0 2px;padding:12px 16px 11px 20px;background:var(--cream);border-radius:14px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy)}
+.live-tk .lt-hd{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub)}
+.live-tk small{display:block;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.08em;color:var(--sub)}.live-tk b{display:block;font-size:calc(15px*var(--ts));font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.live-tk b.ph{font-weight:500;color:var(--sub)}
+.live-tk .lt-st{width:30px;height:30px;margin:-14px -4px -8px 0;border-radius:50%;display:grid;place-items:center;font-size:calc(14px*var(--ts));letter-spacing:0;font-weight:700;color:#0f2742;border:2px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(10deg);opacity:0}.live-tk .lt-st.on{opacity:1}
+@media (max-height:699px){.live-tk{display:none}}   /* the form must fit one screen: the ticket only shows where there is room (v194) */
+@media (prefers-reduced-motion: no-preference){@keyframes ltStamp{from{opacity:0;transform:scale(1.8) rotate(-16deg)}60%{opacity:1}to{opacity:1;transform:rotate(10deg)}}@keyframes ltPop{from{transform:translateY(3px);opacity:.4}to{transform:none;opacity:1}}.live-tk .lt-st.press{animation:ltStamp .42s var(--ease) both}.live-tk b.pop{animation:ltPop .22s var(--ease) both}}
 /* the first page moves once (v151): the hero ticket, then each part rises as it comes into view. Only when "reduce motion" is off. A re-draw in the middle of a move does not restart it (a negative delay carries on). */
 @media (prefers-reduced-motion: no-preference){
   @keyframes lpUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -1716,10 +1722,28 @@ function lineCard(){
 /* a missing field in the new-trip form: a red frame and one line under that field (all missing fields at once) */
 const bad = (d, k) => d.errs && d.errs[k] ? ' bad' : '';
 const ferr = (d, k) => d.errs && d.errs[k] ? '<div class="ferr" id="e-' + k + '" role="alert">' + esc(d.errs[k]) + '</div>' : '';
+/* v194: a ticket at the top of the new-trip form that fills in as you type (the same paper as the sample on the first page). Only text is written into it: nothing is saved. The stamp is pressed once, when the trip gets a name. */
+function liveTkParts(d){
+  const ok = d.start && d.end && d.end >= d.start, n = ok ? dayDiff(d.start, d.end) : -1, bud = parseYen(d.budget);
+  const sameMonth = ok && d.start.slice(0, 7) === d.end.slice(0, 7);
+  return { name: d.name.trim(), dates: ok ? fmtDate(d.start) + (n ? '–' + (sameMonth ? Number(d.end.slice(8, 10)) : fmtDate(d.end)) : '') : '', nights: ok ? (n ? n + '泊' + (n + 1) + '日' : '日帰り') : '', budget: bud > 0 && bud <= 1000000000 ? yen(bud) : '' };
+}
+function liveTicket(d){
+  const p = liveTkParts(d), f = (id, v, ph) => '<b id="' + id + '"' + (v ? '' : ' class="ph"') + '>' + esc(v || ph) + '</b>';
+  return '<div class="live-tk" id="live-tk" aria-hidden="true"><div class="lt-hd"><span>TRIP TICKET</span><span class="lt-st' + (d.stamped ? ' on' : '') + '" id="lt-st">初</span></div>' +
+    '<div><small>行き先</small>' + f('lt-name', p.name, 'どこへ行く？') + '</div><div><small id="lt-nights">日程' + (p.nights ? '・' + p.nights : '') + '</small>' + f('lt-dates', p.dates, '—') + '</div><div><small>予算</small>' + f('lt-budget', p.budget, '—') + '</div></div>';
+}
+function liveTicketRefresh(){
+  const d = ui.draft, box = document.getElementById('live-tk'); if (!d || !box) return;
+  const p = liveTkParts(d), ph = { 'lt-name': 'どこへ行く？', 'lt-dates': '—', 'lt-budget': '—' }, vals = { 'lt-name': p.name, 'lt-dates': p.dates, 'lt-budget': p.budget };
+  Object.keys(vals).forEach(id => { const el = document.getElementById(id), v = vals[id] || ph[id]; if (!el || el.textContent === v) return; el.textContent = v; el.classList.toggle('ph', !vals[id]); if (calm()){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } });
+  const nl = document.getElementById('lt-nights'); if (nl) nl.textContent = '日程' + (p.nights ? '・' + p.nights : '');
+  const st = document.getElementById('lt-st'); if (st && p.name && !d.stamped){ d.stamped = true; st.classList.add('on'); if (calm()) st.classList.add('press'); }
+}
 function viewNew(){
   const d = ui.draft;
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="戻る">' + icon('back') + '</button><h1>旅行をつくる</h1></div>';
-  h += '<div class="scroll"><label class="lab" for="d-name">旅行の名前</label><input class="field' + bad(d, 'name') + '" id="d-name" type="text" data-draft="name" value="' + esc(d.name) + '" placeholder="例：箱根 紅葉旅行">' + ferr(d, 'name') +
+  h += '<div class="scroll">' + liveTicket(d) + '<label class="lab" for="d-name">旅行の名前</label><input class="field' + bad(d, 'name') + '" id="d-name" type="text" data-draft="name" value="' + esc(d.name) + '" placeholder="例：箱根 紅葉旅行">' + ferr(d, 'name') +
     '<div class="two"><div><label class="lab" for="d-start">出発日</label><input class="field" id="d-start" type="date" data-draft="start" value="' + d.start + '"></div>' +
     '<div><label class="lab" for="d-end">帰着日</label><input class="field" id="d-end" type="date" data-draft="end" value="' + d.end + '"></div></div>' +
     '<label class="lab" for="d-budget">全体の予算（円）</label><input class="field' + bad(d, 'budget') + '" id="d-budget" type="text" inputmode="numeric" data-draft="budget" value="' + esc(d.budget) + '" placeholder="例：50000">' + ferr(d, 'budget') +
@@ -2656,6 +2680,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
+  if (k) liveTicketRefresh();
   if (k && ui.draft && ui.draft.errs && ui.draft.errs[k]){ delete ui.draft.errs[k]; e.target.classList.remove('bad'); const m = document.getElementById('e-' + k); if (m) m.remove(); }
   if (e.target.getAttribute && e.target.getAttribute('data-fx') && ui.sheet && ui.sheet.type === 'exp'){ const d = ui.sheet.data; d.fixed = Object.assign({}, d.fixed, { [e.target.getAttribute('data-fx')]: e.target.value }); document.getElementById('f-hint').textContent = splitHint(d); updatePartAmounts(d); return; }
   if (e.target.id === 'f-amount' && ui.sheet){ const fa = fmtAmountInput(e.target.value); if (fa !== e.target.value) e.target.value = fa; ui.sheet.data.amount = fa; e.target.style.width = amtWidth(fa); const sb = document.querySelector('[data-a=save-exp]'); if (sb) sb.disabled = !(parseYen(e.target.value) > 0); document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); updatePartAmounts(ui.sheet.data); }
