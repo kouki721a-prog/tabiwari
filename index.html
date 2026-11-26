@@ -57,7 +57,7 @@
   --ts:1;
   --ease:cubic-bezier(.22,1,.36,1);   /* one calm curve for every move: quick start, soft stop */
   --paper:#eef2f7; --card:#ffffff; --ink:#0e2238; --sub:#5b6b80; --line:#dde4ee; --soft:#e6ecf5;
-  --navy:#0f2742; --sun:#ffc83d; --sun-ink:#2a1d00; --good:#17895c; --bad:#c2332d; --focus:#2f6fed;
+  --navy:#0f2742; --sun:#ffc83d; --sun-ink:#2a1d00; --good:#17895c; --good-t:#12724b; --bad:#c2332d; --focus:#2f6fed;
   --cream:#fffdf5; --dash:rgba(14,34,56,.26); --mono:ui-monospace,"SF Mono",Menlo,"DejaVu Sans Mono",monospace;   /* paper-ticket look (v148): cream paper, dashed perforations, tabular numbers */
   --tbs:85%; --tbl:92%; --tfs:55%; --tfl:30%;
   --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
@@ -66,13 +66,13 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#0a1626; --card:#12243a; --ink:#e9f0fa; --sub:#93a3b8; --line:#243750; --soft:#1a2f4a;
-    --navy:#17375e; --good:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
+    --navy:#17375e; --good:#4cc795; --good-t:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
     --tbs:38%; --tbl:24%; --tfs:75%; --tfl:82%; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --paper:#0a1626; --card:#12243a; --ink:#e9f0fa; --sub:#93a3b8; --line:#243750; --soft:#1a2f4a;
-  --navy:#17375e; --good:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
+  --navy:#17375e; --good:#4cc795; --good-t:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
   --tbs:38%; --tbl:24%; --tfs:75%; --tfl:82%; color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -229,7 +229,7 @@ html,body{overscroll-behavior-x:none}
 /* v192: 積立の人ごとの行も、精算と同じ切符の形（旅の色の縁）。バーに、25%ごとの目盛り（上の切符の駅と同じ）。 */
 .list:has(>.item.sav){background:transparent;border:0;border-radius:0;overflow:visible;box-shadow:none}
 .item.sav{background:var(--cream);border-radius:14px;margin-top:8px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy);padding-left:16px}.item.sav:first-child{margin-top:0}.item.sav+.item.sav{border-top:0}
-.item.sav .bar{position:relative}.item.sav .bar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(25% - 2px),var(--cream) calc(25% - 2px) 25%)}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good);font-weight:500}
+.item.sav .bar{position:relative}.item.sav .bar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(25% - 2px),var(--cream) calc(25% - 2px) 25%)}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good-t);font-weight:500}
 .ticket.c .t-sub{font-size:calc(12px*var(--ts));opacity:.85;margin-top:6px}
 .t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
 .ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:calc(30px*var(--ts));line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
@@ -333,7 +333,7 @@ html,body{overscroll-behavior-x:none}
 
 .chk{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent;flex:none}
 .chk.on{background:var(--good);border-color:var(--good);color:#fff}
-.plus-or-minus.pos{color:var(--good)}
+.plus-or-minus.pos{color:var(--good-t)}
 .plus-or-minus.neg{color:var(--bad)}
 
 /* buttons / forms */
@@ -429,7 +429,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
-.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.slog-rest{opacity:.75}.item b.neg{color:var(--bad)}
+.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.slog-rest .t{color:var(--sub)}   /* v197: was opacity .75 on the whole row: the grey text fell to 3.2:1 */.item b.neg{color:var(--bad)}
 .plan-go{width:100%;margin-top:10px;padding:11px 14px}
 .fly{position:fixed;z-index:56;pointer-events:none;white-space:nowrap;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:6px;padding:8px 16px;font-family:var(--mono);font-weight:600;font-size:calc(15px*var(--ts));font-variant-numeric:tabular-nums;box-shadow:0 6px 16px rgba(15,39,66,.22)}
 .stn{position:relative;height:12px;margin:3px 0 1px}.stn:before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1.5px dashed rgba(255,255,255,.22)}.stn i{position:absolute;top:1px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);background:var(--navy);box-sizing:border-box}.stn i:last-child{margin-left:-9px}.stn i.on{background:var(--sun);border-color:var(--sun)}
@@ -514,7 +514,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .stgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px 4px;padding:18px 0 8px;text-align:center}.stgrid>div{display:flex;flex-direction:column;align-items:center;gap:6px}.stgrid .stp{margin:6px}
 .stgrid>div>span:last-child{font-size:calc(11px*var(--ts));line-height:1.3}.stgrid small{display:block;font-size:calc(11px*var(--ts));color:var(--sub)}
 .route{display:flex;align-items:center;height:20px;margin:0 2px 8px}.route i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--dash)}.route i.on{background:var(--sun)}.route i.now{width:13px;height:13px;box-shadow:0 0 0 4px color-mix(in srgb,var(--sun) 30%,transparent)}.route u{flex:1;min-width:6px;border-top:2px dashed var(--dash)}.route u.y{border-top:3px solid var(--sun)}.route span{flex:none;margin-left:10px;font-family:var(--mono);font-size:calc(11px*var(--ts));color:var(--sub);white-space:nowrap}   /* v187: the days of the trip as stations on a dashed route (lit up to today) */
-.dl{font-style:normal}.dl small{margin-left:6px;font-size:inherit;opacity:.8}#exp-list .sec>h2{gap:8px}#exp-list .sec>h2 .dl,#exp-list .sec>h2>span,.stbar.in b{white-space:nowrap}@media (max-width:380px){.stbar.in .stw{display:none}}   /* v190: on a narrow screen with a big amount the heading broke into two lines; the word "スタンプ" gives way first */
+.dl{font-style:normal}.dl small{margin-left:6px;font-size:inherit}#exp-list .sec>h2{gap:8px}#exp-list .sec>h2 .dl,#exp-list .sec>h2>span,.stbar.in b{white-space:nowrap}@media (max-width:380px){.stbar.in .stw{display:none}}   /* v190: on a narrow screen with a big amount the heading broke into two lines; the word "スタンプ" gives way first */
 .stbar.in{width:auto;flex:none;min-height:44px;margin:-14px 0;padding:0 2px;border:0;border-radius:0;gap:6px}.stbar.in b{font-family:var(--mono);font-size:calc(11px*var(--ts));font-weight:500;color:var(--sub)}.stbar.in .strow{flex:none;gap:3px}.stbar.in .stp.sm{width:22px;height:22px;font-size:calc(11px*var(--ts));border-width:1.5px;box-shadow:none}   /* v190: the glyph was 9px; 11px is the smallest text in the app */   /* the stamps sit in the first day heading (v187), not in a box of their own */
 .stpop{position:fixed;left:50%;top:38%;z-index:60;pointer-events:none;text-align:center;transform:translate(-50%,-50%) rotate(-8deg)}
 .stpop .stp{width:128px;height:128px;font-size:50px;border-width:4px;transform:none;margin:0 auto}.stpop .stp:after{inset:-12px;border-width:2px}
