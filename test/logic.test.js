@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {crewWord, themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {crewWord, themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, questOf, tripDays, streakOf, missionsOf, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -462,3 +462,67 @@ console.log('trip colour tests passed');
   const q2 = A(two, '2026-11-10', 'a').find(x => x.id === 'save-all'); assert.ok(q2.q.startsWith('ふたりの積立は') && q2.a.startsWith('ふたりで 25,000円'), q2.q + ' / ' + q2.a);
   const q3 = A(Object.assign({}, two, { members: two.members.concat([{ id: 'c', name: 'みく' }]) }), '2026-11-10', 'a').find(x => x.id === 'save-all'); assert.ok(q3.q.startsWith('みんなの積立は') && q3.a.startsWith('みんなで '), q3.q + ' / ' + q3.a); }
 console.log('pair wording tests passed');
+
+// 旅のクエスト (v201): worked out from the trip's own data; nothing is saved
+{
+  const Q = L.questOf, mem = n => Array.from({ length: n }, (_, i) => ({ id: 'm' + i, name: 'n' + i }));
+  const trip = (o) => Object.assign({ start: '2026-12-10', end: '2026-12-12', budget: 100000, members: mem(2), savings: {}, expenses: [], settlements: [], paid: {} }, o || {});
+  assert.deepStrictEqual(L.tripDays('2026-12-30', '2027-01-02'), ['2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02'], 'days across a year end');
+  assert.deepStrictEqual(L.tripDays('2026-12-12', '2026-12-10'), [], 'an end before the start has no days'); assert.strictEqual(L.tripDays('2020-01-01', '2026-01-01').length, 0, 'more than 400 days: none');
+  // before the trip: nothing done, chapter 1 is the current one, the next goal is the first saving step
+  let q = Q(trip(), '2026-12-01'); assert.strictEqual(q.total, 10, '4 saving steps + first + all + cats + every + settle + paid = 10 for two people');
+  assert.deepStrictEqual([q.done, q.pct, q.gold, q.phase, q.next.id], [0, 0, false, 'pre', 's25']); assert.deepStrictEqual(q.chapters.map(c => c.state), ['now', 'later', 'later']);
+  // saving steps are exact: 25000 of 100000 is 25% (not 24%), 24999 is not
+  q = Q(trip({ savings: { m0: 24999 } }), '2026-12-01'); assert.strictEqual(q.items.find(x => x.id === 's25').on, false, '24,999 of 100,000 is not 25%');
+  q = Q(trip({ savings: { m0: 25000 } }), '2026-12-01'); assert.deepStrictEqual(q.items.filter(x => x.ch === 1).map(x => x.on), [true, false, false, false]);
+  q = Q(trip({ savings: { m0: 60000, m1: 40000 } }), '2026-12-01'); assert.deepStrictEqual(q.items.filter(x => x.ch === 1).map(x => x.on), [true, true, true, true], 'all four saving steps'); assert.strictEqual(q.chapters[0].clear, true); assert.strictEqual(q.chapters[0].state, 'clear'); assert.strictEqual(q.next.id, 'first', 'the next goal moves on (chapter 1 is cleared)');
+  // a solo trip has no 割り勘 goal
+  q = Q(trip({ members: mem(1) }), '2026-12-01'); assert.strictEqual(q.total, 9); assert.ok(!q.items.some(x => x.id === 'all'));
+  // during the trip: first record, categories, every day
+  const e = (date, cat) => ({ id: date + cat, title: 'x', amount: 1000, payer: 'm0', cat: cat, date: date, split: ['m0', 'm1'] });
+  q = Q(trip({ expenses: [e('2026-12-10', 'food'), e('2026-12-10', 'transport')] }), '2026-12-10'); assert.strictEqual(q.phase, 'now'); assert.deepStrictEqual(q.chapters.map(c => c.state), ['open', 'now', 'later']);
+  const cats = q.items.find(x => x.id === 'cats'); assert.deepStrictEqual([cats.n, cats.on, cats.cats.map(c => c.on)], [2, false, [true, true, false, false, false]]); const every = q.items.find(x => x.id === 'every'); assert.deepStrictEqual([every.n, every.of, every.on], [1, 3, false]);
+  q = Q(trip({ expenses: [e('2026-12-10', 'food'), e('2026-12-11', 'stay'), e('2026-12-12', 'sight'), e('2026-12-12', 'gift'), e('2026-12-11', 'transport')] }), '2026-12-12'); assert.strictEqual(q.items.find(x => x.id === 'every').on, true, 'a record on every day'); assert.strictEqual(q.items.find(x => x.id === 'cats').on, true); assert.strictEqual(q.items.find(x => x.id === 'all').on, true, 'everybody shares one');
+  // after the trip: settle, paid, and the gold seal needs everything
+  const full = trip({ savings: { m0: 60000, m1: 40000 }, expenses: q.items.length ? [e('2026-12-10', 'food'), e('2026-12-11', 'stay'), e('2026-12-12', 'sight'), e('2026-12-12', 'gift'), e('2026-12-11', 'transport')] : [] });
+  let r = Q(full, '2026-12-20'); assert.strictEqual(r.phase, 'done'); assert.strictEqual(r.gold, false); assert.strictEqual(r.next.id, 'settle'); assert.deepStrictEqual(r.chapters.map(c => c.state), ['clear', 'clear', 'now']);
+  const settled = Object.assign({}, full, { settlements: [{ id: 's1', at: '2026-12-13', total: 5000, transfers: [{ from: 'm1', to: 'm0', amount: 2500 }] }] }); r = Q(settled, '2026-12-20'); assert.strictEqual(r.items.find(x => x.id === 'settle').on, true); assert.strictEqual(r.gold, false); assert.strictEqual(r.next.id, 'paid');
+  const paid = Object.assign({}, settled, { paid: { [L.payKey(1, { from: 'm1', to: 'm0', amount: 2500 })]: true } }); r = Q(paid, '2026-12-20'); assert.deepStrictEqual([r.gold, r.pct, r.left, r.next], [true, 100, 0, null], 'everything done: the gold seal');
+  // the percentage is floored (it never says 100 before it is)
+  assert.strictEqual(Q(trip({ savings: { m0: 25000 } }), '2026-12-01').pct, Math.floor(1 * 100 / 10));
+  assert.deepStrictEqual(Q(trip(), '2026-12-01'), Q(JSON.parse(JSON.stringify(trip())), '2026-12-01'), 'same input, same output');
+}
+console.log('quest tests passed');
+
+// 連続記録とミッション (v202): worked out from the trip's own dates; nothing is saved
+{
+  const S = L.streakOf, M = L.missionsOf, mem = [{ id: 'a' }, { id: 'b' }];
+  const ex = (date, amount, cat) => ({ id: date + (cat || 'food') + amount, title: 'x', amount: amount || 1000, payer: 'a', cat: cat || 'food', date: date, split: ['a', 'b'] });
+  const trip = (e, o) => Object.assign({ start: '2026-12-10', end: '2026-12-14', budget: 100000, members: mem, savings: {}, expenses: e || [], settlements: [], paid: {} }, o || {});
+  // streak
+  let s = S(trip([ex('2026-12-10'), ex('2026-12-11'), ex('2026-12-12')]), '2026-12-12'); assert.deepStrictEqual([s.cur, s.best, s.todayOn, s.recorded, s.total, s.passed], [3, 3, true, 3, 5, 3]);
+  s = S(trip([ex('2026-12-10'), ex('2026-12-11')]), '2026-12-12'); assert.deepStrictEqual([s.cur, s.todayOn], [2, false], 'today has no record yet: yesterday\'s run is kept (not broken)');
+  s = S(trip([ex('2026-12-10')]), '2026-12-12'); assert.strictEqual(s.cur, 0, 'a missed day (yesterday) ends the run');
+  s = S(trip([ex('2026-12-10'), ex('2026-12-11'), ex('2026-12-13'), ex('2026-12-14')]), '2026-12-14'); assert.deepStrictEqual([s.cur, s.best], [2, 2], 'a gap splits the runs; the best one is kept');
+  s = S(trip([ex('2026-12-10'), ex('2026-12-11'), ex('2026-12-12'), ex('2026-12-14')]), '2026-12-14'); assert.deepStrictEqual([s.cur, s.best], [1, 3]);
+  s = S(trip([ex('2026-12-10')]), '2026-12-05'); assert.deepStrictEqual([s.cur, s.passed, s.days.every(d => d.future)], [0, 0, true], 'before the trip: nothing yet');
+  s = S(trip([ex('2026-12-12'), ex('2026-12-13'), ex('2026-12-14')]), '2026-12-20'); assert.deepStrictEqual([s.cur, s.best], [3, 3], 'after the trip: the run that ended on the last day');
+  s = S(trip([ex('2026-12-10'), ex('2026-12-11')]), '2026-12-20'); assert.strictEqual(s.cur, 0, 'after the trip, a last day without a record: no live run');
+  assert.deepStrictEqual(S(trip([ex('2026-12-11')]), '2026-12-11').days.map(d => [d.on, d.today, d.future]), [[false, false, false], [true, true, false], [false, false, true], [false, false, true], [false, false, true]]);
+  // missions: only while travelling
+  assert.strictEqual(M(trip(), '2026-12-09'), null); assert.strictEqual(M(trip(), '2026-12-15'), null);
+  let m = M(trip(), '2026-12-10'); assert.deepStrictEqual([m.done, m.total, m.all, m.list.map(x => x.done)], [0, 3, false, [false, false, false]]); assert.deepStrictEqual([m.list[1].state, m.list[1].guide, m.list[1].spent], ['todo', 20000, 0], 'the guide: 100,000 over 5 days');
+  m = M(trip([ex('2026-12-10', 15000, 'food')]), '2026-12-10'); assert.deepStrictEqual(m.list.map(x => x.done), [true, true, true], 'a record, under the guide, a new category'); assert.strictEqual(m.all, true);
+  m = M(trip([ex('2026-12-10', 25000, 'stay')]), '2026-12-10'); assert.deepStrictEqual([m.list[1].state, m.list[1].done, m.done], ['over', false, 2], 'over the guide: calm "over", not done, nothing else is affected');
+  m = M(trip([ex('2026-12-10', 20000, 'food')]), '2026-12-10'); assert.strictEqual(m.list[1].state, 'on', 'exactly the guide is within it');
+  // the guide for later days counts what was already spent on earlier days
+  m = M(trip([ex('2026-12-10', 60000, 'stay')]), '2026-12-11'); assert.strictEqual(m.list[1].guide, 10000, '(100,000 - 60,000) over the 4 days left');
+  m = M(trip([ex('2026-12-10', 120000, 'stay')]), '2026-12-11'); assert.strictEqual(m.list[1].guide, 0, 'nothing left: the guide is 0'); m = M(trip([ex('2026-12-10', 120000, 'stay'), ex('2026-12-11', 100, 'food')]), '2026-12-11'); assert.strictEqual(m.list[1].state, 'over');
+  // the category mission: only a category recorded for the first time TODAY counts; when all five are already there it is shown as done on its own
+  const five = ['food', 'transport', 'stay', 'sight', 'gift'].map(c => ex('2026-12-10', 1000, c));
+  m = M(trip(five.concat([ex('2026-12-11', 1000, 'food')])), '2026-12-11'); assert.deepStrictEqual([m.list[2].done, m.list[2].auto, m.list[2].name], [true, true, 'カテゴリ集めは、コンプリート済み']);
+  m = M(trip([ex('2026-12-10', 1000, 'food'), ex('2026-12-11', 1000, 'food')]), '2026-12-11'); assert.deepStrictEqual([m.list[2].done, m.list[2].missing.length], [false, 4], 'food again is not new');
+  m = M(trip([ex('2026-12-10', 1000, 'food'), ex('2026-12-11', 1000, 'sight')]), '2026-12-11'); assert.strictEqual(m.list[2].done, true, 'a new one today');
+  assert.deepStrictEqual(M(trip([ex('2026-12-10')]), '2026-12-10'), M(JSON.parse(JSON.stringify(trip([ex('2026-12-10')]))), '2026-12-10'), 'same input, same output');
+}
+console.log('streak and mission tests passed');
