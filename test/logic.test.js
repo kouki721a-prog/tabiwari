@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {crewWord, themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, questOf, tripDays, streakOf, missionsOf, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {crewWord, themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, questOf, tripDays, streakOf, missionsOf, maruGrow, MARU_LV, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -526,3 +526,23 @@ console.log('quest tests passed');
   assert.deepStrictEqual(M(trip([ex('2026-12-10')]), '2026-12-10'), M(JSON.parse(JSON.stringify(trip([ex('2026-12-10')]))), '2026-12-10'), 'same input, same output');
 }
 console.log('streak and mission tests passed');
+
+// たびまる育成 (v205): points from the stamps of every trip + 5 per complete trip; nothing is saved
+{
+  const G = L.maruGrow, mem = [{ id: 'a' }, { id: 'b' }], ex = (date, cat) => ({ id: date + cat, title: 'x', amount: 1000, payer: 'a', cat: cat, date: date, split: ['a', 'b'] });
+  const trip = (e, o) => Object.assign({ start: '2026-12-10', end: '2026-12-11', budget: 100000, members: mem, savings: {}, expenses: e || [], settlements: [], paid: {} }, o || {});
+  assert.deepStrictEqual(L.MARU_LV.map(l => l[1]), [0, 5, 15, 30, 50], 'the thresholds');
+  let g = G([], '2026-12-20'); assert.deepStrictEqual([g.points, g.lv, g.name, g.next.need, g.next.name, g.pct], [0, 1, 'たびまる', 5, '旅人たびまる', 0]);
+  g = G([trip([ex('2026-12-10', 'food')])], '2026-12-10'); assert.strictEqual(g.stamps, 3, 'a first record, a food, and "all" (shared by everybody) = 3 stamps'); assert.strictEqual(g.points, 3);
+  g = G([trip([ex('2026-12-10', 'food'), ex('2026-12-10', 'stay'), ex('2026-12-11', 'sight')])], '2026-12-11'); assert.deepStrictEqual([g.stamps, g.points, g.lv, g.name], [5, 5, 2, '旅人たびまる'], 'exactly the threshold');
+  assert.deepStrictEqual([g.next.lv, g.next.need, g.pct], [3, 10, 0], 'at the threshold the bar starts again');
+  const four = G([trip([ex('2026-12-10', 'food'), ex('2026-12-10', 'stay')])], '2026-12-10'); assert.deepStrictEqual([four.points, four.lv], [4, 1], 'one point short: still level 1'); assert.strictEqual(four.pct, 80);
+  // several trips add up; a complete trip (gold seal) is worth 5 more
+  const full = trip([ex('2026-12-10', 'food'), ex('2026-12-10', 'transport'), ex('2026-12-10', 'stay'), ex('2026-12-11', 'sight'), ex('2026-12-11', 'gift')], { savings: { a: 60000, b: 40000 }, settlements: [{ id: 's', at: '2026-12-12', total: 1, transfers: [{ from: 'b', to: 'a', amount: 1 }] }], paid: { [L.payKey(1, { from: 'b', to: 'a', amount: 1 })]: true } });
+  g = G([full], '2026-12-20'); assert.deepStrictEqual([g.stamps, g.golds, g.points, g.lv], [10, 1, 15, 3], 'ten stamps + a gold seal = 15 points = level 3'); assert.strictEqual(g.items.find(x => x.id === 'gold').on, true);
+  g = G([full, full], '2026-12-20'); assert.deepStrictEqual([g.points, g.lv, g.name], [30, 4, '車掌たびまる']);
+  g = G([full, full, full, trip([ex('2026-12-10', 'food')])], '2026-12-20'); assert.deepStrictEqual([g.points >= 45, g.lv], [true, 4]); g = G([full, full, full, full], '2026-12-20'); assert.deepStrictEqual([g.points, g.lv, g.next, g.pct, g.name], [60, 5, null, 100, '駅長たびまる'], 'the top level: no next step');
+  assert.deepStrictEqual(G([full], '2026-12-20').items.map(x => x.on), [true, true, false, false, true], 'the things she carries follow the level (and the gold seal)');
+  assert.deepStrictEqual(G([full], '2026-12-20'), G(JSON.parse(JSON.stringify([full])), '2026-12-20'), 'same input, same output');
+}
+console.log('mascot growth tests passed');

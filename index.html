@@ -518,6 +518,14 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .stp.sm{width:30px;height:30px;font-size:calc(13px*var(--ts));border-width:2px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}.stp.sm:after{display:none}
 .stbar{width:100%;display:flex;align-items:center;gap:10px;background:transparent;border:1.5px dashed var(--dash);border-radius:16px;padding:9px 12px;margin:10px 0 2px;text-align:left;color:var(--ink)}
 .strow{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden}.sttxt{text-align:right;flex:none}.sttxt b{font-size:calc(13px*var(--ts))}.sttxt small{display:block;color:var(--sub);font-size:calc(12px*var(--ts))}
+/* たびまる育成 (v205) */
+.maru-btn.gbtn{position:relative;margin-right:2px}.lvchip{position:absolute;right:-6px;bottom:-5px;display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:99px;background:var(--navy);color:#fff;font-style:normal;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--paper)}
+.ghero{display:flex;align-items:center;gap:16px;margin-bottom:10px;padding:16px;border-radius:18px;background:var(--cream);box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--sun)}.gmaru{flex:none;display:grid;place-items:center;min-width:120px}.gtext{min-width:0}.gtext .mono{color:var(--sub)}.gtext b{display:block;margin:2px 0 4px;font-size:calc(18px*var(--ts));line-height:1.3}.gtext span{display:block;font-size:calc(12.5px*var(--ts));line-height:1.55;color:var(--sub)}
+.gnext{margin-bottom:10px;padding:12px 14px;border-radius:16px;background:var(--cream);box-shadow:0 1px 0 var(--dash)}.gnext .mono{color:var(--sub)}.gnext b{display:block;margin:2px 0 4px;font-size:calc(14.5px*var(--ts));line-height:1.45}.gnext small{display:block;margin-top:2px;font-size:calc(12px*var(--ts));color:var(--sub);font-variant-numeric:tabular-nums}
+.gitems{margin-bottom:10px;padding:12px 14px;border-radius:16px;background:var(--cream);box-shadow:0 1px 0 var(--dash)}.gitems .mono{color:var(--sub);margin-bottom:8px}.grow5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.gi{display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}.gi .gt{display:grid;place-items:center;width:100%;aspect-ratio:1;max-width:56px;border-radius:14px;background:var(--paper);border:2px dashed var(--dash)}.gi.on .gt{background:#fff8e6;border:2px solid var(--sun)}.gt svg{width:76%;height:76%}.gt i{font-style:normal;color:var(--sub);font-weight:700}.gi small{font-size:calc(11px*var(--ts));line-height:1.3;color:var(--sub)}.gi.on small{color:var(--ink)}
+.gnote{padding:2px 4px 10px}.gnote b{display:block;margin-bottom:4px;font-size:calc(13px*var(--ts))}.gnote span{display:block;font-size:calc(12px*var(--ts));line-height:1.6;color:var(--sub)}
+.glink{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;margin-top:12px;padding:8px 12px;border-radius:14px;border:1.5px dashed var(--dash);text-align:left;color:var(--ink)}.glink span{flex:1;min-width:0}.glink b{display:block;font-size:calc(14px*var(--ts))}.glink small{display:block;font-size:calc(12px*var(--ts));color:var(--sub)}
+.gmark{display:block}.stpop .gmark svg{display:block;width:150px;height:auto;margin:0 auto;filter:drop-shadow(0 4px 8px rgba(0,0,0,.25))}
 /* 連続記録とミッション (v202) */
 .rtrow{display:flex;align-items:center;gap:10px;margin:0 2px 8px;min-height:20px}.rtrow .route{flex:1;min-width:0;margin:0}
 .rt-pill{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:-12px -6px;padding:0 6px;border-radius:99px}.rt-pill>span{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:99px;background:var(--soft);color:var(--ink);font-size:calc(12.5px*var(--ts));font-variant-numeric:tabular-nums}.rt-pill b{font-weight:700}
@@ -1020,6 +1028,19 @@ function missionsOf(t, today){
     missing.length || catToday ? { id: 'cat', name: '新しいカテゴリを1つ記録する', done: catToday, missing: missing } : { id: 'cat', name: 'カテゴリ集めは、コンプリート済み', done: true, auto: true, missing: [] }
   ];
   return { list: list, done: list.filter(function(x){ return x.done; }).length, total: list.length, all: list.every(function(x){ return x.done; }) };
+}
+/* ---- たびまる育成 (v205): the mascot grows as stamps are collected, across every trip on this device. Points = every pressed stamp (1 each) + every trip whose quest is complete (the gold seal, 5 each).
+   Worked out from the trips every time; nothing is saved (so deleting a trip lowers the points, and another device starts from its own trips). ---- */
+var MARU_LV = [[1, 0, 'たびまる'], [2, 5, '旅人たびまる'], [3, 15, '旗持ちたびまる'], [4, 30, '車掌たびまる'], [5, 50, '駅長たびまる']];
+function maruGrow(trips, today){
+  var stamps = 0, golds = 0;
+  (trips || []).forEach(function(t){ stamps += stampsOf(t).filter(function(x){ return x.on; }).length; if (questOf(t, today).gold) golds++; });
+  var points = stamps + golds * 5, lv = MARU_LV[0];
+  MARU_LV.forEach(function(l){ if (points >= l[1]) lv = l; });
+  var next = MARU_LV.filter(function(l){ return l[1] > points; })[0] || null;
+  return { stamps: stamps, golds: golds, points: points, lv: lv[0], name: lv[2], base: lv[1], next: next ? { lv: next[0], name: next[2], need: next[1] - points, at: next[1] } : null,
+    pct: next ? Math.floor((points - lv[1]) * 100 / (next[1] - lv[1])) : 100,
+    items: [{ id: 'cap', name: '旅人の帽子', on: lv[0] >= 2 }, { id: 'flag', name: '旗', on: lv[0] >= 3 }, { id: 'whistle', name: '車掌の笛', on: lv[0] >= 4 }, { id: 'hat', name: '駅長の帽子', on: lv[0] >= 5 }, { id: 'gold', name: '金の判子', on: golds >= 1 }] };
 }
 /* 積立のめやす (v163). What one person should put aside, worked out each time (nothing is saved): from today to departure, once a week on the weekday of
    departure; further than 12 weeks away, once a month on the day of the month of departure. What is still missing is divided over the dates left, so a skipped
@@ -1620,7 +1641,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
-  stampWatch(); questWatch(); missionWatch(); lpObserve(); motionMoney(); motionHome(performance.now()); motionQuest(performance.now()); motionSendoff(performance.now()); sendoffCheck(); maruPaceCheck(); wrapCheck();
+  stampWatch(); questWatch(); missionWatch(); growWatch(); lpObserve(); motionMoney(); motionHome(performance.now()); motionQuest(performance.now()); motionGrow(performance.now()); motionSendoff(performance.now()); sendoffCheck(); maruPaceCheck(); wrapCheck();
 }
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
@@ -1715,6 +1736,10 @@ const ILL = {
   map: ILL_OPEN + '<path d="M10 24L34 18L62 26L86 18V72L62 80L34 72L10 80Z" fill="var(--cream)"/><path d="M34 18V72M62 26V80" stroke-width="2"/><path d="M18 62Q30 40 44 52T74 36" stroke-dasharray="2 6" stroke-width="2.6"/><path d="M74 20Q74 12 80 12Q86 12 86 20Q86 27 80 33Q74 27 74 20Z" fill="var(--sun)" transform="translate(-8,6) scale(.9)"/><circle cx="72" cy="22" r="2" fill="currentColor" stroke="none"/></svg>'
 };
 const APP_NAME = 'Tabiflow';
+function growBtn(){   // v205: the mascot with her level, beside the gear on the home screen
+  const g = maruGrow(state.trips, todayStr());
+  return '<button type="button" class="maru-btn gbtn" data-a="grow-open" aria-label="たびまるのレベル。レベル' + g.lv + '、' + g.name + '">' + tabimaruLv(24, g.lv) + '<i class="lvchip">Lv' + g.lv + '</i></button>';
+}
 const brandRow = (extra) => '<div class="brandrow"><h1 class="brand">Tabiflow</h1><span class="brandact">' + (extra || '') + '<button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></span></div>';
 /* first-page motion (v151): when each part first came into view (ui.lpAt), and when the hero started (ui.lpHero0). Kept in memory, so a re-draw carries the move on instead of restarting it. */
 const lpRv = (id, cls, line) => { const t = ui.lpAt && ui.lpAt[id], base = (cls ? cls + ' ' : '') + (line ? 'lp-rl' : 'lp-rv');
@@ -1812,7 +1837,7 @@ function homeListHtml(tab){   // the list under the tabs (also built for the tab
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
   const { now, past, tab } = homeSets();
-  const h = brandRow() + homeTabs(now.length, past.length, tab) + remoteCard() + installBanner() + lineCard() + '<div class="hlist">' + homeListHtml(tab) + '</div>';
+  const h = brandRow(state.trips.length ? growBtn() : '') + homeTabs(now.length, past.length, tab) + remoteCard() + installBanner() + lineCard() + '<div class="hlist">' + homeListHtml(tab) + '</div>';
   return '<div class="home1"><div>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
 }
 
@@ -2040,7 +2065,18 @@ function expList(t, q){
   return h;
 }
 /* ---- たびまる: reads a sentence or a photo of a receipt and proposes an expense (the person confirms it; nothing is recorded by itself) ---- */
-const tabimaru = n => '<svg width="' + Math.round(n * 1.5) + '" height="' + n + '" viewBox="2 22 92 60" aria-hidden="true" style="flex:none"><path d="M10 26h76a4 4 0 0 1 4 4v10a8 8 0 0 0 0 16v18a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V56a8 8 0 0 0 0-16V30a4 4 0 0 1 4-4z" fill="#ffc83d"/><path d="M66 32v46" stroke="#2a1d00" stroke-width="2" stroke-dasharray="1 5" stroke-linecap="round" opacity=".55"/><text x="78" y="62" font-size="20" font-weight="700" fill="#0f2742" text-anchor="middle" font-family="sans-serif">¥</text><circle cx="27" cy="52" r="2.3" fill="#2a1d00"/><circle cx="45" cy="52" r="2.3" fill="#2a1d00"/><path d="M28 59c2 4 15 4 17 0" stroke="#2a1d00" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="21" cy="58" r="2.7" fill="#ff9d5c" opacity=".45"/><circle cx="51" cy="58" r="2.7" fill="#ff9d5c" opacity=".45"/></svg>';   // たびまる: the ticket (the same as the app icon)
+/* たびまる育成 (v205): what the mascot wears at each level (drawn above the ticket; the picture is a little taller than the plain one) */
+const MARU_CAP = '<path d="M24 29c0-10 8-16 19-16s17 6 17 16z" fill="#17375e"/><path d="M20 29h46" stroke="#17375e" stroke-width="4.5" stroke-linecap="round"/><path d="M26 25.5h34" stroke="#ffc83d" stroke-width="3"/>';
+const MARU_HAT = '<path d="M22 29c0-12 9-19 22-19s20 7 20 19z" fill="#0f2742"/><rect x="17" y="27" width="52" height="5" rx="2.5" fill="#0f2742"/><circle cx="43" cy="19.5" r="4.2" fill="#ffc83d"/>';
+const MARU_FLAG = '<path d="M84 28V6" stroke="#0f2742" stroke-width="2.4" stroke-linecap="round"/><path d="M84 6l11 4.2L84 14.4z" fill="#c2332d"/>';
+const MARU_WHISTLE = '<path d="M16 71c0-6 4-9 6-12" stroke="#0f2742" stroke-width="1.2" fill="none"/><circle cx="16" cy="76" r="4.5" fill="#dfe4ec" stroke="#0f2742" stroke-width="1.6"/><path d="M20 74l7-2" stroke="#0f2742" stroke-width="2.4" stroke-linecap="round"/>';
+const MARU_GOLD = '<path d="M17 29.5h52" stroke="#ffd45e" stroke-width="2.6" stroke-linecap="round"/><path d="M90 22l1.7 4.4 4.4 1.7-4.4 1.7L90 34.2l-1.7-4.4-4.4-1.7 4.4-1.7z" fill="#ffd45e" stroke="#c99a00" stroke-width="1"/><path d="M8 20l1.2 3 3 1.2-3 1.2L8 28.4l-1.2-3-3-1.2 3-1.2z" fill="#ffd45e"/>';
+const maruWear = lv => lv >= 4 ? MARU_HAT + MARU_FLAG + MARU_WHISTLE + (lv >= 5 ? MARU_GOLD : '') : lv === 3 ? MARU_CAP + MARU_FLAG : lv === 2 ? MARU_CAP : '';
+const tabimaruLv = (n, lv) => lv < 2 ? tabimaru(n) : '<svg width="' + Math.round(n * 94 / 80) + '" height="' + n + '" viewBox="2 2 94 80" aria-hidden="true" style="flex:none">' + MARU_BODY + maruWear(lv) + '</svg>';
+const MARU_ITEM = { cap: '<svg viewBox="2 4 66 32" aria-hidden="true">' + MARU_CAP + '</svg>', flag: '<svg viewBox="70 2 34 32" aria-hidden="true">' + MARU_FLAG + '</svg>', whistle: '<svg viewBox="2 52 36 32" aria-hidden="true">' + MARU_WHISTLE + '</svg>', hat: '<svg viewBox="12 6 62 30" aria-hidden="true">' + MARU_HAT + MARU_GOLD + '</svg>',
+  gold: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#ffd45e" stroke="#0f2742" stroke-width="2"/><text x="12" y="16.4" font-size="12" font-weight="800" fill="#0f2742" text-anchor="middle" font-family="sans-serif">金</text></svg>' };
+const MARU_BODY = '<path d="M10 26h76a4 4 0 0 1 4 4v10a8 8 0 0 0 0 16v18a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V56a8 8 0 0 0 0-16V30a4 4 0 0 1 4-4z" fill="#ffc83d"/><path d="M66 32v46" stroke="#2a1d00" stroke-width="2" stroke-dasharray="1 5" stroke-linecap="round" opacity=".55"/><text x="78" y="62" font-size="20" font-weight="700" fill="#0f2742" text-anchor="middle" font-family="sans-serif">¥</text><circle cx="27" cy="52" r="2.3" fill="#2a1d00"/><circle cx="45" cy="52" r="2.3" fill="#2a1d00"/><path d="M28 59c2 4 15 4 17 0" stroke="#2a1d00" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="21" cy="58" r="2.7" fill="#ff9d5c" opacity=".45"/><circle cx="51" cy="58" r="2.7" fill="#ff9d5c" opacity=".45"/>';
+const tabimaru = n => '<svg width="' + Math.round(n * 1.5) + '" height="' + n + '" viewBox="2 22 92 60" aria-hidden="true" style="flex:none">' + MARU_BODY + '</svg>';   // たびまる: the ticket (the same as the app icon)
 async function refreshAi(){
   try { const s = await Line.aiStatus(); ui.ai = { enabled: !!s.enabled, login: !!s.login, remaining: s.remaining == null ? null : s.remaining }; render(); } catch(e){ /* offline: the buttons stay as they were */ }
 }
@@ -2204,10 +2240,10 @@ function motionQuest(now){
 }
 /* the goals that were reached while the app was used (v201): a chapter cleared, the gold seal. Once each, on this device (a trip this device sees for the first time does not celebrate what is already done). */
 const QUEST_SEEN = 'tabiwari.questseen';
-function questPop(title, sub, gold, mark){
+function questPop(title, sub, gold, mark, raw){
   if (!calm() || !document.body.animate) return;
   const d = document.createElement('div'); d.className = 'stpop big qpop' + (gold ? ' gold' : ''); d.setAttribute('aria-hidden', 'true');
-  d.innerHTML = '<i class="stpop-ring"></i><span class="stp">' + (mark || (gold ? '金' : '章')) + '</span><div class="stpop-t">' + esc(title) + '</div>' + (sub ? '<div class="qpop-s">' + esc(sub) + '</div>' : '');
+  d.innerHTML = '<i class="stpop-ring"></i>' + (raw ? '<span class="gmark">' + raw + '</span>' : '<span class="stp">' + (mark || (gold ? '金' : '章')) + '</span>') + '<div class="stpop-t">' + esc(title) + '</div>' + (sub ? '<div class="qpop-s">' + esc(sub) + '</div>' : '');
   document.body.appendChild(d);
   const ms = 2100, at = 'translate(-50%,-50%) ', a = d.animate([{ opacity: 0, transform: at + 'scale(1.9) rotate(-18deg)' }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .18 }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .82 }, { opacity: 0, transform: at + 'scale(.96) rotate(-8deg)' }], { duration: ms, easing: 'cubic-bezier(.22,1,.36,1)' });
   d.querySelector('.stpop-ring').animate([{ transform: 'translate(-50%,-50%) scale(.9)', opacity: .8 }, { transform: 'translate(-50%,-50%) scale(2.2)', opacity: 0 }], { duration: 900, delay: Math.round(ms * .18), easing: 'ease-out', fill: 'backwards' });
@@ -2242,6 +2278,26 @@ function missionWatch(){
   const fl = document.querySelector('.rt-fl .flame'); if (fl && calm() && fresh & 1) fl.animate([{ transform: 'scale(.7)' }, { transform: 'scale(1.7) rotate(-8deg)', offset: .5 }, { transform: 'none' }], { duration: 560, easing: 'cubic-bezier(.3,1.4,.5,1)' });
   if (ms.all) setTimeout(() => questPop('今日のミッション、ぜんぶ達成', streakOf(t, today).cur + '日連続です。', false, '炎'), wait);
   else setTimeout(() => missionToast('ミッション達成：' + (names.length > 1 ? names.length + 'つ' : names[0].name) + '（' + ms.done + '/' + ms.total + '）'), wait);
+}
+/* ---- the mascot grows (v205): a level up is celebrated once (the highest level seen is kept on this device: tabiwari.marulv); the first look only remembers the level. ---- */
+const MARU_LVSEEN = 'tabiwari.marulv';
+function growWatch(){
+  if (!state.trips.length) return;
+  const g = maruGrow(state.trips, todayStr()), seen = Number(lsGet(MARU_LVSEEN));
+  if (!seen){ lsSet(MARU_LVSEEN, String(g.lv)); return; }
+  if (g.lv <= seen) return; lsSet(MARU_LVSEEN, String(g.lv));
+  const wait = document.querySelector('.stpop, .qpop') ? 2400 : 500;
+  setTimeout(() => questPop('たびまるが進化しました', 'Lv.' + g.lv + '　' + g.name, false, '', tabimaruLv(150, g.lv)), wait);
+}
+/* the growth sheet is opened (v205): she pops up, the bar fills, the things she carries light up one after another. State in memory (ui.growAt). */
+function motionGrow(now){
+  const at = ui.growAt; if (!at) return;
+  const sh = ui.sheet; if (!sh || sh.type !== 'grow'){ ui.growAt = 0; return; }
+  if (!calm() || !document.body.animate || now - at > 1500){ ui.growAt = 0; return; }
+  const play = (el, kf, dur, start, ease) => { const e = now - start; if (e >= dur) return; const a = el.animate(kf, { duration: dur, delay: e < 0 ? -e : 0, fill: 'backwards', easing: ease || 'cubic-bezier(.2,.8,.2,1)' }); if (e > 0) a.currentTime = e; };
+  const m = document.querySelector('.sheet .gmaru'); if (m) play(m, [{ opacity: 0, transform: 'scale(.6) translateY(10px)' }, { opacity: 1, transform: 'scale(1.1)', offset: .6 }, { opacity: 1, transform: 'none' }], 560, at + 40, 'cubic-bezier(.3,1.4,.5,1)');
+  const bar = document.querySelector('.sheet .gnext .mbar i'); if (bar) play(bar, [{ width: '0%' }, { width: bar.dataset.p + '%' }], 700, at + 280, 'cubic-bezier(.3,.7,.3,1)');
+  [...document.querySelectorAll('.sheet .gi')].forEach((el, i) => play(el, [{ opacity: 0, transform: 'translateY(10px) scale(.8)' }, { opacity: 1, transform: 'none' }], 340, at + 420 + i * 70, 'cubic-bezier(.3,1.4,.5,1)'));
 }
 /* a recorded expense (v162): a small receipt flies from where it was typed into the budget ticket. One overlay on <body> (like tearOff), so a redraw cannot cut it.
    flyFrom() is read BEFORE the redraw (the place it starts); recFly() runs after it (the ticket is drawn again by then). */
@@ -2645,6 +2701,13 @@ function openAddExp(t){   // the sheet for a new expense (the ［＋］ and the 
   ui.sheet = { type: 'exp', err: '', editId: null, data: { amount: '', title: '', cat: 'food', payer: last ? last.payer : meId(t), all: last ? last.all : true, parts: {}, fixed: {},
     split: last ? last.split : t.members.map(m => m.id), date: (today < t.start || today > t.end) ? t.start : today } };
 }
+function growBody(){
+  const g = maruGrow(state.trips, todayStr());
+  return '<div class="ghero"><div class="gmaru">' + tabimaruLv(110, g.lv) + '</div><div class="gtext"><div class="mono">たびまる</div><b>Lv.' + g.lv + '　' + esc(g.name) + '</b><span>スタンプ ' + g.stamps + '個' + (g.golds ? '・金の判子 ' + g.golds + '個' : '') + '　＝　' + g.points + 'ポイント</span></div></div>' +
+    (g.next ? '<div class="gnext"><div class="mono">NEXT</div><b>次の進化「' + esc(g.next.name) + '」まで、あと ' + g.next.need + 'ポイント</b><span class="mbar" aria-hidden="true"><i data-p="' + g.pct + '" style="width:' + g.pct + '%"></i></span><small>' + g.points + ' / ' + g.next.at + ' ポイント</small></div>' : '<div class="gnext"><div class="mono">MAX</div><b>駅長になりました。いちばん上のレベルです。</b></div>') +
+    '<div class="gitems"><div class="mono">持ち物</div><div class="grow5">' + g.items.map(x => '<div class="gi' + (x.on ? ' on' : '') + '"><span class="gt">' + (x.on ? MARU_ITEM[x.id] : '<i>？</i>') + '</span><small>' + (x.on ? esc(x.name) : 'まだ') + '</small></div>').join('') + '</div></div>' +
+    '<div class="gnote"><b>ポイントの貯め方</b><span>スタンプを押すと、1個につき 1ポイント。道のりをぜんぶ歩いて、金の判子を手に入れると、さらに 5ポイント。</span><span>この端末にある旅行から、毎回、数えます。</span></div>';
+}
 function viewSheet(){
   const t = trip(), s = ui.sheet;
   const err = s.err ? '<div class="err" role="alert" style="margin:0 0 8px">' + esc(s.err) + '</div>' : '';
@@ -2865,7 +2928,7 @@ function viewSheet(){
     body = '<div class="maru-chat"><span class="maru-face">' + tabimaru(34) + '</span><div class="maru-bubble big">' + (cur ? esc(cur.q) : st === '準備中' ? 'いよいよ、もうすぐですね。何か、聞いてみますか？' : st === '旅行中' ? '旅の途中ですね。何か、聞いてみますか？' : 'おつかれさまでした。何か、聞いてみますか？') + '</div></div>' +
       (cur ? '<div class="maru-ans" role="status">' + esc(cur.a) + '</div>' : '') +
       '<div class="maru-qs">' + qs.map(x => '<button class="chip plain' + (x.id === s.pick ? ' on' : '') + '" data-a="maru-q" data-v="' + x.id + '">' + esc(x.q) + '</button>').join('') + '</div>' +
-      '<div class="sub sm" style="margin-top:12px">この旅行の記録から、その場で、計算して答えます。外には、送りません。</div>';
+      '<div class="sub sm" style="margin-top:12px">この旅行の記録から、その場で、計算して答えます。外には、送りません。</div>' + (() => { const g = maruGrow(state.trips, todayStr()); return '<button type="button" class="glink" data-a="grow-open">' + tabimaruLv(26, g.lv) + '<span><b>Lv.' + g.lv + '　' + esc(g.name) + '</b><small>' + (g.next ? '次の進化まで、あと ' + g.next.need + 'ポイント' : 'いちばん上のレベルです') + '</small></span>' + icon('chev', 16) + '</button>'; })();
     foot = '<button class="link" data-a="close-sheet">閉じる</button>';
   }
   if (s.type === 'sendoff'){
@@ -2890,6 +2953,7 @@ function viewSheet(){
       foot = (pending || !paidAll ? '<button class="btn" data-a="wrap-settle" data-id="' + esc(w.id) + '">精算をひらく</button>' : '<button class="btn" data-a="wrap-recap" data-id="' + esc(w.id) + '">まとめ画像をつくる</button>') + '<button class="link" data-a="close-sheet">あとで</button>';
     }
   }
+  if (s.type === 'grow'){ ttl = 'たびまるの成長'; body = growBody(); foot = '<button class="link" data-a="close-sheet">閉じる</button>'; }
   if (s.type === 'quest'){
     ttl = s.tab === 'stamps' ? '旅のスタンプ' : s.tab === 'mission' ? '今日のミッション' : '旅の道のり'; body = questBody(t, s);
     foot = '<button class="link" data-a="close-sheet">閉じる</button>';
@@ -3612,6 +3676,7 @@ document.addEventListener('click', e => {
   else if (a === 'theme-open'){ ui.sheet = { type: 'theme' }; }
   else if (a === 'theme-pick'){ setTheme(t, el.getAttribute('data-v')); }
   else if (a === 'maru-open'){ ui.sheet = { type: 'maru', pick: null }; }
+  else if (a === 'grow-open'){ ui.sheet = { type: 'grow' }; ui.growAt = performance.now(); }
   else if (a === 'maru-q'){ ui.sheet.pick = el.getAttribute('data-v'); }
   else if (a === 'maru-toggle'){ lsSet(MARU_KEY, maruOn() ? '0' : null); render(); return; }
   else if (a === 'usage-toggle'){ const open = ui.usageOpen || !!ui.catF; if (open){ ui.usageOpen = false; ui.catF = null; } else ui.usageOpen = true; render(); return; }

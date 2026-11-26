@@ -1278,6 +1278,29 @@ try {
     tx = await q.innerText('.sheet'); assert.ok(tx.includes('旅行が始まると、今日のミッションが出ます') && tx.includes('0日連続'), 'before the trip: ' + tx.slice(0, 200));
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
+  // たびまる育成（v205）: ホームのボタン（Lv）・シート・進化のお祝い（一度だけ）・旅行の画面のたびまるからも行ける
+  for (const motion of ['no-preference', 'reduce']) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], E = (i, tt, a, p, cat, dd) => ({ id: i, title: tt, amount: a, payer: p, cat: cat, date: dd, split: ['a', 'b'] });
+      if (!localStorage.getItem('tabiwari.v1')) localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 'g1', name: '箱根', start: d(-1), end: d(1), budget: 120000, paid: {}, savings: {}, settlements: [], adjustments: [], members: m, expenses: [E('e1', '夕食', 12000, 'b', 'food', d(0))] }] })); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip'); await q.waitForTimeout(500);
+    const btn = await q.evaluate(() => { const e = document.querySelector('.gbtn'), r = e.getBoundingClientRect(); return { h: Math.round(r.height), w: Math.round(r.width), chip: e.querySelector('.lvchip').textContent, label: e.getAttribute('aria-label') }; });
+    assert.ok(btn.h >= 44 && btn.w >= 44 && btn.chip === 'Lv1' && btn.label.includes('レベル1'), 'the mascot button on the home screen: ' + JSON.stringify(btn)); assert.strictEqual(await q.locator('.qpop').count(), 0, 'the first look only remembers the level: no celebration'); assert.strictEqual(await q.evaluate(() => localStorage.getItem('tabiwari.marulv')), '1');
+    await q.click('[data-a=grow-open]'); await q.waitForSelector('.ghero'); await q.waitForTimeout(1300);
+    let tx = await q.innerText('.sheet'); assert.ok(tx.includes('Lv.1') && tx.includes('たびまる') && /スタンプ 3個/.test(tx) && tx.includes('3ポイント') && tx.includes('次の進化「旅人たびまる」まで、あと 2ポイント') && tx.includes('ポイントの貯め方'), 'the sheet: ' + tx.slice(0, 260));
+    assert.strictEqual(await q.locator('.gi.on').count(), 0, 'nothing to carry yet'); assert.strictEqual(await q.locator('.gi').count(), 5); assert.strictEqual(await q.getAttribute('.gnext .mbar i', 'data-p'), '60', '3 of 5 points: 60%');
+    await q.click('.sheet [data-a=close-sheet]'); await q.waitForFunction(() => !document.querySelector('.sheet'));
+    // two more stamps: level 2 (a cap)
+    await q.evaluate(() => { const t = state.trips[0], d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; t.expenses.push({ id: 'n1', title: 'x', amount: 1000, payer: 'a', cat: 'stay', date: d(0), split: ['a', 'b'] }, { id: 'n2', title: 'x', amount: 1000, payer: 'a', cat: 'sight', date: d(0), split: ['a', 'b'] }); render(); });
+    await q.waitForTimeout(800); assert.strictEqual(await q.textContent('.gbtn .lvchip'), 'Lv2', 'the button follows the level');
+    if (motion === 'no-preference'){ await q.waitForSelector('.qpop', { timeout: 4000 }); const pp = await q.innerText('.qpop'); assert.ok(pp.includes('たびまるが進化しました') && pp.includes('Lv.2') && pp.includes('旅人たびまる'), 'the level up: ' + pp); assert.ok(await q.locator('.qpop svg').count() >= 1, 'with her picture'); await q.waitForFunction(() => !document.querySelector('.qpop'), null, { timeout: 5000 }); await q.evaluate(() => render()); await q.waitForTimeout(700); assert.strictEqual(await q.locator('.qpop').count(), 0, 'once only'); }
+    else assert.strictEqual(await q.locator('.qpop').count(), 0, 'reduce motion: no celebration');
+    assert.strictEqual(await q.evaluate(() => localStorage.getItem('tabiwari.marulv')), '2');
+    await q.click('[data-a=grow-open]'); await q.waitForSelector('.ghero'); assert.strictEqual(await q.locator('.gi.on').count(), 1, 'a cap'); assert.ok((await q.innerText('.ghero')).includes('旅人たびまる')); assert.ok(await q.locator('.gmaru svg path[fill="#17375e"]').count() >= 1, 'she wears a cap'); await q.click('.sheet [data-a=close-sheet]');
+    // from the mascot's chat in a trip
+    await q.click('.trip'); await q.waitForSelector('.nav'); await q.click('[data-a=maru-open]'); await q.waitForSelector('.glink'); assert.ok((await q.innerText('.glink')).includes('Lv.2'), 'a link to her growth'); assert.ok(await q.$eval('.glink', e => e.getBoundingClientRect().height >= 44)); await q.click('.glink'); await q.waitForSelector('.ghero');
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
