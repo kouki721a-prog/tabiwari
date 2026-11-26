@@ -1106,7 +1106,7 @@ let state = load();
 
 /* while a finger is dragging a page, render() waits (it would remove the element the finger started on; iPhone then never reports the touch's end, and the copy of the neighbouring page stays on the screen) */
 const GEST = { t: 0, pending: false, check: () => false, flush(){ if (this.pending && !this.check()){ this.pending = false; render(); } } };
-const ui = { view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', quick: '', quickErr: '', inviting: null, ai: { enabled: false, login: false, remaining: null } };
+const ui = { homeAt: performance.now() + 120, view: 'home', tripId: null, tab: 'exp', sheet: null, draft: null, toast: null, undo: null, q: '', quick: '', quickErr: '', inviting: null, ai: { enabled: false, login: false, remaining: null } };
 
 const CFG = window.TABIWARI || {};
 const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
@@ -1285,6 +1285,7 @@ window.addEventListener('online', () => { checkRemote(true); });
   window.addEventListener('hashchange', captureShareHash);
   shared().forEach(t => shareSync(t));
   setInterval(() => { if (!document.hidden) shared().forEach(t => shareSync(t)); }, SHARE_POLL_MS);
+  let hiddenAt = 0; document.addEventListener('visibilitychange', () => { if (document.hidden){ hiddenAt = Date.now(); return; } if (hiddenAt && Date.now() - hiddenAt > 30000 && ui.view === 'home' && !ui.sheet && state.trips.length){ ui.homeAt = performance.now(); render(); } hiddenAt = 0; });   // v199: coming back to the app after a while (the home screen) plays the opening again
   document.addEventListener('visibilitychange', () => { if (!document.hidden) shared().forEach(t => shareSync(t)); });
   window.addEventListener('online', () => shared().forEach(t => shareSync(t)));
 }
@@ -1519,7 +1520,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
-  stampWatch(); lpObserve(); motionMoney(); motionSendoff(performance.now()); sendoffCheck(); maruPaceCheck(); wrapCheck();
+  stampWatch(); lpObserve(); motionMoney(); motionHome(performance.now()); motionSendoff(performance.now()); sendoffCheck(); maruPaceCheck(); wrapCheck();
 }
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
@@ -2040,6 +2041,34 @@ function flyXfers(list){
     const a = w.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(0,-7px) rotate(-1.5deg)', opacity: 1, offset: .28 }, { transform: 'translate(' + away + 'px,-16px) rotate(7deg)', opacity: .15 }], { duration: XFLY_MS, delay: i * Math.min(90, Math.floor(400 / list.length)), easing: 'cubic-bezier(.4,0,.6,1)', fill: 'backwards' });
     a.onfinish = a.oncancel = () => w.remove();
   });
+}
+/* ---- the home screen is opened (v199): the app starts, you come back to it, or you switch its tab. The cards slide in one after another like tickets, each trip's stamp is pressed, the route of a trip under way lights up to today, and "あと20日で出発" counts up. About 1.2 seconds in all. The state is in memory (ui.homeAt), so a redraw in the middle carries on from where it was; "reduce motion": nothing moves. ---- */
+const HOME_MS = 460, HOME_GAP = 140, HOME_TAIL = 760;
+function homeCount(){   // one loop at a time; it looks the cards up again on every frame (a redraw swaps them)
+  if (ui.homeRaf) return;
+  const step = t => {
+    const at = ui.homeAt; let more = false;
+    if (at && ui.view === 'home') document.querySelectorAll('#app .trip').forEach((el, i) => {
+      const h = el.querySelector('.hint'); if (!h) return; const fin = h.dataset.fin || h.textContent, m = /^あと(\d+)日で出発$/.exec(fin); if (!m) return; h.dataset.fin = fin;
+      const p = Math.max(0, Math.min(1, (t - (at + i * HOME_GAP + HOME_MS * .5)) / 640)), txt = p >= 1 ? fin : 'あと' + Math.round(Number(m[1]) * easeOut(p)) + '日で出発';
+      if (h.textContent !== txt) h.textContent = txt; if (p < 1) more = true; });
+    if (more) requestAnimationFrame(step); else ui.homeRaf = 0;
+  };
+  ui.homeRaf = 1; requestAnimationFrame(step);
+}
+function motionHome(now){
+  const at = ui.homeAt; if (!at) return;
+  if (ui.view !== 'home'){ ui.homeAt = 0; return; }
+  const cards = [...document.querySelectorAll('#app .trip')].slice(0, 6);
+  if (!calm() || !document.body.animate || !cards.length || now - at > HOME_MS + cards.length * HOME_GAP + HOME_TAIL){ ui.homeAt = 0; return; }
+  const play = (el, kf, dur, start, ease) => { const e = now - start; if (e >= dur) return; const a = el.animate(kf, { duration: dur, delay: e < 0 ? -e : 0, fill: 'backwards', easing: ease || 'cubic-bezier(.2,.8,.2,1)' }); if (e > 0) a.currentTime = e; };
+  cards.forEach((el, i) => {
+    const st = at + i * HOME_GAP;
+    play(el, [{ opacity: 0, transform: 'translateX(56px) rotate(3.5deg)' }, { opacity: 1, transform: 'none' }], HOME_MS, st);
+    const mk = el.querySelector('.tmark'); if (mk) play(mk, [{ opacity: 0, transform: 'scale(2.2) rotate(-16deg)' }, { opacity: 1, transform: 'rotate(8deg)', offset: .6 }, { opacity: 1, transform: 'none' }], 330, st + HOME_MS * .55, 'cubic-bezier(.3,1.3,.5,1)');
+    el.querySelectorAll('.route.mini i.on').forEach((d, k) => play(d, [{ opacity: 0, transform: 'scale(.2)' }, { opacity: 1, transform: 'scale(1.8)', offset: .5 }, { opacity: 1, transform: 'none' }], 280, st + HOME_MS * .8 + k * 70));
+  });
+  homeCount();
 }
 /* a recorded expense (v162): a small receipt flies from where it was typed into the budget ticket. One overlay on <body> (like tearOff), so a redraw cannot cut it.
    flyFrom() is read BEFORE the redraw (the place it starts); recFly() runs after it (the ticket is drawn again by then). */
@@ -2969,8 +2998,8 @@ document.addEventListener('click', e => {
   const a = el.getAttribute('data-a'), id = el.getAttribute('data-id'), t = trip(), s = ui.sheet;
   if (a === 'bg'){ if (e.target !== el) return; ui.sheet = (s && s.back) || null; ui.sheetBack = !!(s && s.back); render(); return; }   // a sheet opened from another sheet (アカウント from 設定) goes back to it
 
-  if (a === 'home'){ ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }   // the tab you were on stays (ui.homeTab)
-  else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; }
+  if (a === 'home'){ ui.homeAt = performance.now(); ui.view = 'home'; ui.tripId = null; ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }   // the tab you were on stays (ui.homeTab)
+  else if (a === 'home-tab'){ ui.homeTab = el.getAttribute('data-v'); ui.resetScroll = true; ui.homeAt = performance.now(); }
   else if (a === 'open'){ ui.enterAt = performance.now() + 220; ui.resetScroll = true; ui.view = 'trip'; ui.tripId = id; ui.tab = phaseTab(state.trips.find(x => x.id === id) || { start: todayStr(), end: todayStr() }); ui.q = ''; ui.qOpen = false; ui.catF = null; ui.swp = null; }
   else if (a === 'invite'){
     const tr = state.trips.find(x => x.id === id); if (!tr || ui.inviting) return;

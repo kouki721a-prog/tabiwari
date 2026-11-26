@@ -474,7 +474,8 @@ try {
     await q.click('[data-a=tab][data-t=settle]'); assert.strictEqual(await q.locator('.item', { hasText: 'こうき' }).count() >= 1, true); assert.deepStrictEqual(qerrs, []); }
 
   // home cards: one line that says what to do next, yellow bar, the running trip stands out
-  { const c5 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), q = await c5.newPage(); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+  { const c5 = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c5.newPage();   /* reduce: the countdown on the home cards counts up while it opens (v199) */
+    await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }, ms = [{ id: 'a', name: 'あおい', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }];
       const T = (id, name, s, e, ex, extra = {}) => ({ id, name, start: d(s), end: d(e), budget: 30000, members: ms, paid: {}, savings: {}, expenses: ex, ...extra });
       const e1 = { id: 'e1', title: '食事', amount: 6000, payer: 'a', cat: 'food', date: d(-10), split: ['a', 'b'] };
@@ -1192,6 +1193,23 @@ try {
     await q.click('[data-a=settle-ask]'); await q.waitForSelector('[data-a=settle-go]'); await q.click('[data-a=settle-go]'); await q.waitForTimeout(120);
     const fly = await q.evaluate(() => ({ n: document.querySelectorAll('.xferfly').length, live: document.querySelectorAll('#app .xfer').length, nodata: document.querySelectorAll('.xferfly [data-a]').length }));
     if (motion === 'reduce') assert.strictEqual(fly.n, 0, 'reduce motion: nothing flies'); else { assert.strictEqual(fly.n, nx, 'one flying copy per ticket: ' + JSON.stringify(fly)); assert.strictEqual(fly.live, 0, 'the real ones have moved into the history'); assert.strictEqual(fly.nodata, 0, 'the copies cannot be pressed'); await q.waitForTimeout(1600); assert.strictEqual(await q.locator('.xferfly').count(), 0, 'and they are gone afterwards'); }
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
+  // ホームを開く瞬間（v199）: カードが順に滑り込み・「あと20日」が数えて出る・描き直しても続く・戻ると、もう一度・「動きを減らす」では動かない
+  for (const motion of ['no-preference', 'reduce']) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.firstseen', JSON.stringify({ h1: d(-9) }));
+      const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], tr = (id, nm, a, e) => ({ id, name: nm, start: d(a), end: d(e), budget: 100000, paid: {}, savings: {}, settlements: [], adjustments: [], members: m, expenses: [] });
+      if (!localStorage.getItem('tabiwari.v1')) localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [tr('h1', '旅行中の旅', -1, 1), tr('h2', '京都', 20, 22)] })); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip');
+    const info = () => q.evaluate(() => ({ anim: document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.classList && a.effect.target.classList.contains('trip')).length, hint: [...document.querySelectorAll('.trip')].map(e => (e.querySelector('.hint') || {}).textContent) }));
+    await q.waitForTimeout(250); const i1 = await info();
+    if (motion === 'reduce'){ assert.strictEqual(i1.anim, 0, 'reduce motion: the cards do not move'); assert.strictEqual(i1.hint[1], 'あと20日で出発', 'and the countdown is just the number'); }
+    else {
+      assert.ok(i1.anim >= 1, 'the cards slide in: ' + JSON.stringify(i1)); const n1 = parseInt(String(i1.hint[1]).replace(/\D/g, ''), 10); assert.ok(n1 < 20, 'the countdown is counting up: ' + i1.hint[1]);
+      await q.evaluate(() => render()); const n2 = parseInt(String((await info()).hint[1]).replace(/\D/g, ''), 10); assert.ok(n2 >= n1 || n2 === 20, 'a redraw in the middle does not restart it: ' + n1 + ' -> ' + n2);
+      await q.waitForTimeout(1700); const i3 = await info(); assert.strictEqual(i3.hint[1], 'あと20日で出発', 'it ends on the real number'); assert.strictEqual(i3.anim, 0, 'and everything has stopped'); assert.strictEqual(await q.evaluate(() => { render(); return ui.homeAt; }), 0, 'the state is cleared by the next redraw (and it does not play again)'); assert.strictEqual((await info()).anim, 0, 'a later redraw does not replay it');
+      await q.click('.trip:has-text("旅行中の旅")'); await q.waitForSelector('.nav'); await q.click('[data-a=home]'); await q.waitForTimeout(150); assert.ok((await info()).anim >= 1, 'coming back to the home screen plays it again');
+      assert.ok(await q.evaluate(() => [...document.querySelectorAll('.trip')].every(e => { const r = e.getBoundingClientRect(); return r.right <= innerWidth + 70; })), 'nothing runs far off to the side'); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
