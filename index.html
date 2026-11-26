@@ -2023,6 +2023,17 @@ function tearOff(ticket){
   const a = ov.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(10px,-6px) rotate(3deg)', opacity: 1, offset: .25 }, { transform: 'translate(70px,-34px) rotate(14deg)', opacity: 0 }], { duration: TEAR_MS, easing: 'cubic-bezier(.4,0,.6,1)' });
   a.onfinish = a.oncancel = () => ov.remove();
 }
+/* v196: when a round is confirmed, the transfer tickets lift, tilt and slip away to the right, one after another (they have moved into the history). Copies on <body> (like tearOff), so the redraw that follows cannot cut them. Off with "reduce motion". */
+const XFLY_MS = 650;
+function flyXfers(list){
+  list.forEach((x, i) => {
+    const w = document.createElement('div'); w.className = 'list xl xferfly'; w.setAttribute('aria-hidden', 'true'); w.appendChild(x.el); x.el.style.marginTop = '0'; x.el.querySelectorAll('[data-a]').forEach(b => b.removeAttribute('data-a'));
+    Object.assign(w.style, { position: 'fixed', left: x.r.left + 'px', top: x.r.top + 'px', width: x.r.width + 'px', margin: '0', zIndex: '55', pointerEvents: 'none' });
+    document.body.appendChild(w); const away = Math.round(innerWidth - x.r.left + 30);
+    const a = w.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(0,-7px) rotate(-1.5deg)', opacity: 1, offset: .28 }, { transform: 'translate(' + away + 'px,-16px) rotate(7deg)', opacity: .15 }], { duration: XFLY_MS, delay: i * Math.min(90, Math.floor(400 / list.length)), easing: 'cubic-bezier(.4,0,.6,1)', fill: 'backwards' });
+    a.onfinish = a.oncancel = () => w.remove();
+  });
+}
 /* a recorded expense (v162): a small receipt flies from where it was typed into the budget ticket. One overlay on <body> (like tearOff), so a redraw cannot cut it.
    flyFrom() is read BEFORE the redraw (the place it starts); recFly() runs after it (the ticket is drawn again by then). */
 const FLY_MS = 860;
@@ -3243,7 +3254,8 @@ document.addEventListener('click', e => {
   else if (a === 'toggle-recv'){ const k = el.getAttribute('data-k'); t.received = t.received || {}; if (!t.paid[k]) return; if (t.received[k]) delete t.received[k]; else t.received[k] = true; save(); }
   else if (a === 'settle-ask'){ if (openItems(t).expenses.length || openItems(t).adjustments.length) ui.sheet = { type: 'settle-confirm', err: '' }; }
   else if (a === 'settle-go'){
-    const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; ui.tear = true; save(); render(); flash('第' + n + '回の精算を確定しました'); setTimeout(() => maruSay('settle|' + t.id + '|' + n, 'おつかれさまでした。送金は、それぞれで。済んだら、チェックを。'), 1600); return;
+    const n = (t.settlements || []).length + 1, fly = calm() && document.body.animate ? [...document.querySelectorAll('#app .xfer')].map(e => ({ r: e.getBoundingClientRect(), el: e.cloneNode(true) })).filter(x => x.r.bottom > 0 && x.r.top < innerHeight) : [];
+    confirmRound(t, uid(), todayStr()); ui.sheet = null; ui.tear = true; save(); render(); if (fly.length) flyXfers(fly); flash('第' + n + '回の精算を確定しました'); setTimeout(() => maruSay('settle|' + t.id + '|' + n, 'おつかれさまでした。送金は、それぞれで。済んだら、チェックを。'), 1600); return;
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }

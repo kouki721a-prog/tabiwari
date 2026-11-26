@@ -1176,6 +1176,17 @@ try {
     assert.strictEqual((await has('五人旅')).mini, false, 'five faces: no room, no route'); assert.strictEqual((await has('長旅')).mini, false, 'a long trip: no mini route'); assert.strictEqual((await has('先の旅')).mini, false, 'not started: no route');
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
+  // 精算を確定すると、送金の切符が、順に、右へ滑っていく（v196）。「動きを減らす」では、出ない。途中で描き直されても、切れない（body の上の写し）
+  for (const motion of ['no-preference', 'reduce']) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }, { id: 'c', name: 'けんた', pos: 2 }], E = (i, tt, a, p, c, dd) => ({ id: i, title: tt, amount: a, payer: p, cat: c, date: dd, split: ['a', 'b', 'c'] });
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 't1', name: '箱根', start: d(-1), end: d(1), budget: 120000, paid: {}, savings: {}, settlements: [], adjustments: [], members: m, expenses: [E('e1', '夕食', 12000, 'b', 'food', d(0)), E('e2', '電車', 3600, 'a', 'transport', d(0)), E('e3', '宿', 54000, 'a', 'stay', d(-1))] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.nav'); await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('.xfer'); const nx = await q.locator('.xfer').count(); assert.ok(nx >= 2, 'a few transfers: ' + nx);
+    await q.click('[data-a=settle-ask]'); await q.waitForSelector('[data-a=settle-go]'); await q.click('[data-a=settle-go]'); await q.waitForTimeout(120);
+    const fly = await q.evaluate(() => ({ n: document.querySelectorAll('.xferfly').length, live: document.querySelectorAll('#app .xfer').length, nodata: document.querySelectorAll('.xferfly [data-a]').length }));
+    if (motion === 'reduce') assert.strictEqual(fly.n, 0, 'reduce motion: nothing flies'); else { assert.strictEqual(fly.n, nx, 'one flying copy per ticket: ' + JSON.stringify(fly)); assert.strictEqual(fly.live, 0, 'the real ones have moved into the history'); assert.strictEqual(fly.nodata, 0, 'the copies cannot be pressed'); await q.waitForTimeout(1600); assert.strictEqual(await q.locator('.xferfly').count(), 0, 'and they are gone afterwards'); }
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
