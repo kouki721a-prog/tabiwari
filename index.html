@@ -312,7 +312,7 @@ html,body{overscroll-behavior-x:none}
 .noteRow{padding:4px 12px!important;font-size:calc(13px*var(--ts));color:var(--sub)}.noteRow .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .list.xl{margin-top:8px}.xfer{padding:10px 12px}
 .xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:calc(13px*var(--ts));color:var(--sub)}.xnote .link{width:auto;flex:none;padding:6px 8px;font-size:calc(13px*var(--ts));font-weight:700;color:var(--ink)}.xnote>span:first-child{min-width:0;flex:1 1 auto;overflow-wrap:anywhere}.xnote .xact{display:flex;align-items:center;flex:none}.xnote a.link{text-decoration:underline;text-underline-offset:3px}.noteRow{margin-bottom:10px}
-.paidbtn{flex:none;display:inline-flex;align-items:center;gap:3px;min-height:34px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:calc(13px*var(--ts));font-weight:500;white-space:nowrap}
+.paidbtn{flex:none;display:inline-flex;align-items:center;gap:3px;min-height:44px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:calc(13px*var(--ts));font-weight:500;white-space:nowrap}
 .paidbtn .ring{display:inline-block;width:15px;height:15px;border-radius:50%;border:2px solid currentColor;opacity:.75;box-sizing:border-box}
 .paidbtn.on{background:var(--good);border-color:var(--good);color:#fff}
 .xfer .names{flex:1;min-width:0;font-weight:500;font-size:calc(14px*var(--ts));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -364,7 +364,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .sheet .field{padding:10px 12px}
 .sheet input[type=date].field{min-height:44px}
 .sheet .chips{gap:6px}
-.sheet .chip{padding:4px 12px 4px 4px;font-size:calc(13px*var(--ts))}
+.sheet .chip{padding:4px 12px 4px 4px;font-size:calc(13px*var(--ts))}.sheet .chip[data-a=pick-payer],.sheet .chip[data-a=toggle-split],.sheet .chip[data-a=split-all]{min-height:44px}   /* v188: 44px to press (the add-expense sheet only; the member names in 設定 stay as they were, that sheet must fit one screen) */
 .sheet .chip.plain{padding:7px 12px}
 .memo-row{display:grid;grid-template-columns:minmax(0,1fr) 148px;gap:8px;margin-top:6px}
 .memo-row .field{padding:11px 12px}
@@ -404,13 +404,13 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .swp{position:relative;overflow:hidden;border-top:1px solid var(--line)}.swp:first-child{border-top:0}.swp .item{border-top:0;background:var(--card);position:relative;z-index:1;transition:transform .18s ease-out}.swp.open .item{transform:translateX(-84px)}
 .swp-del{position:absolute;right:0;top:0;bottom:0;width:84px;background:#d4372f;color:#fff;font-weight:700;font-size:calc(15px*var(--ts));display:grid;place-items:center;padding:0}
 .list>.item+.swp,.list>.swp+.item{border-top:1px solid var(--line)}
-.qchips{display:flex;gap:8px;overflow-x:auto;margin:8px 0 0;padding-bottom:2px;scrollbar-width:none;touch-action:pan-x}.qchips::-webkit-scrollbar{display:none}.qchip{flex:none;padding:6px 14px!important;min-height:44px;font-size:calc(13px*var(--ts))}
+.qchips{display:flex;gap:8px;overflow-x:auto;margin:8px 0 0;padding-bottom:2px;scrollbar-width:none;touch-action:pan-x}.qchips::-webkit-scrollbar{display:none}.qchip{flex:none;padding:6px 14px!important;min-height:44px;min-width:44px;font-size:calc(13px*var(--ts))}
 @media (max-height:640px){.qchips{display:none}}
 #ptr{position:fixed;left:50%;top:0;width:40px;height:40px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:5;pointer-events:none;opacity:0}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--ts));border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
 /* the budget card as a boarding pass (v148): the main part, a perforated stub on the right, a notch at both ends of the perforation */
 .ticket.m.stub{display:flex;position:relative;--stub:calc(112px*var(--ts));border-radius:16px}
-.ticket.m.stub .tk-l{flex:1;min-width:0}.ticket.m.stub .t-top{padding:11px 12px 12px 18px}.ticket.m.stub .t-foot{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.foot-more{flex:none;font-size:calc(12px*var(--ts));color:rgba(255,255,255,.8);padding:2px 0 2px 10px;white-space:nowrap}.foot-more.over{color:#ff9a92;font-weight:700}
+.ticket.m.stub .tk-l{flex:1;min-width:0}.ticket.m.stub .t-top{padding:11px 12px 12px 18px}.ticket.m.stub .t-foot{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.foot-more{flex:none;display:inline-flex;align-items:center;min-height:44px;margin:-14px 0;font-size:calc(12px*var(--ts));color:rgba(255,255,255,.8);padding:2px 0 2px 16px;white-space:nowrap}.foot-more.over{color:#ff9a92;font-weight:700}
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
@@ -2243,7 +2243,7 @@ function tabSave(t){
     const v = t.savings[m.id] || 0, p = pctFloor(v, target), done = v >= target;
     return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
       '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '</div></div>' +
-      '<button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;padding:9px 14px;font-size:calc(14px*var(--ts))">積み立てる</button></div>';
+      '<button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;min-height:44px;padding:9px 14px;font-size:calc(14px*var(--ts))">積み立てる</button></div>';
   }).join('') + '</div></div>' + saveLogList(t);
   return h;
 }
@@ -2545,7 +2545,7 @@ function fixedNote(t, d){   // the line under the rows: how much is left for the
 function partsBlock(t, d, s){
   if (d.split.length < 2) return '';
   const on = !!cleanParts(d.parts, d.split) || Object.keys(d.fixed || {}).length > 0, a = parseYen(d.amount);
-  let h = '<button class="link" data-a="parts-toggle" aria-expanded="' + !!s.partsOpen + '" style="width:auto;padding:8px 0;margin-top:2px">' + (s.partsOpen ? '割合・金額をとじる' : on ? '割合・金額を変えています（変える）' : '割合・金額を変える（多め・少なめなど）') + '</button>';
+  let h = '<button class="link" data-a="parts-toggle" aria-expanded="' + !!s.partsOpen + '" style="width:auto;min-height:44px;padding:0;margin-top:0">' + (s.partsOpen ? '割合・金額をとじる' : on ? '割合・金額を変えています（変える）' : '割合・金額を変える（多め・少なめなど）') + '</button>';
   if (!s.partsOpen) return h;
   const ids = t.members.map(m => m.id).filter(id => d.split.indexOf(id) >= 0), shares = splitFor(d, a, ids);
   return h + '<div class="parts">' + ids.map(id => { const n = (d.parts && d.parts[id]) || 2, sh = shares.filter(x => x[0] === id)[0], nm = esc(nameOf(t, id));
