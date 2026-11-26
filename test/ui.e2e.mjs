@@ -1260,6 +1260,7 @@ try {
     { const al = await q.evaluate(() => { const tk = document.querySelector('.ticket').getBoundingClientRect(), now = document.querySelector('.rtrow .route i').getBoundingClientRect(), ms = document.querySelector('.rt-ms').getBoundingClientRect(); return { left: Math.round((now.left - 4) - tk.left), right: Math.round(tk.right - ms.right) }; }); assert.ok(al.left >= -1 && al.left <= 3 && Math.abs(al.right) <= 1, 'the route row lines up with the ticket (the glow of the current station inside the left edge, the pill flush with the right edge): ' + JSON.stringify(al)); }
     await q.click('[data-a=mission-open]'); await q.waitForSelector('.mhero'); await q.waitForTimeout(700);
     let tx = await q.innerText('.sheet'); assert.ok(tx.includes('今日のミッション') && tx.includes('2日連続') && tx.includes('最長 2日') && tx.includes('今日の記録で、3日連続につながります。') && tx.includes('「毎日記録」メダル'), 'the sheet: ' + tx.slice(0, 260));
+    { const cut = await q.evaluate(() => { const sv = document.querySelector('.mflame .flame'), bb = sv.querySelector('path').getBBox(), vb = sv.viewBox.baseVal, h = parseFloat(getComputedStyle(sv).strokeWidth) / 2; return { l: +(bb.x - h - vb.x).toFixed(2), r: +((vb.x + vb.width) - (bb.x + bb.width + h)).toFixed(2), t: +(bb.y - h - vb.y).toFixed(2), b: +((vb.y + vb.height) - (bb.y + bb.height + h)).toFixed(2) }; }); assert.ok(cut.l >= 0 && cut.r >= 0 && cut.t >= 0 && cut.b >= 0, 'the flame (with its outline) is inside its own frame: nothing is cut off at the sides (it was cut on the left and right): ' + JSON.stringify(cut)); }
     { const fl = await q.evaluate(() => { const f = document.querySelector('.mflame .flame').getBoundingClientRect(), n = document.querySelector('.mnum').getBoundingClientRect(); return { dx: Math.round(((n.left + n.right) / 2) - ((f.left + f.right) / 2)), y: ((n.top + n.bottom) / 2 - f.top) / f.height }; }); assert.ok(Math.abs(fl.dx) <= 2 && fl.y > .55 && fl.y < .85, 'the number sits in the belly of the flame, centred (it sat on the rim): ' + JSON.stringify(fl)); }
     assert.ok(tx.includes('今日の1件を記録する') && tx.includes('今日の目安のなかにおさめる') && tx.includes('新しいカテゴリを1つ記録する') && !/！|失敗|だめ/.test(tx), 'three small, kind missions');
     assert.ok((await q.$$eval('.qseg button, .mt .btn, .mmedal .btn', els => els.map(e => Math.round(e.getBoundingClientRect().height)))).every(x => x >= 44), 'everything you press is 44px or more');
@@ -1347,6 +1348,16 @@ try {
     } else {
       assert.strictEqual(await q.locator('[data-a=join-line-login]').count(), 0, 'no LINE login on this server: nothing about it'); assert.strictEqual(await q.locator('[data-a=join-share-go]').innerText(), '参加する');
     }
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
+  // 絵が、自分の枠で、切れていない（v207。炎のふくらみの左右が、切れていた）: たびまる（Lv.1〜5）・持ち物の絵・炎・カテゴリの絵を、すべて測る（線の太さも含めて、枠の内側）
+  { const c = await b.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
+    const bad = await q.evaluate(() => { const box = document.createElement('div'); box.id = 'svgtest'; box.style.cssText = 'position:fixed;left:0;top:0;opacity:.01;pointer-events:none;width:900px'; const parts = [1, 2, 3, 4, 5].map(l => tabimaruLv(100, l)).concat(Object.keys(MARU_ITEM).map(k => '<div style="width:60px">' + MARU_ITEM[k] + '</div>'), ['<div class="mflame">' + flameBig('on') + '</div>', '<div class="mflame">' + flameBig('') + '</div>', flameSvg(24, 'on')], Object.keys(STAMP_ICON).map(k => stampMark(k, '')), [tabimaru(60)]); box.innerHTML = parts.join(''); document.body.appendChild(box);
+      const out = []; box.querySelectorAll('svg').forEach((sv, i) => { const vb = sv.viewBox.baseVal; if (!vb || !vb.width) return; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; sv.querySelectorAll('path,circle,rect,ellipse,line,text').forEach(e => { try { const bb = e.getBBox(), cs = getComputedStyle(e), sw = (cs.stroke && cs.stroke !== 'none') ? (parseFloat(cs.strokeWidth) || 0) : 0, h = sw / 2; x0 = Math.min(x0, bb.x - h); y0 = Math.min(y0, bb.y - h); x1 = Math.max(x1, bb.x + bb.width + h); y1 = Math.max(y1, bb.y + bb.height + h); } catch(er){} });
+        if (x0 > 1e8 || getComputedStyle(sv).overflow === 'visible') return; const o = { l: vb.x - x0, r: x1 - (vb.x + vb.width), t: vb.y - y0, b: y1 - (vb.y + vb.height) }; if (Math.max(o.l, o.r, o.t, o.b) > 0.15) out.push(i + ' ' + JSON.stringify(o)); }); box.remove(); return out; });
+    assert.deepStrictEqual(bad, [], 'no picture is cut off by its own frame: ' + bad.join(' | '));
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
