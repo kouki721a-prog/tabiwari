@@ -175,7 +175,7 @@ html,body{overscroll-behavior-x:none}
 .lp-h{font-size:min(calc(27px*var(--ts)),calc((100vw - 32px) / 13.6 * var(--ts)));line-height:1.4;margin:6px 0 10px;font-weight:700}.lp-br:first-of-type{display:none}   /* the first break is not needed: two lines on a normal phone */
 @media (max-height:640px){.lp-lead{display:none}.lp-h{margin-bottom:12px}}
 .lp-lead{color:var(--sub);font-size:calc(14px*var(--ts));line-height:1.7;margin:0 0 16px}
-.home0-tags{text-align:left;color:var(--sub);font-size:calc(12.5px*var(--ts));margin:12px 0 22px;white-space:nowrap}
+.home0-tags{text-align:left;color:var(--sub);font-size:calc(12.5px*var(--ts));margin:12px 0 22px}.home0-tags span{display:block;line-height:1.7}   /* two short lines; on a narrow screen the second one may wrap */
 /* the sample trip ticket in the hero: cream paper, a perforation with a notch at both ends, a barcode, and a pressed stamp */
 .lp-tk{position:relative;background:var(--cream);color:var(--ink);border-radius:14px;margin:6px 0 4px;box-shadow:0 1px 0 var(--dash)}
 .lp-tk-top{padding:16px 18px 14px}.lp-tk-hd{display:flex;justify-content:space-between;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub);margin-bottom:12px}
@@ -1776,7 +1776,7 @@ function viewHomeEmpty(){
     ['旅の道のり', 'ぜんぶ歩くと、金の判子', '積立から精算までの道のりが、地図になります。いまどこまで来たかが分かり、共有している友だちと、同じ進み具合を見られます。ぜんぶ達成すると、旅のまとめ画像に、金の判子が載ります。', 'quest', '道のりの画面。旅の完成度が60%。次の目標が出ている。', 329]];
   const feats = [['一部の人だけの割り勘', '人ごとに選べる'], ['割合・金額', '多め・少なめに'], ['レシートの写真', '店名と合計を読む'], ['受け取りの確認', '払った・受け取った'], ['変更の履歴', '誰がいつ'], ['まとめ画像', 'レシート風']];
   const steps = ['旅行をつくる（名前・日付・予算・メンバー）', '共有リンクを、LINEで友だちに送る', '旅行中は、払った人が記録する', '最後に「精算」を開いて、表示のとおりに送金する'];
-  const faq = [['料金は、かかりますか？', '無料で使えます。'], ['登録やインストールは、必要ですか？', '要りません。ブラウザで開くだけです。ホーム画面に追加すると、すぐ開けて、お知らせも届きます。'], ['お金を、アプリで送れますか？', '送れません。記録と計算だけです。送金は、いつものやり方で。'], ['データは、どこに保存されますか？', 'この端末に保存されます。LINEでログインすると、バックアップされて、端末を替えても戻せます。'], ['道のりやたびまるの成長は、友だちにも見えますか？', '道のりの進み具合は、共有している旅行なら、みんなに同じように見えます。たびまるの成長は、この端末にある旅行から数えるので、その人だけのものです。']];
+  const faq = [['料金は、かかりますか？', '無料で使えます。'], ['ログインやインストールは、必要ですか？', 'どちらも、なくても使えます。ブラウザで開くだけで、始められます。LINEでログインすると、精算のお知らせが、あなたのLINEに届き、端末を替えても旅行を戻せます。ホーム画面に追加すると、すぐ開けて、アプリの通知も届きます。'], ['お金を、アプリで送れますか？', '送れません。記録と計算だけです。送金は、いつものやり方で。'], ['データは、どこに保存されますか？', 'この端末に保存されます。LINEでログインすると、バックアップされて、端末を替えても戻せます。'], ['道のりやたびまるの成長は、友だちにも見えますか？', '道のりの進み具合は、共有している旅行なら、みんなに同じように見えます。たびまるの成長は、この端末にある旅行から数えるので、その人だけのものです。']];
   let line = '';
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line">' + (isStandalone() ? '<div class="sub sm">LINEでログインすると、通知とバックアップを使えます。</div>' : '') + '<button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
@@ -1788,7 +1788,7 @@ function viewHomeEmpty(){
   return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow(topLine) + remoteCard() + installBanner() +
     '<div class="lp-hero' + hero.cls + '"' + hero.st + '><h2 class="lp-h">「いくら出したっけ」を、<br>なくします。</h2><p class="lp-lead">友だちやパートナーとの国内旅行で、誰がいくら出したか分からなくなる。それを、出発前から帰ったあとまで、片づけるアプリです。</p>' +
     '<button class="btn line" data-a="join-paste">友だちに招待された方は、こちら</button>' +
-    '<div class="home0-tags">無料。登録も、インストールも、いりません。</div>' + ticket + '</div>' +
+    '<div class="home0-tags"><span>無料。ブラウザで開くだけで、使えます。</span><span>LINEでログインすると、精算のお知らせが届きます。</span></div>' + ticket + '</div>' +
     '<section class="lp-sec"><div class="lp-hd"><h2>出発前から、帰ったあとまで</h2>' + ILL.train + '</div><div' + lpRv('rail', 'lp-rail', true) + '>' +
       stages.map(x => '<div' + lpRv('st' + x[0], 'lp-stage') + '><span class="n" aria-hidden="true">' + x[0] + '</span><small>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><div class="lp-shot"><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div></div>').join('') + '</div></section>' +
     '<section class="lp-sec"><h2>記録するたびに、旅が進む</h2><p class="lp-sub">夕食を書いて［記録］を押すと、今日のミッションがひとつ進みます。</p><div class="lp-plain">' +
