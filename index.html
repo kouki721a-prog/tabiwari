@@ -2238,7 +2238,7 @@ function savePlanHtml(t, today){
 }
 function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length), plan = savePlanHtml(t, todayStr());
-  let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。積み立てた記録は、下の一覧に残ります。</div>') + '<div class="list">';
+  let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。積み立てた記録は、下の一覧に残ります。押すと、直したり、消したりできます。</div>') + '<div class="list">';
   h += t.members.map(m => {
     const v = t.savings[m.id] || 0, p = pctFloor(v, target), done = v >= target;
     return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
@@ -2256,7 +2256,8 @@ function saveLogList(t){
   const row = r => r.x
     ? '<button class="item slim" data-a="sl-edit" data-id="' + esc(r.x.id) + '" data-m="' + esc(r.m.id) + '"><div class="grow"><div class="t">' + (many ? esc(r.m.name) + '・' : '') + fmtDay(r.x.d) + '</div>' + (r.x.by && r.x.by !== r.m.id && t.members.some(y => y.id === r.x.by) ? '<div class="sub sm">' + esc(nameOf(t, r.x.by)) + 'が記録</div>' : '') + '</div><b class="' + (r.x.a < 0 ? 'neg' : '') + '">' + sg(r.x.a) + '</b></button>'
     : '<button class="item slim slog-rest" data-a="sl-edit" data-id="rest" data-m="' + esc(r.m.id) + '"><div class="grow"><div class="t">' + (many ? esc(r.m.name) + '・' : '') + 'それ以前の積立</div><div class="sub sm">記録なし・いつ積んだか、分かりません</div></div><b>' + sg(r.rest) + '</b></button>';
-  return '<div class="sec"><h2>積立の記録<span>新しい順</span></h2>' + (any ? '<div class="list">' + dated.map(row).join('') + undated.map(row).join('') + '</div>' : '<div class="sub sm" style="margin:-4px 2px 0">積み立てると、ここに、記録が残ります。押すと、直したり、消したりできます。</div>') + '</div>';
+  if (!any) return '';   // v189: nothing to list yet: the line above already says it will appear here (one explanation at a time)
+  return '<div class="sec"><h2>積立の記録<span>新しい順</span></h2><div class="list">' + dated.map(row).join('') + undated.map(row).join('') + '</div></div>';
 }
 
 function viewSheet(){

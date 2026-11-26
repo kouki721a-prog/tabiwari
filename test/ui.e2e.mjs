@@ -994,7 +994,7 @@ try {
     await f.goto('http://localhost:8797/'); await f.waitForSelector('[data-a=new]'); await f.click('[data-a=new]'); await f.fill('#d-name', '福岡'); await f.fill('#d-budget', '300000'); await f.fill('#d-me', 'あおい');
     await f.evaluate(() => { const s = addDays(todayStr(), 40); ui.draft.start = s; ui.draft.end = addDays(s, 3); render(); }); await f.click('[data-a=save-trip]'); await f.waitForSelector('.stn');
     const gone = () => f.waitForFunction(() => !document.querySelector('.sheet-bg')), tot = () => f.evaluate(() => { const t = state.trips[0]; return t.savings[t.members[0].id] || 0; }), list = () => f.innerText('#app .scroll');
-    assert.ok((await list()).includes('積立の記録') && (await list()).includes('積み立てると、ここに、記録が残ります'), 'the list is there from the start (empty, with a line that says what it is)');
+    assert.ok(!(await list()).includes('積立の記録') && !(await list()).includes('積み立てると、ここに'), 'nothing to list yet: no empty list and no second explanation (v189; the めやす card is the one thing shown here)');
     await f.evaluate(() => { const t = state.trips[0]; t.savings[t.members[0].id] = 10000; delete t.savelog; render(); });   // what an older version saved: a total, no history
     let ls = await list(); assert.ok(ls.includes('それ以前の積立') && ls.includes('記録なし') && ls.includes('+10,000円'), 'the old total is one grey row: ' + ls); assert.strictEqual(await f.locator('#app .slog-rest').count(), 1);
     await f.click('.item [data-a=add-save]'); await f.waitForSelector('#f-save'); await f.fill('#f-save', '5000'); await f.click('[data-a=save-saving]'); await gone(); assert.strictEqual(await tot(), 15000);
