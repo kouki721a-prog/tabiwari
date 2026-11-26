@@ -225,7 +225,11 @@ html,body{overscroll-behavior-x:none}
 .t-bot .t-label{white-space:nowrap}
 .t-bot b{display:block;font-size:calc(18px*var(--ts));font-weight:700}
 .t-bot .warn{color:#ff9a92}
-.sav-amt{font-weight:700;font-size:calc(16px*var(--ts));white-space:nowrap}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good);font-weight:500}
+.sav-amt{font-weight:700;font-size:calc(16px*var(--ts));white-space:nowrap}
+/* v192: 積立の人ごとの行も、精算と同じ切符の形（旅の色の縁）。バーに、25%ごとの目盛り（上の切符の駅と同じ）。 */
+.list:has(>.item.sav){background:transparent;border:0;border-radius:0;overflow:visible;box-shadow:none}
+.item.sav{background:var(--cream);border-radius:14px;margin-top:8px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy);padding-left:16px}.item.sav:first-child{margin-top:0}.item.sav+.item.sav{border-top:0}
+.item.sav .bar{position:relative}.item.sav .bar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(25% - 2px),var(--cream) calc(25% - 2px) 25%)}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good);font-weight:500}
 .ticket.c .t-sub{font-size:calc(12px*var(--ts));opacity:.85;margin-top:6px}
 .t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
 .ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:calc(30px*var(--ts));line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
@@ -2251,7 +2255,7 @@ function tabSave(t){
   let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。積み立てた記録は、下の一覧に残ります。押すと、直したり、消したりできます。</div>') + '<div class="list">';
   h += t.members.map(m => {
     const v = t.savings[m.id] || 0, p = pctFloor(v, target), done = v >= target;
-    return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
+    return '<div class="item sav">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
       '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '</div></div>' +
       '<button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;min-height:44px;padding:9px 14px;font-size:calc(14px*var(--ts))">積み立てる</button></div>';
   }).join('') + '</div></div>' + saveLogList(t);
