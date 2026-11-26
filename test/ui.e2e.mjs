@@ -17,7 +17,7 @@ try {
   const ctx = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }), p = await ctx.newPage();
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   await p.setViewportSize({ width: 390, height: 780 });
-  await p.goto('http://localhost:8797/'); await see(p, 'いくら出したっけ');
+  await p.goto('http://localhost:8797/'); await see(p, '旅のお金を、片づけます');
   // the splash is plain HTML that is there before any script runs, and it is gone once the first screen is drawn
   assert.ok((await (await fetch('http://localhost:8797/')).text()).includes('<div id="splash"'), 'the splash is in the page itself'); await p.waitForFunction(() => !document.getElementById('splash'), null, { timeout: 3000 });
   // the first page (no trip yet) is a page to read: the hero with both buttons, the three moments with real screens, the features, notifications, how to start, FAQ, the second button, and the legal links at the very bottom
@@ -183,7 +183,7 @@ try {
 
   // undo after deleting a whole trip
   await p.click('[data-a=settings]'); await p.click('[data-a=ask-del-trip]'); await p.click('[data-a=del-trip]');
-  await see(p, '旅行を削除しました'); await see(p, 'いくら出したっけ');
+  await see(p, '旅行を削除しました'); await see(p, '旅のお金を、片づけます');
   await p.click('[data-a=undo]'); await see(p, '元に戻しました'); await see(p, '箱根');
   assert.strictEqual(await p.locator('h1').count(), 1, 'the home page has one level-1 heading'); assert.ok(/箱根/.test(await p.textContent('.trip .sr') + await p.textContent('.trip')) && /メンバー：あおい/.test(await p.textContent('.trip .sr')));
   await p.click('.trip'); await see(p, '夕食');
@@ -1177,10 +1177,11 @@ try {
   { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
     await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1');
       const mk = n => Array.from({ length: n }, (_, i) => ({ id: 'm' + i, name: ['こうき', 'あおい', 'けんた', 'みく', 'ゆう'][i], pos: i })), tr = (id, nm, a, e, k) => ({ id, name: nm, start: d(a), end: d(e), budget: 100000, paid: {}, savings: {}, settlements: [], adjustments: [], members: mk(k), expenses: [] });
-      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [tr('h1', '三人旅', -1, 1, 3), tr('h2', '五人旅', -1, 1, 5), tr('h3', '長旅', -3, 12, 2), tr('h4', '先の旅', 20, 22, 3)] })); });
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [tr('h1', '三人旅', -1, 1, 3), tr('h2', '五人旅', -1, 1, 5), tr('h3', '長旅', -3, 12, 2), tr('h4', '先の旅', 20, 22, 3), tr('h5', '初日の旅', 0, 2, 3)] })); });
     await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip');
     const has = nm => q.evaluate(n => { const el = [...document.querySelectorAll('.trip')].find(x => x.textContent.includes(n)); return el ? { mini: !!el.querySelector('.route.mini'), lit: el.querySelectorAll('.route.mini i.on').length, label: (el.querySelector('.route.mini span') || {}).textContent || '', inside: el.querySelector('.route.mini') ? (() => { const r = el.querySelector('.route.mini').getBoundingClientRect(), s = el.querySelector('.trip-s').getBoundingClientRect(); return r.right <= s.left + 1; })() : true } : null; }, nm);
     let r3 = await has('三人旅'); assert.ok(r3.mini && r3.lit === 2 && r3.label === '2日目' && r3.inside, 'a 3-day trip on day 2, 3 people: the mini route: ' + JSON.stringify(r3));
+    { const gl = await q.evaluate(() => { const el = [...document.querySelectorAll('.trip')].find(x => x.textContent.includes('初日の旅')), r = el.querySelector('.route.mini'), n = r.querySelector('i.now'), R = r.getBoundingClientRect(), N = n.getBoundingClientRect(), sp = parseFloat(getComputedStyle(n).boxShadow.split(' ').filter(x => /px$/.test(x)).pop()) || 0; return { left: Math.round((N.left - sp) - R.left), first: n === r.querySelector('i') }; }); assert.ok(gl.first && gl.left >= 0, 'on the first day the glow of the current station is not cut off on the left (it was): ' + JSON.stringify(gl)); }
     assert.strictEqual((await has('五人旅')).mini, false, 'five faces: no room, no route'); assert.strictEqual((await has('長旅')).mini, false, 'a long trip: no mini route'); assert.strictEqual((await has('先の旅')).mini, false, 'not started: no route');
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
@@ -1246,7 +1247,7 @@ try {
     if (motion === 'reduce') assert.strictEqual(await q.locator('.qpop').count(), 0, 'reduce motion: no celebration'); else { assert.ok((await q.innerText('.qpop')).includes('第1章 クリア'), 'chapter 1 is cleared: ' + await q.innerText('.qpop')); await q.waitForFunction(() => !document.querySelector('.qpop'), null, { timeout: 4000 }); await q.evaluate(() => render()); await q.waitForTimeout(600); assert.strictEqual(await q.locator('.qpop').count(), 0, 'and it is not celebrated twice'); }
     await q.evaluate(() => { const t = state.trips[0], d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; const E = (i, cat, dd) => ({ id: i, title: 'x', amount: 1000, payer: 'a', cat: cat, date: dd, split: ['a', 'b', 'c'] }); t.expenses = t.expenses.concat([E('g1', 'sight', d(1)), E('g2', 'gift', d(1)), E('g3', 'food', d(-1))]); t.settlements = [{ id: 's1', at: d(0), total: 1, transfers: [{ from: 'b', to: 'a', amount: 1 }] }]; t.paid[payKey(1, { from: 'b', to: 'a', amount: 1 })] = true; render(); }); await q.waitForTimeout(900);
     if (motion === 'no-preference'){ await q.waitForSelector('.qpop.gold', { timeout: 4500 });   /* it waits for the stamp that was pressed at the same moment: one reward at a time */ const gc = await q.locator('.qpop.gold').count(); assert.ok(gc === 1 && (await q.innerText('.qpop.gold')).includes('金の判子を手に入れました'), 'the gold seal (' + gc + '): ' + await q.locator('.qpop').allInnerTexts()); await q.waitForSelector('.confetti i', { timeout: 1500 }); await q.waitForFunction(() => !document.querySelector('.qpop'), null, { timeout: 4500 }); }
-    await q.click('[data-a=stamps-open]'); await q.waitForSelector('.qhero.gold'); await q.waitForTimeout(1600); assert.ok((await q.innerText('.qhero')).includes('100') && (await q.innerText('.qgold')).includes('金の判子'), 'the sheet shows the gold seal');
+    await q.click('[data-a=stamps-open]'); await q.waitForSelector('.qhero.gold'); { const sl = await q.evaluate(() => { const s = document.querySelector('.qseal'), r = s.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(s); const g = rg.getBoundingClientRect(), cs = getComputedStyle(s); return { dx: Math.round(((g.left + g.right) / 2) - ((r.left + r.right) / 2)), dy: Math.round(((g.top + g.bottom) / 2) - ((r.top + r.bottom) / 2)), fs: parseFloat(cs.fontSize), disp: cs.display }; }); assert.ok(Math.abs(sl.dx) <= 2 && Math.abs(sl.dy) <= 3 && sl.fs >= 20 && sl.disp === 'grid', 'the 金 sits in the middle of its seal, at full size: ' + JSON.stringify(sl)); } await q.waitForTimeout(1600); assert.ok((await q.innerText('.qhero')).includes('100') && (await q.innerText('.qgold')).includes('金の判子'), 'the sheet shows the gold seal');
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   // 連続記録とミッション（v202）: 路線の横のピル（炎＝連続・✓＝今日のミッション）→ シート。記録で、ミッションが進み、小さなバナー・ぜんぶで大きなお祝い（一度だけ）
@@ -1310,6 +1311,9 @@ try {
     await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
     const sec = await q.evaluate(() => { const h = [...document.querySelectorAll('.lp-sec')].find(e => e.querySelector('h2') && e.querySelector('h2').textContent.includes('記録するたびに、旅が進む')); return h ? h.innerText.replace(/\s+/g, ' ') : null; });
     assert.ok(sec && sec.includes('今日のミッション') && sec.includes('連続の炎') && sec.includes('旅の道のり') && sec.includes('金の判子') && sec.includes('たびまる') && sec.includes('切符が出てきます'), 'the new section says what the app does now: ' + sec); assert.ok(!/[！!]/.test(sec) && !/至急|催促|成功しました/.test(sec), 'a quiet voice');
+    for (const w of [320, 360, 390, 430]){ await q.setViewportSize({ width: w, height: 844 }); const hl = await q.evaluate(() => { const h = document.querySelector('.lp-h'), fs = parseFloat(getComputedStyle(h).fontSize); return { lines: Math.round(h.getBoundingClientRect().height / (fs * 1.4)), fits: h.scrollWidth <= h.clientWidth + 1, text: h.textContent, fs: Math.round(fs) }; }); assert.ok(hl.lines === 1 && hl.fits && hl.text === '旅のお金を、片づけます。' && hl.fs >= 22, 'the headline is one line at ' + w + 'px: ' + JSON.stringify(hl)); }
+    for (const w of [360, 390, 430]){ await q.setViewportSize({ width: w, height: 844 }); const sh = await q.evaluate(() => [...document.querySelectorAll('.lp-hd h2')].map(h => ({ t: h.textContent, one: h.getBoundingClientRect().height < parseFloat(getComputedStyle(h).fontSize) * 1.8, fits: h.scrollWidth <= h.clientWidth + 1 }))); assert.ok(sh.every(x => x.one && x.fits), 'the section headings with a picture stay on one line at ' + w + 'px: ' + JSON.stringify(sh)); }
+    await q.setViewportSize({ width: 390, height: 844 });
     for (const n of ['mission', 'quest']){ await q.locator('.lp-shot img[src*="' + n + '"]').scrollIntoViewIfNeeded(); await q.waitForFunction(n2 => { const i = document.querySelector('.lp-shot img[src*="' + n2 + '"]'); return i && i.complete && i.naturalWidth === 732; }, n, { timeout: 4000 }); assert.ok(fs.existsSync(path.join(dist, 'icons', 'lp', n + '.png')), n + '.png is published'); }
     assert.ok((await q.innerText('.lp-faq')).includes('道のりやたびまるの成長は、友だちにも見えますか'), 'a question about what friends can see');
     assert.ok(await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll on the first page'); assert.strictEqual(await q.locator('[data-a=new]').count(), 1, 'still one make-a-trip button');
@@ -1358,6 +1362,19 @@ try {
       const out = []; box.querySelectorAll('svg').forEach((sv, i) => { const vb = sv.viewBox.baseVal; if (!vb || !vb.width) return; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; sv.querySelectorAll('path,circle,rect,ellipse,line,text').forEach(e => { try { const bb = e.getBBox(), cs = getComputedStyle(e), sw = (cs.stroke && cs.stroke !== 'none') ? (parseFloat(cs.strokeWidth) || 0) : 0, h = sw / 2; x0 = Math.min(x0, bb.x - h); y0 = Math.min(y0, bb.y - h); x1 = Math.max(x1, bb.x + bb.width + h); y1 = Math.max(y1, bb.y + bb.height + h); } catch(er){} });
         if (x0 > 1e8 || getComputedStyle(sv).overflow === 'visible') return; const o = { l: vb.x - x0, r: x1 - (vb.x + vb.width), t: vb.y - y0, b: y1 - (vb.y + vb.height) }; if (Math.max(o.l, o.r, o.t, o.b) > 0.15) out.push(i + ' ' + JSON.stringify(o)); }); box.remove(); return out; });
     assert.deepStrictEqual(bad, [], 'no picture is cut off by its own frame: ' + bad.join(' | '));
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
+  // 最初のページの切符から始める（v211）: 切符が上にある・欄は押せる（44px）・押すと、旅行をつくる画面が、その欄にすぐ入力できる状態で開く
+  for (const [v, id, typed] of [['name', 'd-name', true], ['dates', 'd-start', false], ['me', 'd-me', true], ['budget', 'd-budget', true]]) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', hasTouch: true }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
+    if (v === 'name'){
+      const g = await q.evaluate(() => { const tk = document.querySelector('.lp-tk').getBoundingClientRect(), inv = document.querySelector('[data-a=join-paste]').getBoundingClientRect(), lead = document.querySelector('.lp-lead').getBoundingClientRect(); return { n: document.querySelectorAll('.lp-f').length, hs: [...document.querySelectorAll('.lp-f')].map(e => Math.round(Math.min(e.getBoundingClientRect().height, e.getBoundingClientRect().width))), aboveInvite: tk.bottom <= inv.top, belowLead: tk.top >= lead.bottom, visible: tk.top < innerHeight * .75, hint: document.querySelector('.lp-hint').textContent }; });
+      assert.ok(g.n === 4 && g.hs.every(x => x >= 44) && g.aboveInvite && g.belowLead && g.visible && g.hint.includes('欄を押すと'), 'the ticket comes first, its four fields are 44px buttons: ' + JSON.stringify(g)); assert.strictEqual(await q.locator('[data-a=new]').count(), 1, 'still one ［旅行をつくる］'); assert.ok(await q.$$eval('.lp-f b', els => els.every(e => e.getBoundingClientRect().height < 30)), 'every value of the ticket stays on one line (the 日程 broke into two)');
+    }
+    await q.click('[data-a=new-focus][data-v=' + v + ']'); await q.waitForSelector('#d-name');
+    const af = await q.evaluate(() => ({ id: document.activeElement.id, view: ui.view, empty: !ui.draft.name })); assert.deepStrictEqual([af.id, af.view, af.empty], [id, 'new', true], 'the field you pressed is ready: ' + JSON.stringify(af));
+    if (typed){ await q.keyboard.type('5'); assert.strictEqual(await q.inputValue('#' + id), '5', 'and what you type goes into it'); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
