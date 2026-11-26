@@ -551,6 +551,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .qgold{display:flex;align-items:center;gap:14px;margin:4px 0 8px;padding:14px;border:1.5px dashed var(--dash);border-radius:16px}.qseal{flex:none;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:calc(22px*var(--ts));font-weight:800;color:var(--sub);border:2.5px dashed var(--sub)}
 .qgold b{display:block;font-size:calc(14px*var(--ts))}.qgold span{display:block;margin-top:2px;font-size:calc(12px*var(--ts));line-height:1.5;color:var(--sub)}.qgold.on{border:0;background:linear-gradient(135deg,#7a5a00,#c99a00 55%,#f3cf5a);color:#2a1d00}.qgold.on span{color:#4a3500}.qgold.on .qseal{color:#2a1d00;border:2.5px solid #2a1d00;background:radial-gradient(circle at 35% 30%,#fff6d0,#ffd45e);box-shadow:inset 0 0 0 3px rgba(255,255,255,.6)}
 .stpop.gold .stp{background:radial-gradient(circle at 35% 30%,#fff6d0,#ffd45e 55%,#d9a400)}.qpop-s{display:inline-block;margin-top:10px;padding:6px 14px;border-radius:99px;background:var(--paper);color:var(--ink);font-size:15px;font-weight:600;transform:rotate(8deg)}
+.sti{display:block;width:1.3em;height:1.3em;fill:none;stroke:currentColor;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}.stp .sti{margin:auto}   /* v203: category stamps are pictures */
 .stgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px 4px;padding:18px 0 8px;text-align:center}.stgrid>div{display:flex;flex-direction:column;align-items:center;gap:6px}.stgrid .stp{margin:6px}
 .stgrid>div>span:last-child{font-size:calc(11px*var(--ts));line-height:1.3}.stgrid small{display:block;font-size:calc(11px*var(--ts));color:var(--sub)}
 .route{display:flex;align-items:center;height:20px;margin:0 2px 8px}.route i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--dash)}.route i.on{background:var(--sun)}.route i.now{width:13px;height:13px;box-shadow:0 0 0 4px color-mix(in srgb,var(--sun) 30%,transparent)}.route u{flex:1;min-width:6px;border-top:2px dashed var(--dash)}.route u.y{border-top:3px solid var(--sun)}.route span{flex:none;margin-left:10px;font-family:var(--mono);font-size:calc(11px*var(--ts));color:var(--sub);white-space:nowrap}   /* v187: the days of the trip as stations on a dashed route (lit up to today) */
@@ -1687,7 +1688,7 @@ function recapCanvas(d, icon){
     const R = 31, gap = 72, x0 = W / 2 - (stp.length - 1) * gap / 2, cy = y + 22 + 22 + R + 8;
     stp.forEach((q, i) => { const cx = x0 + i * gap; g.save(); g.translate(cx, cy); g.rotate([-.1, .09, -.05, .12, -.14][i % 5]); const gr = g.createRadialGradient(-10, -12, 4, 0, 0, R); gr.addColorStop(0, '#ffe08a'); gr.addColorStop(1, '#ffc83d');
       g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill(); g.strokeStyle = NAVY; g.lineWidth = 3; g.stroke(); g.setLineDash([4, 5]); g.globalAlpha = .55; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, R + 6, 0, 7); g.stroke(); g.restore(); g.globalAlpha = 1;
-      font(700, 30); text(q.k, cx, cy + 11, NAVY, 'center'); });
+      if (STAMP_ICON[q.id]){ g.save(); g.translate(cx - 17, cy - 17); g.scale(34 / 24, 34 / 24); g.strokeStyle = NAVY; g.lineWidth = 2.1; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke(new Path2D(STAMP_ICON[q.id])); g.restore(); } else { font(700, 30); text(q.k, cx, cy + 11, NAVY, 'center'); } });
     if (d.quest){   // v201: how far the trip got on its map, and the gold seal when everything was done
       const qy = y + 178, label = '旅の完成度 ' + d.quest.pct + '%', cx0 = W / 2 + (d.quest.gold ? 28 : 0); font(600, 30); g.globalAlpha = .8; text(label, cx0, qy, INK, 'center'); g.globalAlpha = 1;
       if (d.quest.gold){ const R2 = 22, sx = cx0 - w(label) / 2 - 36, sy = qy - 10; g.save(); g.translate(sx, sy); g.rotate(-.12); const gr = g.createRadialGradient(-7, -8, 3, 0, 0, R2); gr.addColorStop(0, '#fff6d0'); gr.addColorStop(.6, '#ffd45e'); gr.addColorStop(1, '#d9a400'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R2, 0, 7); g.fill(); g.strokeStyle = NAVY; g.lineWidth = 3; g.stroke(); g.restore(); font(800, 24); text('金', sx, sy + 8, NAVY, 'center'); }
@@ -2279,7 +2280,14 @@ function motionMoney(){
 }
 /* ---- stamps (v146) ---- */
 const STAMP_SEEN = 'tabiwari.stampseen';   // this device only: which stamps were already shown as "pressed" (per trip), so each pops once. Not synced, not in backups.
-const stampEl = (x, sm, i) => '<span class="stp' + (sm ? ' sm' : '') + (x.on ? '' : ' off') + '" style="--r:' + [-6, 5, -3, 7, -8][i % 5] + 'deg">' + x.k + '</span>';
+/* the five category stamps are small line pictures, not characters (v203): a fork and knife, a train, a bed, a camera, a gift. One path each, so the same drawing works as SVG on the screen and as Path2D on the recap picture. */
+const STAMP_ICON = { food: 'M5 3v6M8 3v6M11 3v6M5 9a3 3 0 0 0 6 0M8 12v9M18 21V3c-2.4 1.1-3.4 3.8-3.4 7.2H18',
+  transport: 'M7 3h10a2 2 0 0 1 2 2v10a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V5a2 2 0 0 1 2-2zM5 11h14M9 7h6M9 15h.01M15 15h.01M8 18l-2 3M16 18l2 3',
+  stay: 'M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-8v6M6.5 12h.01',
+  sight: 'M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM12 17.2a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2z',
+  gift: 'M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7c-1-3-5-3.5-5-1.3S10 7 12 7M12 7c1-3 5-3.5 5-1.3S14 7 12 7' };
+const stampMark = (id, k) => STAMP_ICON[id] ? '<svg class="sti" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' + STAMP_ICON[id] + '"/></svg>' : esc(k);
+const stampEl = (x, sm, i) => '<span class="stp' + (sm ? ' sm' : '') + (x.on ? '' : ' off') + '" style="--r:' + [-6, 5, -3, 7, -8][i % 5] + 'deg">' + stampMark(x.id, x.k) + '</span>';
 const dayNoOf = (t, d) => (t.start && d >= t.start && d <= t.end) ? dayDiff(t.start, d) + 1 : 0;
 function routeParts(t){   // days / today's number, only while travelling and only for 2 to 14 days
   if (status(t)[0] !== '旅行中') return null;
@@ -2569,7 +2577,7 @@ function questSub(it){
   return 'まだ';
 }
 function questRow(it, open){
-  const extra = it.id === 'cats' ? '<span class="qcats" aria-hidden="true">' + it.cats.map(c => '<span class="stp sm' + (c.on ? '' : ' off') + '">' + c.k + '</span>').join('') + '</span>'
+  const extra = it.id === 'cats' ? '<span class="qcats" aria-hidden="true">' + it.cats.map(c => '<span class="stp sm' + (c.on ? '' : ' off') + '">' + stampMark(c.id, c.k) + '</span>').join('') + '</span>'
     : it.id === 'every' && it.of <= 14 ? '<span class="qdays" aria-hidden="true">' + Array.from({ length: it.of }, (_, i) => '<i class="' + (i < it.n ? 'on' : '') + '"></i>').join('') + '</span>' : '';
   const go = QUEST_GO[it.id];
   return '<li class="qrow' + (it.on ? ' on' : '') + (open ? ' open' : '') + '"><button type="button" class="qb" data-a="quest-open" data-v="' + it.id + '" aria-expanded="' + open + '">' +
@@ -2593,7 +2601,7 @@ function missionRow(m, t){
     sub = m.state === 'on' ? '目安のなかです。（' + yen(m.spent) + ' / ' + yen(m.guide) + '）' : m.state === 'over' ? '今日は、目安を少し超えました。また明日。（' + yen(m.spent) + ' / ' + yen(m.guide) + '）' : '今日の目安は ' + yen(m.guide) + ' です。';
     mid = '<span class="mbar' + (m.state === 'over' ? ' over' : '') + '" aria-hidden="true"><i style="width:' + pct + '%"></i></span>';
   } else sub = m.auto ? '五つのカテゴリが、そろっています。' : m.done ? '新しいカテゴリを、記録しました。' : 'まだ：' + m.missing.map(c => c.name).join('・');
-  if (m.id === 'cat' && !m.auto) mid = '<span class="qcats" aria-hidden="true">' + QUEST_CATS.map(c => '<span class="stp sm' + (m.missing.some(x => x.id === c[0]) ? ' off' : '') + '">' + c[1] + '</span>').join('') + '</span>';
+  if (m.id === 'cat' && !m.auto) mid = '<span class="qcats" aria-hidden="true">' + QUEST_CATS.map(c => '<span class="stp sm' + (m.missing.some(x => x.id === c[0]) ? ' off' : '') + '">' + stampMark(c[0], c[1]) + '</span>').join('') + '</span>';
   return '<li class="mrow ' + (m.done ? 'done' : m.state === 'over' ? 'over' : 'todo') + '"><span class="mck" aria-hidden="true">' + (m.done ? icon('check', 16) : m.state === 'over' ? '–' : '') + '</span><div class="mt"><b>' + esc(m.name) + '</b><small>' + esc(sub) + '</small>' + mid + (go && m.id !== 'guide' ? go : '') + '</div></li>';
 }
 function missionBody(t){

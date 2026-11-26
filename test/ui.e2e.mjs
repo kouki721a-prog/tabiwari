@@ -338,7 +338,7 @@ try {
     assert.ok((await q.innerText('.stbar')).replace(/\s+/g, ' ').includes('スタンプ 6/10'), 'transport, stay, food, the first record, "everyone" and the savings = 6: ' + await q.innerText('.stbar'));
     await q.waitForTimeout(400); assert.strictEqual(await q.locator('.stpop').count(), 0, 'stamps that were already there do not pop when the trip is first opened');
     await q.click('[data-a=stamps-open]'); await q.waitForSelector('.qhero'); await q.click('[data-a=quest-tab][data-v=stamps]'); await q.waitForSelector('.stgrid');
-    assert.strictEqual(await q.locator('.stgrid > div').count(), 10); assert.strictEqual(await q.locator('.stgrid .stp.off').count(), 4, 'four are still to come');
+    assert.strictEqual(await q.locator('.stgrid > div').count(), 10); assert.strictEqual(await q.locator('.stgrid .stp svg').count(), 5, 'the five category stamps are pictures (v203)'); assert.deepStrictEqual(await q.$$eval('.stgrid .stp:not(:has(svg))', els => els.map(e => e.textContent.trim())), ['初', '割', '積', '精', '済'], 'the others keep their character'); assert.strictEqual(await q.locator('.stgrid .stp svg[aria-hidden=true]').count(), 5); assert.strictEqual(await q.locator('.stgrid .stp.off').count(), 4, 'four are still to come');
     const book = await q.innerText('.sheet'); assert.ok(book.includes('旅のスタンプ') && book.includes('食事') && book.includes('お土産') && book.includes('まだ') && book.includes('11/18'), book);
     await q.click('[data-a=close-sheet]'); await q.waitForFunction(() => !document.querySelector('.sheet'));
     // recording a new kind of spending presses a stamp: it pops, goes away by itself, and the row counts it; the same kind again does not pop
