@@ -213,10 +213,10 @@ html,body{overscroll-behavior-x:none}
 .t-top{padding:12px 20px 10px}
 .t-label{font-size:calc(13px*var(--ts));opacity:.85}
 .t-amount{font-size:calc(38px*var(--ts));font-weight:700;line-height:1.2;letter-spacing:-.02em}
-.t-amount.neg{color:#ff9a92}
+.t-amount.neg{color:#ffbcb6}
 .t-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.18);margin-top:8px;overflow:hidden}
 .t-bar i{display:block;height:100%;background:var(--sun);border-radius:99px}
-.t-bar.over i{background:#ff9a92}
+.t-bar.over i{background:#ffbcb6}
 .t-perf{position:relative;height:0;border-top:2px dashed rgba(255,255,255,.28);margin:0 18px}
 .t-perf::before,.t-perf::after{content:"";position:absolute;top:-13px;width:24px;height:24px;border-radius:50%;background:var(--paper)}
 .t-perf::before{left:-30px}
@@ -224,7 +224,7 @@ html,body{overscroll-behavior-x:none}
 .t-bot{display:grid;grid-template-columns:auto 1fr;gap:16px;padding:10px 20px 12px}
 .t-bot .t-label{white-space:nowrap}
 .t-bot b{display:block;font-size:calc(18px*var(--ts));font-weight:700}
-.t-bot .warn{color:#ff9a92}
+.t-bot .warn{color:#ffbcb6}
 .sav-amt{font-weight:700;font-size:calc(16px*var(--ts));white-space:nowrap}
 /* v192: 積立の人ごとの行も、精算と同じ切符の形（旅の色の縁）。バーに、25%ごとの目盛り（上の切符の駅と同じ）。 */
 .list:has(>.item.sav){background:transparent;border:0;border-radius:0;overflow:visible;box-shadow:none}
@@ -234,8 +234,8 @@ html,body{overscroll-behavior-x:none}
 .t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
 .ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:calc(30px*var(--ts));line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
 .ticket.m .t-bot{margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28)}.ticket.m .t-bot b{font-size:calc(16px*var(--ts))}.ticket.m .t-bot .t-label{font-size:calc(12px*var(--ts))}
-.ticket.m .t-hero{margin-top:2px}.ticket.m .t-hero b{font-size:calc(17px*var(--ts));font-weight:700}.ticket.m .t-hero b.warn{color:#ff9a92}.ticket.m .t-foot{margin-top:2px}.ticket.m .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m .t-foot b{font-size:calc(14px*var(--ts));opacity:1;margin-left:2px}
-.ufold{display:flex;justify-content:space-between;align-items:center;gap:8px;width:calc(100% - 36px);margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28);font-size:calc(12px*var(--ts));color:rgba(255,255,255,.8);text-align:left}.ufold em{font-style:normal;color:#ff9a92;margin-left:6px;font-weight:700}
+.ticket.m .t-hero{margin-top:2px}.ticket.m .t-hero b{font-size:calc(17px*var(--ts));font-weight:700}.ticket.m .t-hero b.warn{color:#ffbcb6}.ticket.m .t-foot{margin-top:2px}.ticket.m .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m .t-foot b{font-size:calc(14px*var(--ts));opacity:1;margin-left:2px}
+.ufold{display:flex;justify-content:space-between;align-items:center;gap:8px;width:calc(100% - 36px);margin:0 18px;padding:8px 0 10px;border-top:2px dashed rgba(255,255,255,.28);font-size:calc(12px*var(--ts));color:rgba(255,255,255,.8);text-align:left}.ufold em{font-style:normal;color:#ffbcb6;margin-left:6px;font-weight:700}
 .ticket.c{border-radius:16px;padding:9px 16px 11px}.ticket.c .t-amount{font-size:calc(22px*var(--ts));line-height:1.2}.ticket.c .t-bar{height:5px;margin-top:6px}
 
 /* lists */
@@ -299,7 +299,7 @@ html,body{overscroll-behavior-x:none}
 .fline{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 2px 0;font-size:calc(13px*var(--ts));color:var(--sub)}.fline .link{color:var(--ink);font-weight:600}
 .usage{display:block;width:100%;text-align:left;font:inherit;color:inherit}.usage.thin{padding:8px 14px;font-size:calc(13px*var(--ts));color:var(--sub);text-align:center}.legend2 .over{color:var(--bad);font-weight:700}
 .subrow{display:flex;align-items:center;justify-content:space-between;gap:8px}.subrow .mem-row{margin:0;flex:none}.subrow .mem-row .btn.sm{min-height:44px;padding:5px 14px;font-size:calc(13px*var(--ts))}
-.usage.in{background:none;border:0;border-radius:0;padding:0 18px 12px;color:#fff}.usage.in .seg{background:rgba(255,255,255,.18);height:8px;margin:0 0 7px}.usage.in .legend2{color:rgba(255,255,255,.78)}.usage.in .legend2 .over{color:#ff9a92}.usage.in.thin{padding:8px 0 12px;color:rgba(255,255,255,.7);text-align:left;border-top:2px dashed rgba(255,255,255,.28);margin:0 18px;width:auto}
+.usage.in{background:none;border:0;border-radius:0;padding:0 18px 12px;color:#fff}.usage.in .seg{background:rgba(255,255,255,.18);height:8px;margin:0 0 7px}.usage.in .legend2{color:rgba(255,255,255,.78)}.usage.in .legend2 .over{color:#ffbcb6}.usage.in.thin{padding:8px 0 12px;color:rgba(255,255,255,.7);text-align:left;border-top:2px dashed rgba(255,255,255,.28);margin:0 18px;width:auto}
 .legend2 .dot{width:8px;height:8px;border-radius:50%;background:hsl(var(--h) 70% 55%)}
 .legend2 b{color:var(--ink)}
 .panel{background:var(--cream);border:1.5px dashed var(--dash);border-radius:20px;padding:16px}
@@ -425,7 +425,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--ts));border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
 /* the budget card as a boarding pass (v148): the main part, a perforated stub on the right, a notch at both ends of the perforation */
 .ticket.m.stub{display:flex;position:relative;--stub:calc(112px*var(--ts));border-radius:16px}
-.ticket.m.stub .tk-l{flex:1;min-width:0}.ticket.m.stub .t-top{padding:11px 12px 12px 18px}.ticket.m.stub .t-foot{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.foot-more{flex:none;display:inline-flex;align-items:center;min-height:44px;margin:-14px 0;font-size:calc(12px*var(--ts));color:rgba(255,255,255,.8);padding:2px 0 2px 16px;white-space:nowrap}.foot-more.over{color:#ff9a92;font-weight:700}
+.ticket.m.stub .tk-l{flex:1;min-width:0}.ticket.m.stub .t-top{padding:11px 12px 12px 18px}.ticket.m.stub .t-foot{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.foot-more{flex:none;display:inline-flex;align-items:center;min-height:44px;margin:-14px 0;font-size:calc(12px*var(--ts));color:rgba(255,255,255,.8);padding:2px 0 2px 16px;white-space:nowrap}.foot-more.over{color:#ffbcb6;font-weight:700}
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
@@ -433,7 +433,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .plan-go{width:100%;margin-top:10px;padding:11px 14px}
 .fly{position:fixed;z-index:56;pointer-events:none;white-space:nowrap;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:6px;padding:8px 16px;font-family:var(--mono);font-weight:600;font-size:calc(15px*var(--ts));font-variant-numeric:tabular-nums;box-shadow:0 6px 16px rgba(15,39,66,.22)}
 .stn{position:relative;height:12px;margin:3px 0 1px}.stn:before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1.5px dashed rgba(255,255,255,.22)}.stn i{position:absolute;top:1px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);background:var(--navy);box-sizing:border-box}.stn i:last-child{margin-left:-9px}.stn i.on{background:var(--sun);border-color:var(--sun)}
-.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ff9a92}
+.tk-s .t-label{display:block;font-size:calc(12px*var(--ts));white-space:normal}.tk-s b{display:block;font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.tk-s b.warn{color:#ffbcb6}
 .ticket.m.stub:before,.ticket.m.stub:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.ticket.m.stub:before{top:-9px}.ticket.m.stub:after{bottom:-9px}
 /* the home card as a trip ticket (v148): the trip on the left, a perforated stub with the money on the right, a notch at both ends of the perforation */
 .trip-l{flex:1;min-width:0;padding:14px 12px 14px 16px}.trip-s{flex:none;width:var(--stub);border-left:2px dashed var(--dash);padding:14px 12px 14px 14px;display:flex;align-items:center}
@@ -518,8 +518,22 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .stp.sm{width:30px;height:30px;font-size:calc(13px*var(--ts));border-width:2px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}.stp.sm:after{display:none}
 .stbar{width:100%;display:flex;align-items:center;gap:10px;background:transparent;border:1.5px dashed var(--dash);border-radius:16px;padding:9px 12px;margin:10px 0 2px;text-align:left;color:var(--ink)}
 .strow{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden}.sttxt{text-align:right;flex:none}.sttxt b{font-size:calc(13px*var(--ts))}.sttxt small{display:block;color:var(--sub);font-size:calc(12px*var(--ts))}
+/* 連続記録とミッション (v202) */
+.rtrow{display:flex;align-items:center;gap:10px;margin:0 2px 8px;min-height:20px}.rtrow .route{flex:1;min-width:0;margin:0}
+.rt-pill{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:-12px -6px;padding:0 6px;border-radius:99px}.rt-pill>span{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:99px;background:var(--soft);color:var(--ink);font-size:calc(12.5px*var(--ts));font-variant-numeric:tabular-nums}.rt-pill b{font-weight:700}
+.flame{fill:none;stroke:var(--sub);stroke-width:1.6;stroke-linejoin:round}.flame.on,.rt-fl.on .flame{fill:#ff7a1a;stroke:#c2410c}.rt-fl.on{background:color-mix(in srgb,#ff9a3c 26%,var(--cream))}.rt-ms.all{background:color-mix(in srgb,var(--good) 22%,var(--cream));color:var(--good-t)}
+.mhero{display:flex;align-items:center;gap:16px;margin-bottom:10px;padding:14px 16px;border-radius:18px;background:var(--cream);box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--dash)}.mhero.lit{box-shadow:0 1px 0 var(--dash),inset 4px 0 0 #ff9a3c}
+.mflame{position:relative;flex:none;width:72px;height:72px;display:grid;place-items:center}.mflame .flame{position:absolute;inset:4px;width:64px;height:64px}.mflame .flame.on{filter:drop-shadow(0 0 8px rgba(255,140,40,.55))}.mnum{position:relative;z-index:1;margin-top:16px;font-size:calc(21px*var(--ts));font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}.mhero.lit .mnum{color:#2a1d00}
+.mtext{min-width:0}.mtext .mono{color:var(--sub)}.mtext b{display:block;margin:1px 0 3px;font-size:calc(20px*var(--ts))}.mtext span{display:block;font-size:calc(12px*var(--ts));line-height:1.55;color:var(--sub)}
+.mdays{display:flex;justify-content:space-between;gap:4px;margin:0 0 12px;padding:2px}.md{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}.md i{display:block;width:100%;max-width:26px;aspect-ratio:1;border-radius:50%;border:2px dashed var(--dash);background:var(--cream)}.md.on i{background:radial-gradient(circle at 35% 30%,#ffd28a,#ff9a3c);border:2px solid #0f2742}.md.today i{border:2.5px solid var(--sun);box-shadow:0 0 0 3px color-mix(in srgb,var(--sun) 30%,transparent)}.md.future i{opacity:.55}.md small{font-size:calc(11px*var(--ts));color:var(--sub);white-space:nowrap;font-variant-numeric:tabular-nums}
+.mcard{margin-bottom:10px;padding:12px 14px;border-radius:16px;background:var(--cream);box-shadow:0 1px 0 var(--dash)}.mcard>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}.mcard>header b{font-size:calc(15px*var(--ts))}
+.mlist{margin:0;padding:0;list-style:none}.mrow{display:flex;gap:12px;padding:10px 0;border-top:1.5px dashed var(--dash)}.mrow:first-child{border-top:0}.mck{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:2px dashed var(--sub);color:var(--sub);font-weight:700}.mrow.done .mck{background:var(--good);border:2px solid var(--good);color:#fff}.mrow.over .mck{border-style:solid}
+.mt{flex:1;min-width:0}.mt b{display:block;font-size:calc(14px*var(--ts));font-weight:600}.mt small{display:block;margin-top:2px;font-size:calc(12px*var(--ts));line-height:1.55;color:var(--sub)}.mt .btn{width:auto;min-height:44px;margin-top:8px;padding:0 18px}.mt .qcats{margin-top:8px}
+.mbar{display:block;height:8px;margin:8px 0 2px;border-radius:99px;background:var(--soft);overflow:hidden}.mbar i{display:block;height:100%;border-radius:99px;background:var(--sun)}.mbar.over i{background:var(--sub)}
+.mall{margin:2px 0 6px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--good) 16%,var(--cream));color:var(--good-t);font-size:calc(13px*var(--ts));font-weight:700}.mnote{margin:6px 0 10px;font-size:calc(12.5px*var(--ts));line-height:1.6;color:var(--sub)}.mmedal .btn{min-height:44px}
+.mtoast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);z-index:59;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 32px);padding:10px 16px;border-radius:99px;background:var(--ink);color:var(--paper);font-size:calc(13.5px*var(--ts));font-weight:600;pointer-events:none;box-shadow:0 6px 16px rgba(0,0,0,.25)}.mtoast .flame{flex:none}
 /* 旅のクエスト (v201) */
-.qseg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin:0 0 12px;background:var(--soft);border-radius:14px}.qseg button{min-height:44px;border-radius:11px;font-weight:600;font-size:calc(14px*var(--ts));color:var(--sub)}.qseg button[aria-selected=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(14,34,56,.16)}
+.qseg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;margin:0 0 12px;background:var(--soft);border-radius:14px}.qseg button{min-height:44px;padding:0 4px;border-radius:11px;font-weight:600;font-size:calc(13px*var(--ts));color:var(--sub);white-space:nowrap}.qseg button[aria-selected=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(14,34,56,.16)}
 .qhero{display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:18px;background:var(--navy);color:#fff;margin-bottom:10px}.qhero.gold{background:linear-gradient(135deg,#7a5a00,#c99a00 55%,#f3cf5a);color:#2a1d00}
 .qring{position:relative;flex:none;width:96px;height:96px}.qring svg{width:100%;height:100%}.qr-tr{fill:none;stroke:rgba(255,255,255,.22);stroke-width:9}.qr-fl{fill:none;stroke:var(--sun);stroke-width:9;stroke-linecap:round}.qhero.gold .qr-tr{stroke:rgba(42,29,0,.2)}.qhero.gold .qr-fl{stroke:#fff6d0}
 .qpct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(27px*var(--ts));font-weight:800;font-variant-numeric:tabular-nums;line-height:1}.qpct small{position:relative;top:.12em;margin-left:1px;font-size:.5em;font-weight:700}
@@ -532,7 +546,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .qlist{position:relative;margin:0;padding:0;list-style:none}.qlist:before{content:"";position:absolute;left:17px;top:30px;bottom:30px;border-left:2px dashed var(--dash)}.qch.clear .qlist:before{border-left:3px solid var(--sun)}
 .qb{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:6px 0;text-align:left}.qb .stp.sm{position:relative;z-index:1;flex:none;width:36px;height:36px;margin:0;font-size:calc(13px*var(--ts))}.qb .stp.sm.off{background:var(--cream);opacity:1;border:2px dashed var(--sub)}
 .ql{flex:1;min-width:0}.ql b{display:block;font-size:calc(14px*var(--ts));font-weight:600}.ql small{display:block;margin-top:1px;font-size:calc(12px*var(--ts));color:var(--sub)}.qb .chev{flex:none;color:var(--sub)}
-.qcats{display:flex;gap:5px;margin-top:6px}.qcats .stp.sm{width:26px;height:26px;margin:0;font-size:calc(11px*var(--ts))}.qdays{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.qdays i{width:9px;height:9px;border-radius:50%;background:var(--dash)}.qdays i.on{background:var(--sun)}
+.qcats{display:flex;gap:5px;margin-top:6px}.qcats .stp.sm{width:26px;height:26px;margin:0;font-size:calc(11px*var(--ts))}.qcats .stp.off{opacity:1;background:var(--cream);color:var(--sub);border:2px dashed var(--sub)}.qdays{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.qdays i{width:9px;height:9px;border-radius:50%;background:var(--dash)}.qdays i.on{background:var(--sun)}
 .qx{margin:0 0 8px 48px;padding:10px 12px;background:var(--paper);border-radius:12px}.qx p{margin:0 0 8px;font-size:calc(12.5px*var(--ts));line-height:1.6;color:var(--sub)}.qx p:last-child{margin:0}.qx .btn{width:auto;min-height:44px;padding:0 18px}
 .qgold{display:flex;align-items:center;gap:14px;margin:4px 0 8px;padding:14px;border:1.5px dashed var(--dash);border-radius:16px}.qseal{flex:none;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:calc(22px*var(--ts));font-weight:800;color:var(--sub);border:2.5px dashed var(--sub)}
 .qgold b{display:block;font-size:calc(14px*var(--ts))}.qgold span{display:block;margin-top:2px;font-size:calc(12px*var(--ts));line-height:1.5;color:var(--sub)}.qgold.on{border:0;background:linear-gradient(135deg,#7a5a00,#c99a00 55%,#f3cf5a);color:#2a1d00}.qgold.on span{color:#4a3500}.qgold.on .qseal{color:#2a1d00;border:2.5px solid #2a1d00;background:radial-gradient(circle at 35% 30%,#fff6d0,#ffd45e);box-shadow:inset 0 0 0 3px rgba(255,255,255,.6)}
@@ -980,6 +994,31 @@ function questOf(t, today){
   var done = items.filter(function(x){ return x.on; }).length, total = items.length, left = items.filter(function(x){ return !x.on; });
   var inCur = left.filter(function(x){ return x.ch === cur; });
   return { items: items, chapters: chapters, done: done, total: total, pct: Math.floor(done * 100 / total), gold: done === total, left: total - done, next: (inCur[0] || left[0]) || null, phase: phase };
+}
+/* ---- 連続記録とミッション (v202): worked out from the trip's own dates every time; nothing is saved. A day "counts" when it has at least one expense dated that day. The streak is the run of such days that
+   ends today; if today has no record yet, the streak is not broken (yesterday's run is shown, and one record today carries it on). The three missions of the day (only while travelling) are small and kind: no red, no "failed". ---- */
+function streakOf(t, today){
+  var days = tripDays(t.start, t.end), have = {}; (t.expenses || []).forEach(function(e){ have[e.date] = 1; });
+  var last = today > t.end ? t.end : today, list = days.map(function(d){ return { d: d, on: !!have[d], today: d === today, future: d > today }; });
+  var best = 0, run = 0; days.forEach(function(d){ if (have[d]){ run++; if (run > best) best = run; } else run = 0; });
+  var idx = days.indexOf(last), todayOn = idx >= 0 && !!have[last], k = todayOn || last !== today ? idx : idx - 1, cur = 0;
+  while (k >= 0 && have[days[k]]){ cur++; k--; }
+  var passed = days.filter(function(d){ return d <= today; });
+  return { days: list, cur: today < t.start ? 0 : cur, best: best, todayOn: todayOn, recorded: days.filter(function(d){ return have[d]; }).length, total: days.length, passed: passed.length };
+}
+function missionsOf(t, today){
+  if (today < t.start || today > t.end) return null;
+  var ex = t.expenses || [], todaySum = 0, all = 0; ex.forEach(function(e){ all += e.amount; if (e.date === today) todaySum += e.amount; });
+  var left = dayDiff(today, t.end) + 1, guide = Math.max(0, Math.floor(((t.budget > 0 ? t.budget : 0) - (all - todaySum)) / left));
+  var has = ex.some(function(e){ return e.date === today; }), st = {}; stampsOf(t).forEach(function(x){ st[x.id] = x; });
+  var cats = QUEST_CATS.map(function(c){ return { id: c[0], k: c[1], name: c[2], on: !!st[c[0]].on, date: st[c[0]].date }; }), missing = cats.filter(function(c){ return !c.on; }), catToday = cats.some(function(c){ return c.date === today; });
+  var gState = todaySum === 0 ? 'todo' : (guide > 0 && todaySum <= guide) ? 'on' : 'over';
+  var list = [
+    { id: 'rec', name: '今日の1件を記録する', done: has },
+    { id: 'guide', name: '今日の目安のなかにおさめる', done: gState === 'on', state: gState, guide: guide, spent: todaySum },
+    missing.length || catToday ? { id: 'cat', name: '新しいカテゴリを1つ記録する', done: catToday, missing: missing } : { id: 'cat', name: 'カテゴリ集めは、コンプリート済み', done: true, auto: true, missing: [] }
+  ];
+  return { list: list, done: list.filter(function(x){ return x.done; }).length, total: list.length, all: list.every(function(x){ return x.done; }) };
 }
 /* 積立のめやす (v163). What one person should put aside, worked out each time (nothing is saved): from today to departure, once a week on the weekday of
    departure; further than 12 weeks away, once a month on the day of the month of departure. What is still missing is divided over the dates left, so a skipped
@@ -1580,7 +1619,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
-  stampWatch(); questWatch(); lpObserve(); motionMoney(); motionHome(performance.now()); motionQuest(performance.now()); motionSendoff(performance.now()); sendoffCheck(); maruPaceCheck(); wrapCheck();
+  stampWatch(); questWatch(); missionWatch(); lpObserve(); motionMoney(); motionHome(performance.now()); motionQuest(performance.now()); motionSendoff(performance.now()); sendoffCheck(); maruPaceCheck(); wrapCheck();
 }
 let pageSlide = null;
 /* 設定 → アカウント (push) and back (pop): the sheet, its dark background and its corners stay; the content slides sideways, as in iPhone's settings */
@@ -2148,9 +2187,14 @@ function questCount(){   // the number in the ring counts up (one loop at a time
 function motionQuest(now){
   const at = ui.questAt; if (!at) return;
   const sh = ui.sheet; if (!sh || sh.type !== 'quest' || sh.tab === 'stamps'){ ui.questAt = 0; return; }
-  const fl = document.querySelector('.sheet .qr-fl'); if (!fl) return;
+  const mis = sh.tab === 'mission', fl = document.querySelector('.sheet .qr-fl'); if (!mis && !fl) return;
   if (!calm() || !document.body.animate || now - at > QUEST_MS + 1400){ ui.questAt = 0; return; }
   const play = (el, kf, dur, start, ease) => { const e = now - start; if (e >= dur) return; const a = el.animate(kf, { duration: dur, delay: e < 0 ? -e : 0, fill: 'backwards', easing: ease || 'cubic-bezier(.2,.8,.2,1)' }); if (e > 0) a.currentTime = e; };
+  if (mis){   // the day's missions: the flame pops, the days light up one after another, the cards rise
+    const mf = document.querySelector('.sheet .mflame'); if (mf) play(mf, [{ opacity: 0, transform: 'scale(.5)' }, { opacity: 1, transform: 'scale(1.18)', offset: .6 }, { opacity: 1, transform: 'none' }], 520, at + 40, 'cubic-bezier(.3,1.4,.5,1)');
+    [...document.querySelectorAll('.sheet .md i')].forEach((el, i) => play(el, [{ opacity: 0, transform: 'scale(.3)' }, { opacity: 1, transform: 'scale(1.25)', offset: .55 }, { opacity: 1, transform: 'none' }], 300, at + 260 + i * 36, 'cubic-bezier(.3,1.4,.5,1)'));
+    [...document.querySelectorAll('.sheet .mcard')].forEach((el, i) => play(el, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 420, at + 300 + i * 90)); return;
+  }
   const to = Number(document.querySelector('.sheet .qpct').dataset.v);
   play(fl, [{ strokeDasharray: '0 100' }, { strokeDasharray: to + ' 100' }], QUEST_MS, at + 80, 'cubic-bezier(.3,.7,.3,1)');
   [...document.querySelectorAll('.sheet .qnext, .sheet .qch, .sheet .qgold')].forEach((el, i) => play(el, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 420, at + 260 + i * 90));
@@ -2159,10 +2203,10 @@ function motionQuest(now){
 }
 /* the goals that were reached while the app was used (v201): a chapter cleared, the gold seal. Once each, on this device (a trip this device sees for the first time does not celebrate what is already done). */
 const QUEST_SEEN = 'tabiwari.questseen';
-function questPop(title, sub, gold){
+function questPop(title, sub, gold, mark){
   if (!calm() || !document.body.animate) return;
   const d = document.createElement('div'); d.className = 'stpop big qpop' + (gold ? ' gold' : ''); d.setAttribute('aria-hidden', 'true');
-  d.innerHTML = '<i class="stpop-ring"></i><span class="stp">' + (gold ? '金' : '章') + '</span><div class="stpop-t">' + esc(title) + '</div>' + (sub ? '<div class="qpop-s">' + esc(sub) + '</div>' : '');
+  d.innerHTML = '<i class="stpop-ring"></i><span class="stp">' + (mark || (gold ? '金' : '章')) + '</span><div class="stpop-t">' + esc(title) + '</div>' + (sub ? '<div class="qpop-s">' + esc(sub) + '</div>' : '');
   document.body.appendChild(d);
   const ms = 2100, at = 'translate(-50%,-50%) ', a = d.animate([{ opacity: 0, transform: at + 'scale(1.9) rotate(-18deg)' }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .18 }, { opacity: 1, transform: at + 'scale(1) rotate(-8deg)', offset: .82 }, { opacity: 0, transform: at + 'scale(.96) rotate(-8deg)' }], { duration: ms, easing: 'cubic-bezier(.22,1,.36,1)' });
   d.querySelector('.stpop-ring').animate([{ transform: 'translate(-50%,-50%) scale(.9)', opacity: .8 }, { transform: 'translate(-50%,-50%) scale(2.2)', opacity: 0 }], { duration: 900, delay: Math.round(ms * .18), easing: 'ease-out', fill: 'backwards' });
@@ -2178,6 +2222,25 @@ function questWatch(){
   const wait = document.querySelector('.stpop') ? 2200 : 400;   // one reward at a time: after a stamp
   if (goldNew) setTimeout(() => questPop('金の判子を手に入れました', t.name + 'の道のりを、ぜんぶ歩きました。', true), wait);
   else { const c = q.chapters.filter(x => x.n === fresh[0])[0]; setTimeout(() => questPop('第' + c.n + '章 クリア', c.name, false), wait); }
+}
+/* ---- the day's missions (v202): a small banner when one is done, a big one when all three are. Once each, on this device (tabiwari.misseen = { trip: { d: day, m: bits } }); the first look at a trip on a day only remembers what is already done. ---- */
+const MIS_SEEN = 'tabiwari.misseen';
+function missionToast(msg){
+  if (!calm() || !document.body.animate) return;
+  const d = document.createElement('div'); d.className = 'mtoast'; d.setAttribute('aria-hidden', 'true'); d.innerHTML = flameSvg(16, 'on') + '<span>' + esc(msg) + '</span>'; document.body.appendChild(d);
+  const a = d.animate([{ opacity: 0, transform: 'translate(-50%,-14px)' }, { opacity: 1, transform: 'translate(-50%,0)', offset: .16 }, { opacity: 1, transform: 'translate(-50%,0)', offset: .84 }, { opacity: 0, transform: 'translate(-50%,-10px)' }], { duration: 2200, easing: 'cubic-bezier(.2,.8,.2,1)' }); a.onfinish = a.oncancel = () => d.remove();
+}
+function missionWatch(){
+  const t = trip(); if (!t) return;
+  const today = todayStr(), ms = missionsOf(t, today); if (!ms) return;
+  const mask = ms.list.reduce((a, m, i) => a | (m.done ? 1 << i : 0), 0); let seen = {}; try { seen = JSON.parse(lsGet(MIS_SEEN)) || {}; } catch(e){ seen = {}; }
+  const keep = () => { const ks = Object.keys(seen); ks.slice(0, Math.max(0, ks.length - 60)).forEach(k => delete seen[k]); lsSet(MIS_SEEN, JSON.stringify(seen)); }, me = seen[t.id];
+  if (!me || me.d !== today){ seen[t.id] = { d: today, m: mask }; keep(); return; }
+  const fresh = mask & ~me.m; if (mask !== me.m){ seen[t.id] = { d: today, m: mask }; keep(); } if (!fresh) return;
+  const names = ms.list.filter((m, i) => fresh & (1 << i)), wait = document.querySelector('.stpop, .qpop') ? 2300 : 300;
+  const fl = document.querySelector('.rt-fl .flame'); if (fl && calm() && fresh & 1) fl.animate([{ transform: 'scale(.7)' }, { transform: 'scale(1.7) rotate(-8deg)', offset: .5 }, { transform: 'none' }], { duration: 560, easing: 'cubic-bezier(.3,1.4,.5,1)' });
+  if (ms.all) setTimeout(() => questPop('今日のミッション、ぜんぶ達成', streakOf(t, today).cur + '日連続です。', false, '炎'), wait);
+  else setTimeout(() => missionToast('ミッション達成：' + (names.length > 1 ? names.length + 'つ' : names[0].name) + '（' + ms.done + '/' + ms.total + '）'), wait);
 }
 /* a recorded expense (v162): a small receipt flies from where it was typed into the budget ticket. One overlay on <body> (like tearOff), so a redraw cannot cut it.
    flyFrom() is read BEFORE the redraw (the place it starts); recFly() runs after it (the ticket is drawn again by then). */
@@ -2224,9 +2287,10 @@ function routeParts(t){   // days / today's number, only while travelling and on
   let h = ''; for (let k = 1; k <= days; k++){ h += '<i class="' + (k <= cur ? 'on' : '') + (k === cur ? ' now' : '') + '"></i>' + (k < days ? '<u class="' + (k < cur ? 'y' : '') + '"></u>' : ''); }
   return { days: days, cur: cur, h: h };
 }
-function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today.
-  const r = routeParts(t); if (!r) return '';
-  return '<div class="route" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '<span>' + r.cur + '日目 / ' + r.days + '日</span></div>';
+function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today. v202: the pill beside it opens the day's missions (flame = the streak).
+  if (status(t)[0] !== '旅行中') return '';
+  const r = routeParts(t), pill = missionPill(t);
+  return '<div class="rtrow">' + (r ? '<div class="route" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '</div>' : '<div class="route solo"></div>') + pill + '</div>';
 }
 function routeMini(t){   // v195: the same route, small, on the home card (to the right of the faces)
   const r = routeParts(t); if (!r || r.days > 10 || t.members.length > 4) return '';   // no room beside many faces or for many stations: the trip screen has the full one
@@ -2294,7 +2358,7 @@ const maruOn = () => lsGet(MARU_KEY) !== '0';
 function maruSay(key, line, retry){
   if (!maruOn()) return false;
   if (ui.maruBusy || document.querySelector('.stpop, .sheet-bg:not(.ghost)')){   // a reward or a sheet is up: wait and try once more (it is NOT counted as shown)
-    if (retry == null) setTimeout(() => maruSay(key, line, 0), 2200); return false; }
+    if (retry == null || retry < 3) setTimeout(() => maruSay(key, line, retry == null ? 0 : retry + 1), 2200); return false; }   // v202: up to four tries (the rewards of the quest and the missions can follow one another)
   let seen = {}; try { seen = JSON.parse(lsGet(MARU_SEEN)) || {}; } catch(e){ seen = {}; }
   if (seen[key]) return false;
   seen[key] = 1; const ks = Object.keys(seen); ks.slice(0, Math.max(0, ks.length - 200)).forEach(k => delete seen[k]); lsSet(MARU_SEEN, JSON.stringify(seen));
@@ -2512,10 +2576,47 @@ function questRow(it, open){
     '<span class="stp sm' + (it.on ? '' : ' off') + '" aria-hidden="true">' + esc(it.k) + '</span><span class="ql"><b>' + esc(it.name) + '</b><small>' + esc(questSub(it)) + '</small>' + extra + '</span><span class="chev' + (open ? ' open' : '') + '" aria-hidden="true">' + icon('chev', 16) + '</span></button>' +
     (open ? '<div class="qx"><p>' + esc(it.on ? 'この目標は、達成しました。' : QUEST_HINT[it.id] || '') + '</p>' + (!it.on && go ? '<button type="button" class="btn sm" data-a="quest-go" data-v="' + it.id + '">' + go[0] + '</button>' : '') + '</div>' : '') + '</li>';
 }
+/* ---- 連続記録とミッション (v202): the pill beside the route (flame = the streak, check = today's missions) and the sheet it opens. ---- */
+const FLAME_PATH = 'M12 2.4c.5 3.3-2.9 4.9-3.9 8.2-.9 3 .9 5.9 3.9 5.9s4.8-2.3 3.9-5.5c-.4-1.6-1.4-2.4-1.9-4-.7 1.1-1.2 1.6-2 1.6 1.3-2.3 1.2-4.5 0-6.2z';
+const flameSvg = (n, cls) => '<svg class="flame ' + (cls || '') + '" viewBox="0 0 24 24" width="' + n + '" height="' + n + '" aria-hidden="true" focusable="false"><path d="' + FLAME_PATH + '"/></svg>';
+function missionPill(t){
+  const sk = streakOf(t, todayStr()), ms = missionsOf(t, todayStr()); if (!ms) return '';
+  return '<button type="button" class="rt-pill" data-a="mission-open" aria-label="連続記録とミッション。連続' + sk.cur + '日。今日のミッション ' + ms.done + '/' + ms.total + '"><span class="rt-fl' + (sk.todayOn ? ' on' : '') + '">' + flameSvg(14) + '<b>' + sk.cur + '</b></span><span class="rt-ms' + (ms.all ? ' all' : '') + '">' + icon('check', 13) + '<b>' + ms.done + '/' + ms.total + '</b></span></button>';
+}
+const mdState = d => d.future ? 'future' : d.on ? 'on' : d.today ? 'today' : 'off';
+function missionRow(m, t){
+  const go = m.done ? '' : '<button type="button" class="btn sm" data-a="quest-go" data-v="first">記録する</button>';
+  let sub = '', mid = '';
+  if (m.id === 'rec') sub = m.done ? '記録しました。' : '支出を1件、記録します。';
+  else if (m.id === 'guide'){
+    const pct = m.guide > 0 ? Math.min(100, Math.round(m.spent / m.guide * 100)) : (m.spent > 0 ? 100 : 0);
+    sub = m.state === 'on' ? '目安のなかです。（' + yen(m.spent) + ' / ' + yen(m.guide) + '）' : m.state === 'over' ? '今日は、目安を少し超えました。また明日。（' + yen(m.spent) + ' / ' + yen(m.guide) + '）' : '今日の目安は ' + yen(m.guide) + ' です。';
+    mid = '<span class="mbar' + (m.state === 'over' ? ' over' : '') + '" aria-hidden="true"><i style="width:' + pct + '%"></i></span>';
+  } else sub = m.auto ? '五つのカテゴリが、そろっています。' : m.done ? '新しいカテゴリを、記録しました。' : 'まだ：' + m.missing.map(c => c.name).join('・');
+  if (m.id === 'cat' && !m.auto) mid = '<span class="qcats" aria-hidden="true">' + QUEST_CATS.map(c => '<span class="stp sm' + (m.missing.some(x => x.id === c[0]) ? ' off' : '') + '">' + c[1] + '</span>').join('') + '</span>';
+  return '<li class="mrow ' + (m.done ? 'done' : m.state === 'over' ? 'over' : 'todo') + '"><span class="mck" aria-hidden="true">' + (m.done ? icon('check', 16) : m.state === 'over' ? '–' : '') + '</span><div class="mt"><b>' + esc(m.name) + '</b><small>' + esc(sub) + '</small>' + mid + (go && m.id !== 'guide' ? go : '') + '</div></li>';
+}
+function missionBody(t){
+  const today = todayStr(), sk = streakOf(t, today), ms = missionsOf(t, today), q = questOf(t, today), ev = q.items.filter(x => x.id === 'every')[0];
+  const note = sk.cur > 0 && !sk.todayOn && ms ? '今日の記録で、' + (sk.cur + 1) + '日連続につながります。' : sk.cur === 0 && ms ? '今日の1件で、連続が始まります。' : '記録のある日が、つながっています。';
+  let list = sk.days, at = list.findIndex(d => d.today); if (at < 0) at = list.length - 1; if (list.length > 14){ const st0 = Math.max(0, Math.min(list.length - 14, at - 9)); list = list.slice(st0, st0 + 14); }
+  let h = '<div class="mhero' + (sk.todayOn ? ' lit' : '') + '"><div class="mflame">' + flameSvg(64, sk.todayOn ? 'on' : '') + '<b class="mnum">' + sk.cur + '</b></div><div class="mtext"><div class="mono">連続記録</div><b>' + sk.cur + '日連続</b><span>最長 ' + sk.best + '日・記録のある日 ' + sk.recorded + '/' + sk.total + '</span><span>' + esc(note) + '</span></div></div>' +
+    '<div class="mdays" role="img" aria-label="旅の日ごとの記録">' + list.map(d => '<span class="md ' + mdState(d) + '"><i></i><small>' + qMd(d.d) + '</small></span>').join('') + '</div>';
+  if (ms){
+    h += '<section class="mcard"><header><b>今日のミッション</b><span class="qc">' + ms.done + '/' + ms.total + '</span></header>' + (ms.all ? '<div class="mall">今日のミッション、ぜんぶ達成です。</div>' : '') + '<ul class="mlist">' + ms.list.map(m => missionRow(m, t)).join('') + '</ul></section>';
+  } else {
+    const pre = today < t.start;
+    h += '<section class="mcard"><header><b>今日のミッション</b></header><p class="mnote">' + (pre ? '旅行が始まると、今日のミッションが出ます。出発は ' + qMd(t.start) + ' です。' : 'この旅のミッションは、終わりました。おつかれさまでした。') + '</p></section>';
+  }
+  h += '<section class="mcard mmedal' + (ev.on ? ' on' : '') + '"><header><b>「毎日記録」メダル</b><span class="qc">' + ev.n + '/' + ev.of + '日</span></header><span class="mbar" aria-hidden="true"><i style="width:' + Math.round(ev.n / Math.max(1, ev.of) * 100) + '%"></i></span><p class="mnote">' + (ev.on ? 'ぜんぶの日に、記録がありました。' : 'あと ' + (ev.of - ev.n) + ' 日分の記録で、そろいます。道のりの目標のひとつです。') + '</p><button type="button" class="btn line sm" data-a="quest-tab" data-v="way">道のりを見る</button></section>';
+  return h;
+}
 function questBody(t, s){
   const q = questOf(t, todayStr()), all = stampsOf(t), n = all.filter(x => x.on).length, who = t.members.length > 1 ? 'みんなで、ここまで来ました' : 'ここまで来ました';
-  let h = '<div class="qseg" role="tablist"><button type="button" role="tab" data-a="quest-tab" data-v="way" aria-selected="' + (s.tab !== 'stamps') + '">道のり</button><button type="button" role="tab" data-a="quest-tab" data-v="stamps" aria-selected="' + (s.tab === 'stamps') + '">スタンプ ' + n + '/' + all.length + '</button></div>';
-  if (s.tab === 'stamps'){
+  const tab = s.tab === 'stamps' ? 'stamps' : s.tab === 'mission' ? 'mission' : 'way', tb = (v, lab) => '<button type="button" role="tab" data-a="quest-tab" data-v="' + v + '" aria-selected="' + (tab === v) + '">' + lab + '</button>';
+  let h = '<div class="qseg" role="tablist">' + tb('mission', 'ミッション') + tb('way', '道のり') + tb('stamps', 'スタンプ ' + n + '/' + all.length) + '</div>';
+  if (tab === 'mission') return h + missionBody(t);
+  if (tab === 'stamps'){
     return h + '<div class="sub">' + esc(t.name) + '・' + n + '/' + all.length + '</div><div class="stgrid">' + all.map((x, i) => '<div>' + stampEl(x, false, i) + '<span>' + esc(x.name) + '<small>' + (x.on ? (x.date ? qMd(x.date) : '達成') : 'まだ') + '</small></span></div>').join('') + '</div>' +
       '<div class="sub sm" style="text-align:center;margin-top:4px">記録や精算で、スタンプが押されます。旅のまとめ画像にも並びます。</div>';
   }
@@ -2781,7 +2882,7 @@ function viewSheet(){
     }
   }
   if (s.type === 'quest'){
-    ttl = s.tab === 'stamps' ? '旅のスタンプ' : '旅の道のり'; body = questBody(t, s);
+    ttl = s.tab === 'stamps' ? '旅のスタンプ' : s.tab === 'mission' ? '今日のミッション' : '旅の道のり'; body = questBody(t, s);
     foot = '<button class="link" data-a="close-sheet">閉じる</button>';
   }
   if (s.type === 'join-loading'){
@@ -3327,7 +3428,8 @@ document.addEventListener('click', e => {
   else if (a === 'wrap-recap'){ ui.sheet = null; ui.view = 'trip'; ui.tripId = id; ui.tab = 'exp'; ui.resetScroll = true; const wt = state.trips.find(x => x.id === id); if (wt){ openRecap(wt); return; } }
   else if (a === 'coach-ok'){ if (t) lsSet(coachKey(t), null); }
   else if (a === 'stamps-open'){ ui.sheet = { type: 'quest', tab: 'way', open: null }; ui.questAt = performance.now(); }
-  else if (a === 'quest-tab'){ if (s && s.type === 'quest'){ s.tab = el.getAttribute('data-v') === 'stamps' ? 'stamps' : 'way'; s.open = null; ui.questAt = performance.now(); } }
+  else if (a === 'mission-open'){ ui.sheet = { type: 'quest', tab: 'mission', open: null }; ui.questAt = performance.now(); }
+  else if (a === 'quest-tab'){ if (s && s.type === 'quest'){ s.tab = ['stamps', 'mission'].indexOf(el.getAttribute('data-v')) >= 0 ? el.getAttribute('data-v') : 'way'; s.open = null; ui.questAt = performance.now(); } }
   else if (a === 'quest-open'){ if (s && s.type === 'quest'){ const v = el.getAttribute('data-v'); s.open = s.open === v ? null : v; } }
   else if (a === 'quest-go'){ const g = QUEST_GO[el.getAttribute('data-v')]; if (!g || !t) return; ui.sheet = null; ui.tab = g[1]; ui.enterAt = performance.now(); ui.resetScroll = true;
     if (g[1] === 'exp') openAddExp(t); else if (g[1] === 'save') ui.sheet = { type: 'save', id: meId(t), err: '' }; }   // the goal's button takes you to where it is done
