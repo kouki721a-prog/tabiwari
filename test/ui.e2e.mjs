@@ -337,7 +337,7 @@ try {
     let q = await open();
     assert.ok((await q.innerText('.stbar')).replace(/\s+/g, ' ').includes('スタンプ 6/10'), 'transport, stay, food, the first record, "everyone" and the savings = 6: ' + await q.innerText('.stbar'));
     await q.waitForTimeout(400); assert.strictEqual(await q.locator('.stpop').count(), 0, 'stamps that were already there do not pop when the trip is first opened');
-    await q.click('[data-a=stamps-open]'); await q.waitForSelector('.stgrid');
+    await q.click('[data-a=stamps-open]'); await q.waitForSelector('.qhero'); await q.click('[data-a=quest-tab][data-v=stamps]'); await q.waitForSelector('.stgrid');
     assert.strictEqual(await q.locator('.stgrid > div').count(), 10); assert.strictEqual(await q.locator('.stgrid .stp.off').count(), 4, 'four are still to come');
     const book = await q.innerText('.sheet'); assert.ok(book.includes('旅のスタンプ') && book.includes('食事') && book.includes('お土産') && book.includes('まだ') && book.includes('11/18'), book);
     await q.click('[data-a=close-sheet]'); await q.waitForFunction(() => !document.querySelector('.sheet'));
@@ -1138,7 +1138,7 @@ try {
     await q.setViewportSize({ width: 360, height: 664 }); await q.evaluate(() => { state.trips.find(x => x.id === 'r1').expenses[0].amount = 124000; render(); });
     { const w = await q.$eval('#exp-list .sec > h2', h2 => ({ h: h2.getBoundingClientRect().height, one: [...h2.children].filter(c => !c.classList.contains('stbar')).every(c => c.getBoundingClientRect().height < 30), text: h2.innerText.replace(/\s+/g, ' ') })); assert.ok(w.h < 40 && w.one, 'a narrow screen with a big amount: the day heading stays on one line: ' + JSON.stringify(w)); }
     await q.setViewportSize({ width: 390, height: 664 });
-    await q.click('[data-a=stamps-open]'); await q.waitForSelector('.stgrid'); await q.click('.sheet [data-a=close-sheet]');
+    await q.click('[data-a=stamps-open]'); await q.waitForSelector('.qhero'); await q.click('[data-a=quest-tab][data-v=stamps]'); await q.waitForSelector('.stgrid'); await q.click('.sheet [data-a=close-sheet]');
     await q.click('[data-a=home]'); await q.click('.trip:has-text("日帰り")'); await q.waitForSelector('.nav'); assert.strictEqual(await q.locator('.route').count(), 0, 'a one-day trip has no route');
     await q.click('[data-a=home]'); await q.click('.trip:has-text("来月")'); await q.waitForSelector('.nav'); assert.strictEqual(await q.locator('.route').count(), 0, 'a trip that has not started has no route');
     // 押せる大きさ（v188）: 追加シートの［誰が払った］［誰の分］［全員］［割合・金額］、積立の［積み立てる］、精算の［済みにする］、切符の［内訳］は、44px 以上
@@ -1223,6 +1223,30 @@ try {
       await q.click('[data-a=tab][data-t=settle]'); assert.strictEqual(await q.evaluate(() => ui.tab), 'settle', 'a tap goes through it');
       await q.waitForSelector('.confetti i', { timeout: 2500 }); assert.ok(await q.locator('.confetti i').count() >= 20, 'confetti once the stamp is pressed');
       await q.waitForFunction(() => !document.querySelector('.issue') && !document.querySelector('.confetti'), null, { timeout: 4500 }); }
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
+  // 旅のクエスト（v201）: ［スタンプ］のシートの「道のり」。完成度・次の目標・章・行を押すと説明とボタン・目標のボタンで、その場所へ・章クリアと金の判子のお祝い（一度だけ）
+  for (const motion of ['no-preference', 'reduce']) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: motion }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }, { id: 'c', name: 'けんた', pos: 2 }], E = (i, tt, a, p, cat, dd) => ({ id: i, title: tt, amount: a, payer: p, cat: cat, date: dd, split: ['a', 'b', 'c'] });
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 'q1', name: '箱根', start: d(-1), end: d(1), budget: 120000, paid: {}, savings: { a: 50000, b: 30000, c: 20000 }, settlements: [], adjustments: [], members: m, expenses: [E('e1', '夕食', 12000, 'b', 'food', d(0)), E('e2', '電車', 3600, 'a', 'transport', d(0)), E('e3', '宿', 54000, 'a', 'stay', d(-1))] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.nav'); await q.waitForTimeout(300); await q.click('[data-a=stamps-open]'); await q.waitForSelector('.qhero');
+    const ring = () => q.evaluate(() => ({ txt: document.querySelector('.qpct').firstChild.textContent, v: document.querySelector('.qpct').dataset.v, dash: document.querySelector('.qr-fl').getAttribute('stroke-dasharray') }));
+    if (motion === 'no-preference'){ await q.waitForTimeout(160); const r0 = await ring(); assert.ok(Number(r0.txt) < 50, 'the number counts up: ' + JSON.stringify(r0)); }
+    await q.waitForTimeout(1700); let r = await ring(); assert.deepStrictEqual([r.txt, r.v, r.dash], ['50', '50', '50 100'], 'the ring ends on the real percentage (5 of 10 goals): ' + JSON.stringify(r));
+    const tx = await q.innerText('.sheet'); assert.ok(tx.includes('旅の完成度') && tx.includes('みんなで、ここまで来ました') && tx.includes('あと 5 個で、金の判子') && tx.includes('出発の前') && tx.includes('旅のあいだ') && tx.includes('帰ってから'), 'the map says where we are: ' + tx.slice(0, 200));
+    assert.ok((await q.innerText('.qnext')).includes('食・交・宿・遊・土を集める'), 'the next goal is the first one still to do in the chapter we are in'); assert.deepStrictEqual(await q.$$eval('.qch', els => els.map(e => e.className.replace('qch ', ''))), ['open', 'now', 'later']);
+    assert.ok((await q.$$eval('.qb, .qseg button, .qnext .btn', els => els.map(e => Math.round(e.getBoundingClientRect().height)))).every(x => x >= 44), 'everything you press is 44px or more');
+    await q.click('[data-a=quest-open][data-v=cats]'); assert.ok((await q.innerText('.qx')).includes('食事・交通・宿泊・観光・お土産'), 'a row opens its hint'); assert.strictEqual(await q.getAttribute('[data-a=quest-open][data-v=cats]', 'aria-expanded'), 'true'); assert.ok((await q.locator('.qpct').first().getAttribute('data-v')) === '50', 'opening a row does not redraw the ring away');
+    await q.click('[data-a=quest-open][data-v=cats]'); assert.strictEqual(await q.locator('.qx').count(), 0, 'and closes again');
+    await q.click('[data-a=quest-tab][data-v=stamps]'); await q.waitForSelector('.stgrid'); assert.ok((await q.innerText('.sheet')).includes('旅のスタンプ'), 'the second tab is the stamp book'); await q.click('[data-a=quest-tab][data-v=way]'); await q.waitForSelector('.qhero');
+    await q.click('.qnext [data-a=quest-go]'); await q.waitForSelector('#f-amount'); assert.strictEqual(await q.evaluate(() => ui.tab), 'exp', 'the goal button takes you to where it is done (the new expense sheet)'); await q.click('.sheet [data-a=close-sheet]');
+    // a chapter is cleared while the app is open: one celebration, once; then everything done: the gold seal
+    await q.evaluate(() => { const t = state.trips[0]; t.savings = { a: 60000, b: 40000, c: 20000 }; render(); }); await q.waitForTimeout(700);
+    if (motion === 'reduce') assert.strictEqual(await q.locator('.qpop').count(), 0, 'reduce motion: no celebration'); else { assert.ok((await q.innerText('.qpop')).includes('第1章 クリア'), 'chapter 1 is cleared: ' + await q.innerText('.qpop')); await q.waitForFunction(() => !document.querySelector('.qpop'), null, { timeout: 4000 }); await q.evaluate(() => render()); await q.waitForTimeout(600); assert.strictEqual(await q.locator('.qpop').count(), 0, 'and it is not celebrated twice'); }
+    await q.evaluate(() => { const t = state.trips[0], d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; const E = (i, cat, dd) => ({ id: i, title: 'x', amount: 1000, payer: 'a', cat: cat, date: dd, split: ['a', 'b', 'c'] }); t.expenses = t.expenses.concat([E('g1', 'sight', d(1)), E('g2', 'gift', d(1)), E('g3', 'food', d(-1))]); t.settlements = [{ id: 's1', at: d(0), total: 1, transfers: [{ from: 'b', to: 'a', amount: 1 }] }]; t.paid[payKey(1, { from: 'b', to: 'a', amount: 1 })] = true; render(); }); await q.waitForTimeout(900);
+    if (motion === 'no-preference'){ await q.waitForSelector('.qpop.gold', { timeout: 4500 });   /* it waits for the stamp that was pressed at the same moment: one reward at a time */ const gc = await q.locator('.qpop.gold').count(); assert.ok(gc === 1 && (await q.innerText('.qpop.gold')).includes('金の判子を手に入れました'), 'the gold seal (' + gc + '): ' + await q.locator('.qpop').allInnerTexts()); await q.waitForSelector('.confetti i', { timeout: 1500 }); await q.waitForFunction(() => !document.querySelector('.qpop'), null, { timeout: 4500 }); }
+    await q.click('[data-a=stamps-open]'); await q.waitForSelector('.qhero.gold'); await q.waitForTimeout(1600); assert.ok((await q.innerText('.qhero')).includes('100') && (await q.innerText('.qgold')).includes('金の判子'), 'the sheet shows the gold seal');
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
