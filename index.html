@@ -206,6 +206,7 @@ html,body{overscroll-behavior-x:none}
 .home0-line{display:flex;flex-direction:column;gap:6px;padding:0 2px}
 .home0-line .sub{text-align:center}
 .home0 .legal{margin-top:12px}
+.jline{margin-top:12px}.jben{list-style:none;margin:8px 0 2px;padding:0;display:flex;flex-direction:column;gap:5px}.jben li{display:flex;gap:8px;align-items:flex-start;font-size:calc(13px*var(--ts));line-height:1.5}.jben b{flex:none;width:18px;height:18px;margin-top:1px;border-radius:50%;background:var(--good);color:#fff;font-size:11px;display:grid;place-items:center}.jor{display:flex;align-items:center;gap:8px;margin:12px 0 0;font-size:calc(12px*var(--ts));color:var(--sub)}.jor:before,.jor:after{content:"";flex:1;border-top:1.5px dashed var(--dash)}   /* v207: LINE login on the invitation sheet */
 .lineg.sm{height:36px;font-size:calc(14px*var(--ts))}.lineg.sm img{width:36px;height:36px}.lineg.sm span{padding:0 26px}
 .empty b{display:block;color:var(--ink);font-size:calc(17px*var(--ts));margin-bottom:6px}
 
@@ -1459,7 +1460,19 @@ async function lineInit(){
   } catch(e){ /* offline or no server: login simply is not offered */ }
   if (lsGet(LINE_ATTEMPT) && !lineAcct.user) linePoll(); else { lineAcct.waiting = false; }
   if (location.hash === '#admin'){ try { history.replaceState(null, '', location.pathname + location.search); } catch(e){} ui.sheet = { type: 'admin-claim', err: '', busy: false, done: false }; }   // the operator's door: open the page with #admin on the end of the address
-  render(); refreshNtfHome(); checkRemote(true); refreshAi();
+  render(); refreshNtfHome(); checkRemote(true); refreshAi(); resumePendingJoin();
+}
+/* an invitation that was open when the person went to log in with LINE (v207): the link's secret is not in the address any more, so it is kept for 30 minutes and opened again when the login is done. */
+const PENDING_JOIN = 'tabiwari.pendingjoin';
+async function resumePendingJoin(){
+  let p = null; try { p = JSON.parse(lsGet(PENDING_JOIN)); } catch(e){} if (!p || !p.token) return;
+  if (Date.now() - p.t > 30 * 60 * 1000){ lsSet(PENDING_JOIN, null); return; }
+  if (!lineAcct.user) return;   // not logged in yet: keep it
+  const sh = ui.sheet;
+  if (sh && sh.type === 'join-share' && sh.token === p.token){ lsSet(PENDING_JOIN, null); if (!sh.name && !sh.pick && lineName()) sh.name = lineName(); render(); return; }   // the page stayed open: the sheet is still there, just fill in the name
+  if (sh) return;   // something else is open: do not interrupt it (it is kept until it expires)
+  lsSet(PENDING_JOIN, null);
+  try { const j = await beginJoin(p.token); if (j && !ui.sheet){ ui.sheet = j; render(); } } catch(e){ flash(Share.errText(e)); }
 }
 async function lineLogin(){
   try { const a = await Line.begin(); lsSet(LINE_ATTEMPT, JSON.stringify({ id: a.id, secret: a.secret, t: Date.now() })); location.href = a.url; }
@@ -2869,12 +2882,13 @@ function viewSheet(){
     foot = err + (s.items && s.items.length ? '<button class="btn" data-a="bk-restore-go"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? '戻しています…' : '選んだ旅行を戻す') + '</button>' + (s.delAsk ? '<div class="sub" style="margin:8px 0">選んだ ' + s.pick.length + '件を、バックアップから削除します（この端末や、共有している旅行には、影響しません）。元に戻せません。</div><button class="btn bad" data-a="bk-del-yes">本当に削除する</button><button class="link" data-a="bk-del-no">やめる</button>' : '<button class="link bad" data-a="bk-del-go">選んだものを、バックアップから削除</button>') : '<button class="link" data-a="close-sheet">閉じる</button>');
   }
   if (s.type === 'join-share'){
-    const jt = s.trip; ttl = '「' + jt.name + '」に招待されました';
+    const jt = s.trip, canLine = lineAcct.login && !lineAcct.user, inLine = !!lineAcct.user; ttl = '「' + jt.name + '」に招待されました';
     body = '<div class="panel" style="margin-top:12px"><div class="num">' + esc(jt.name) + '</div><div class="sub">' + fmtDate(jt.start) + ' - ' + fmtDate(jt.end) + '・メンバー ' + jt.members.length + '人・支出 ' + jt.expenses.length + '件</div></div>' +
-      '<label class="lab" for="j-name">あなたの名前</label><input class="field" id="j-name" type="text" maxlength="50" value="' + esc(s.name) + '" placeholder="例：みく">' +
+      (canLine ? '<div class="jline"><button type="button" class="lineg" data-a="join-line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログインして参加</span></button><ul class="jben"><li><b aria-hidden="true">✓</b>精算のお知らせが、あなたのLINEに届きます</li><li><b aria-hidden="true">✓</b>名前は、LINEの名前が入ります</li><li><b aria-hidden="true">✓</b>端末を替えても、旅行を戻せます</li></ul><div class="jor">または、ログインせずに</div></div>' : '') +
+      '<label class="lab" for="j-name">あなたの名前</label><input class="field" id="j-name" type="text" maxlength="50" value="' + esc(s.name) + '" placeholder="例：みく">' + (inLine && s.name && s.name === lineName() ? '<div class="sub sm" style="margin-top:4px">LINEの名前が入っています。変えられます。</div>' : '') +
       (jt.members.length ? '<span class="lab">すでに参加している人（別の端末から入り直すとき）</span><div class="chips">' + jt.members.map(m => '<button class="chip ' + (s.pick === m.id ? 'on' : '') + '" data-a="join-pick" data-v="' + m.id + '" aria-pressed="' + (s.pick === m.id) + '">' + av(jt, m.id) + esc(m.name) + '</button>').join('') + '</div><div class="sub sm" style="margin-top:6px">自分が、すでにこの旅行に参加しているときだけ、選びます。ほかの人の名前は、選ばないでください。</div>' : '') +
-      '<div class="panel" style="margin-top:12px;padding:10px 12px;font-size:calc(13px*var(--ts));line-height:1.6"><b>参加のしかた</b><br>① あなたの名前を' + (s.name ? '確かめます' : '入れます') + '<br>② ［参加する］を押します<div class="sub sm" style="margin-top:2px">参加すると、支出と精算を、見て、記録できます。LINEのログインや、アプリのインストールは、要りません。</div></div>';
-    foot = err + '<button class="btn" data-a="join-share-go"' + (s.busy ? ' disabled' : '') + '>参加する</button><button class="link" data-a="close-sheet">やめる</button>';
+      '<div class="panel" style="margin-top:12px;padding:10px 12px;font-size:calc(13px*var(--ts));line-height:1.6"><b>参加のしかた</b><br>① あなたの名前を' + (s.name ? '確かめます' : '入れます') + '<br>② ［' + (canLine ? '名前だけで参加する' : '参加する') + '］を押します<div class="sub sm" style="margin-top:2px">参加すると、支出と精算を、見て、記録できます。' + (canLine ? 'あとからLINEでログインしても、いまの名前のまま、精算のお知らせが届くようになります。' : inLine ? 'LINEでログインしているので、精算のお知らせが、あなたのLINEに届きます。' : '') + '</div></div>';
+    foot = err + '<button class="btn" data-a="join-share-go"' + (s.busy ? ' disabled' : '') + '>' + (canLine ? '名前だけで参加する' : '参加する') + '</button><button class="link" data-a="close-sheet">やめる</button>';
   }
   if (s.type === 'csv-import'){
     const r = s.res; ttl = 'CSVを取り込む';
@@ -3521,6 +3535,7 @@ document.addEventListener('click', e => {
     else { s.err = ''; s.busy = true; beginJoin(tok).then(sh => { if (sh) ui.sheet = sh; else if (ui.sheet && ui.sheet.type === 'join-paste') ui.sheet = null; render(); },
       er => { if (ui.sheet && ui.sheet.type === 'join-paste'){ ui.sheet.busy = false; ui.sheet.err = Share.errText(er); render(); } }); }
   }
+  else if (a === 'join-line-login'){ readSheet(); lsSet(PENDING_JOIN, JSON.stringify({ token: s.token, t: Date.now() })); lineLogin(); return; }   // v207: the invitation is remembered, so it comes back after the login
   else if (a === 'join-pick'){ readSheet(); s.pick = el.getAttribute('data-v'); s.name = ''; }
   else if (a === 'join-share-go'){
     readSheet(); const jt = s.trip, nm = (s.name || '').trim();

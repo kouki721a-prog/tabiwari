@@ -1326,6 +1326,29 @@ try {
     for (const [tab, sel] of [['way', '.qhero'], ['stamps', '.stgrid']]) { await q.click('[data-a=quest-tab][data-v=' + tab + ']'); await q.waitForSelector(sel); g = await geo(); assert.ok(g.over <= 0 && g.off <= 2, w + 'px ' + tab + ': ' + JSON.stringify(g)); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
+  // 招待された人の画面に、LINEログインを勧める（v207）: ログインの道が上にあり、「要りません」とは書かない・ログインから戻ると、招待が続く・ログイン済みなら、LINEの名前が入る
+  for (const loginOn of [true, false]) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
+    const TOKEN = 'a'.repeat(43), openJoin = () => q.evaluate(([tk, on]) => { lineAcct.login = on; lineAcct.user = null; ui.sheet = { type: 'join-share', token: tk, rev: 0, trip: { id: 'x', name: 'アメリカ', start: '2026-11-26', end: '2026-11-27', budget: 100000, members: [{ id: 'm1', name: 'こうき', pos: 0 }], expenses: [{ id: 'e', title: 'x', amount: 1, payer: 'm1', cat: 'food', date: '2026-11-26', split: ['m1'] }], savings: {}, settlements: [], adjustments: [], paid: {} }, pick: null, name: '', err: '' }; render(); }, [TOKEN, loginOn]);
+    await openJoin(); await q.waitForSelector('.sheet #j-name'); const tx = await q.innerText('.sheet');
+    assert.ok(!tx.includes('要りません'), 'it no longer says that login is not needed: ' + tx.slice(0, 300));
+    if (loginOn){
+      assert.ok(tx.includes('LINEでログインして参加') && tx.includes('精算のお知らせが、あなたのLINEに届きます') && tx.includes('名前は、LINEの名前が入ります') && tx.includes('端末を替えても、旅行を戻せます') && tx.includes('または、ログインせずに') && tx.includes('名前だけで参加する') && tx.includes('あとからLINEでログインしても、いまの名前のまま'), 'the login comes first, with what it gives: ' + tx);
+      assert.ok(await q.evaluate(() => { const l = document.querySelector('[data-a=join-line-login]'), n = document.querySelector('#j-name'); return l.getBoundingClientRect().top < n.getBoundingClientRect().top && l.getBoundingClientRect().height >= 44; }), 'above the name field, 44px');
+      assert.strictEqual(await q.locator('[data-a=join-share-go]').innerText(), '名前だけで参加する', 'the plain button says what it is');
+      await q.click('[data-a=join-line-login]'); const pj = JSON.parse(await q.evaluate(() => localStorage.getItem('tabiwari.pendingjoin'))); assert.strictEqual(pj.token, TOKEN, 'the invitation is remembered before going to LINE');
+      // back from the login with the sheet still open: the name is filled in with the LINE name, and the memory is cleared
+      await q.evaluate(() => { lineAcct.user = { name: 'みく', picture: '' }; return resumePendingJoin(); }); await q.waitForTimeout(150);
+      assert.strictEqual(await q.inputValue('#j-name'), 'みく', 'the LINE name comes in'); assert.strictEqual(await q.evaluate(() => localStorage.getItem('tabiwari.pendingjoin')), null, 'and the memory is cleared');
+      assert.ok((await q.innerText('.sheet')).includes('LINEの名前が入っています。変えられます。') && !(await q.innerText('.sheet')).includes('LINEでログインして参加'), 'logged in: no login block, a note about the name'); assert.strictEqual(await q.locator('[data-a=join-share-go]').innerText(), '参加する');
+      // an old memory is ignored
+      await q.evaluate(tk => { localStorage.setItem('tabiwari.pendingjoin', JSON.stringify({ token: tk, t: Date.now() - 31 * 60 * 1000 })); }, TOKEN); await q.evaluate(() => resumePendingJoin()); assert.strictEqual(await q.evaluate(() => localStorage.getItem('tabiwari.pendingjoin')), null, 'after 30 minutes it is dropped');
+    } else {
+      assert.strictEqual(await q.locator('[data-a=join-line-login]').count(), 0, 'no LINE login on this server: nothing about it'); assert.strictEqual(await q.locator('[data-a=join-share-go]').innerText(), '参加する');
+    }
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
