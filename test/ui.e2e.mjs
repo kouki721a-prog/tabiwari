@@ -29,7 +29,7 @@ try {
     assert.ok(await p.$eval('.home0-cta [data-a=new]', e => innerHeight - e.getBoundingClientRect().bottom <= 12), 'no blank band under the button (the safe area is counted once)');
       assert.ok(await vis(), 'the button is on the first screen'); await p.evaluate(() => { const hh = document.querySelector('.home0'); hh.scrollTop = hh.scrollHeight; }); assert.ok(await vis(), 'and still there at the very bottom');
       assert.ok(await p.$eval('.home0', e => { const r = e.getBoundingClientRect(); return r.left === 0 && Math.round(r.right) === innerWidth; }), 'the scroll area is full width'); assert.ok(await p.$eval('.home0', e => e.getBoundingClientRect().bottom <= document.querySelector('.home0-cta').getBoundingClientRect().top + 1), 'the page ends above the fixed bar (nothing hides behind it)'); await p.evaluate(() => { document.querySelector('.home0').scrollTop = 0; }); }
-    assert.ok(await p.$eval('.lp-stage .n', n => n.getBoundingClientRect().left - 2 >= document.querySelector('.home0').getBoundingClientRect().left), 'the route dots are not cut off on the left (the ring is 2px wide)'); assert.strictEqual(await p.locator('.lp-stage').count(), 3); assert.strictEqual(await p.locator('.lp-feat .ln').count(), 6); assert.strictEqual(await p.locator('.lp-tk').count(), 1, 'the sample ticket'); assert.strictEqual(await p.locator('.lp-steps li').count(), 4); assert.strictEqual(await p.locator('.lp-faq details').count(), 4);
+    assert.ok(await p.$eval('.lp-stage .n', n => n.getBoundingClientRect().left - 2 >= document.querySelector('.home0').getBoundingClientRect().left), 'the route dots are not cut off on the left (the ring is 2px wide)'); assert.strictEqual(await p.locator('.lp-stage').count(), 3); assert.strictEqual(await p.locator('.lp-feat .ln').count(), 6); assert.strictEqual(await p.locator('.lp-tk').count(), 1, 'the sample ticket'); assert.strictEqual(await p.locator('.lp-steps li').count(), 4); assert.strictEqual(await p.locator('.lp-faq details').count(), 5);
     assert.ok(await p.$eval('.home0-tags', e => e.scrollWidth <= e.clientWidth), 'the ✓ line fits on one line');
     assert.ok(await p.$eval('.home0', e => e.scrollWidth <= e.clientWidth + 1), 'nothing runs sideways');
     for (const n of ['save', 'exp', 'settle']) assert.ok(await p.$eval('.lp-stage img[src$="/' + n + '.png"]', i => { i.loading = 'eager'; return i.complete || new Promise(r => { i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false); }); }), 'the picture ' + n + ' loads');
@@ -241,7 +241,7 @@ try {
     const cs = (q, sel, prop) => q.$eval(sel, (e, pr) => getComputedStyle(e)[pr], prop);
     let q = await mk(); assert.strictEqual(await cs(q, '.lp-tk-stamp', 'animationName'), 'lpStamp', 'the stamp is pressed'); assert.strictEqual(await cs(q, '.lp-bars', 'animationName'), 'lpBars', 'the barcode is drawn');
     assert.strictEqual(await q.locator('.lp-stage.in').count(), 0, 'parts below the fold wait'); assert.strictEqual(await cs(q, '.lp-stage >> nth=2', 'opacity').catch(() => '0'), '0', 'and are not drawn yet');
-    await q.evaluate(() => { const h = document.querySelector('.home0'); h.scrollTo(0, h.scrollHeight * .45); }); await q.waitForFunction(() => document.querySelector('.lp-stage.in'), null, { timeout: 3000 });
+    await q.evaluate(() => { document.querySelector('.lp-stage').scrollIntoView({ block: 'center' }); }); await q.waitForFunction(() => document.querySelector('.lp-stage.in'), null, { timeout: 3000 });   // (the page got longer in v206: scroll to the part itself, not to a fraction of the page)
     await q.waitForTimeout(700); assert.strictEqual(await cs(q, '.lp-stage.in', 'opacity'), '1', 'a part is shown once it has risen');
     // a re-draw (any state change draws the page again) carries the move on: nothing blinks back to hidden, nothing starts over
     const seen = await q.evaluate(() => document.querySelectorAll('.lp-stage.in').length); await q.evaluate(() => render()); await q.waitForTimeout(80);
@@ -1299,6 +1299,29 @@ try {
     await q.click('[data-a=grow-open]'); await q.waitForSelector('.ghero'); assert.strictEqual(await q.locator('.gi.on').count(), 1, 'a cap'); assert.ok((await q.innerText('.ghero')).includes('旅人たびまる')); assert.ok(await q.locator('.gmaru svg path[fill="#17375e"]').count() >= 1, 'she wears a cap'); await q.click('.sheet [data-a=close-sheet]');
     // from the mascot's chat in a trip
     await q.click('.trip'); await q.waitForSelector('.nav'); await q.click('[data-a=maru-open]'); await q.waitForSelector('.glink'); assert.ok((await q.innerText('.glink')).includes('Lv.2'), 'a link to her growth'); assert.ok(await q.$eval('.glink', e => e.getBoundingClientRect().height >= 44)); await q.click('.glink'); await q.waitForSelector('.ghero');
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
+  // 最初のページに、新しい機能の説明（v206）: ミッション・道のり・たびまる・切符の発券。画面の写真が読み込める・横にはみ出さない・やわらかい言葉
+  { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
+    const sec = await q.evaluate(() => { const h = [...document.querySelectorAll('.lp-sec')].find(e => e.querySelector('h2') && e.querySelector('h2').textContent.includes('記録するたびに、旅が進む')); return h ? h.innerText.replace(/\s+/g, ' ') : null; });
+    assert.ok(sec && sec.includes('今日のミッション') && sec.includes('連続の炎') && sec.includes('旅の道のり') && sec.includes('金の判子') && sec.includes('たびまる') && sec.includes('切符が出てきます'), 'the new section says what the app does now: ' + sec); assert.ok(!/[！!]/.test(sec) && !/至急|催促|成功しました/.test(sec), 'a quiet voice');
+    for (const n of ['mission', 'quest']){ await q.locator('.lp-shot img[src*="' + n + '"]').scrollIntoViewIfNeeded(); await q.waitForFunction(n2 => { const i = document.querySelector('.lp-shot img[src*="' + n2 + '"]'); return i && i.complete && i.naturalWidth === 732; }, n, { timeout: 4000 }); assert.ok(fs.existsSync(path.join(dist, 'icons', 'lp', n + '.png')), n + '.png is published'); }
+    assert.ok((await q.innerText('.lp-faq')).includes('道のりやたびまるの成長は、友だちにも見えますか'), 'a question about what friends can see');
+    assert.ok(await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll on the first page'); assert.strictEqual(await q.locator('[data-a=new]').count(), 1, 'still one make-a-trip button');
+    assert.ok(/mission\.png/.test(fs.readFileSync(path.join(dist, 'sw.js'), 'utf8')) && /quest\.png/.test(fs.readFileSync(path.join(dist, 'sw.js'), 'utf8')), 'the service worker keeps the two pictures for offline');
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
+  // 画面の幅ごとの、ズレ（v206。実機の画面で見つかった）: 3つのタブの文字は、ボタンの中央・日ごとの丸は左から並ぶ・シートは、どの幅でも横にはみ出さない（スタンプの一覧は、320〜375pxで、はみ出していた）
+  for (const w of [320, 360, 375, 390, 430]) { const c = await b.newContext({ viewport: { width: w, height: 844 }, serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.hint.swipe', '1');
+      const m = [{ id: 'a', name: 'こうき', pos: 0 }, { id: 'b', name: 'あおい', pos: 1 }], E = (i, tt, a, p, cat, dd) => ({ id: i, title: tt, amount: a, payer: p, cat: cat, date: dd, split: ['a', 'b'] });
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [{ id: 'w1', name: '箱根', start: d(0), end: d(1), budget: 100000, paid: {}, savings: { a: 30000 }, settlements: [], adjustments: [], members: m, expenses: [E('e1', '夕食', 50000, 'b', 'food', d(0))] }] })); });
+    await q.goto('http://localhost:8797/'); await q.click('.trip'); await q.waitForSelector('.nav'); await q.click('[data-a=mission-open]'); await q.waitForSelector('.mhero');
+    const geo = () => q.evaluate(() => { const sb = document.querySelector('.sheet-body'), R = sb.getBoundingClientRect(), off = [...document.querySelectorAll('.qseg button')].map(btn => { const rg = document.createRange(); rg.selectNodeContents(btn); const r = rg.getBoundingClientRect(), br = btn.getBoundingClientRect(); return Math.abs(Math.round((r.left + r.right) / 2 - (br.left + br.right) / 2)); }), first = document.querySelector('.md'); return { over: sb.scrollWidth - sb.clientWidth, off: Math.max(...off), dayLeft: first ? Math.round(first.getBoundingClientRect().left - R.left) : 0 }; });
+    let g = await geo(); assert.ok(g.over <= 0 && g.off <= 2 && g.dayLeft <= 10, w + 'px mission: ' + JSON.stringify(g));
+    for (const [tab, sel] of [['way', '.qhero'], ['stamps', '.stgrid']]) { await q.click('[data-a=quest-tab][data-v=' + tab + ']'); await q.waitForSelector(sel); g = await geo(); assert.ok(g.over <= 0 && g.off <= 2, w + 'px ' + tab + ': ' + JSON.stringify(g)); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
