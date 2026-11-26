@@ -317,6 +317,16 @@ html,body{overscroll-behavior-x:none}
 .paidbtn.on{background:var(--good);border-color:var(--good);color:#fff}
 .xfer .names{flex:1;min-width:0;font-weight:500;font-size:calc(14px*var(--ts));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .xfer .amt{font-weight:700;font-size:calc(16px*var(--ts));white-space:nowrap}
+/* v191: 精算の送金は、小さな切符に（クリーム色の紙・左に旅の色の縁・受け取り方の行との間に点線と切り欠き）。済みは、うっすら緑。 */
+.list.xl,.xgroup .list{background:transparent;border:0;border-radius:0;overflow:visible}
+.list.xl .xfer,.xgroup .list .xfer{position:relative;background:var(--cream);border-radius:14px;margin-top:8px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy);padding-left:16px}
+.xgroup .list .xfer:first-child{margin-top:0}
+.list.xl .xfer+.xfer,.xgroup .list .xfer+.xfer{border-top:0}
+.list.xl .xfer.done,.xgroup .list .xfer.done{background:color-mix(in srgb,var(--good) 8%,var(--cream))}
+.xfer .rline{position:relative;margin:2px -12px 0 -4px;padding:6px 12px 2px 52px;border-top:2px dashed var(--dash)}
+.xfer .rline:before,.xfer .rline:after{content:"";position:absolute;top:-9px;width:16px;height:16px;border-radius:50%;background:var(--paper)}.xfer .rline:before{left:-8px}.xfer .rline:after{right:-8px}
+.noteRow{background:transparent!important;border:1.5px dashed var(--dash)!important;border-radius:14px;margin:0 0 8px;min-height:44px}
+
 .chk{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent;flex:none}
 .chk.on{background:var(--good);border-color:var(--good);color:#fff}
 .plus-or-minus.pos{color:var(--good)}
