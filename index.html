@@ -57,7 +57,7 @@
   --ts:1;
   --ease:cubic-bezier(.22,1,.36,1);   /* one calm curve for every move: quick start, soft stop */
   --paper:#eef2f7; --card:#ffffff; --ink:#0e2238; --sub:#5b6b80; --line:#dde4ee; --soft:#e6ecf5;
-  --navy:#0f2742; --sun:#ffc83d; --sun-ink:#2a1d00; --good:#17895c; --bad:#c2332d; --focus:#2f6fed;
+  --navy:#0f2742; --sun:#ffc83d; --sun-ink:#2a1d00; --good:#17895c; --good-t:#12724b; --bad:#c2332d; --focus:#2f6fed;
   --cream:#fffdf5; --dash:rgba(14,34,56,.26); --mono:ui-monospace,"SF Mono",Menlo,"DejaVu Sans Mono",monospace;   /* paper-ticket look (v148): cream paper, dashed perforations, tabular numbers */
   --tbs:85%; --tbl:92%; --tfs:55%; --tfl:30%;
   --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
@@ -66,13 +66,13 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#0a1626; --card:#12243a; --ink:#e9f0fa; --sub:#93a3b8; --line:#243750; --soft:#1a2f4a;
-    --navy:#17375e; --good:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
+    --navy:#17375e; --good:#4cc795; --good-t:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
     --tbs:38%; --tbl:24%; --tfs:75%; --tfl:82%; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --paper:#0a1626; --card:#12243a; --ink:#e9f0fa; --sub:#93a3b8; --line:#243750; --soft:#1a2f4a;
-  --navy:#17375e; --good:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
+  --navy:#17375e; --good:#4cc795; --good-t:#4cc795; --bad:#ff7a73; --focus:#7aa2ff; --cream:#15293f; --dash:rgba(233,240,250,.3);
   --tbs:38%; --tbl:24%; --tfs:75%; --tfl:82%; color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -178,8 +178,8 @@ html,body{overscroll-behavior-x:none}
 .home0-tags{text-align:left;color:var(--sub);font-size:calc(12.5px*var(--ts));margin:12px 0 22px;white-space:nowrap}
 /* the sample trip ticket in the hero: cream paper, a perforation with a notch at both ends, a barcode, and a pressed stamp */
 .lp-tk{position:relative;background:var(--cream);color:var(--ink);border-radius:14px;margin:6px 0 4px;box-shadow:0 1px 0 var(--dash)}
-.lp-tk-top{padding:16px 18px 14px}.lp-tk-hd{display:flex;justify-content:space-between;font-family:var(--mono);font-size:calc(10.5px*var(--ts));letter-spacing:.14em;color:var(--sub);margin-bottom:12px}
-.lp-tk-grid{display:grid;grid-template-columns:1fr auto;gap:12px 16px}.lp-tk small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.lp-tk b{font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums}
+.lp-tk-top{padding:16px 18px 14px}.lp-tk-hd{display:flex;justify-content:space-between;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub);margin-bottom:12px}
+.lp-tk-grid{display:grid;grid-template-columns:1fr auto;gap:12px 16px}.lp-tk small{display:block;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.12em;color:var(--sub)}.lp-tk b{font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums}
 .lp-tk-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .lp-tk-bot:before,.lp-tk-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.lp-tk-bot:before{left:0;border-radius:0 11px 11px 0}.lp-tk-bot:after{right:0;border-radius:11px 0 0 11px}   /* half discs, inside the ticket: nothing sticks out sideways */
 .lp-bars{display:block;flex:1;max-width:150px;height:32px;opacity:.85;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 5px,var(--ink) 5px 6px,transparent 6px 10px,var(--ink) 10px 14px,transparent 14px 17px,var(--ink) 17px 19px,transparent 19px 22px)}
@@ -225,7 +225,11 @@ html,body{overscroll-behavior-x:none}
 .t-bot .t-label{white-space:nowrap}
 .t-bot b{display:block;font-size:calc(18px*var(--ts));font-weight:700}
 .t-bot .warn{color:#ff9a92}
-.sav-amt{font-weight:700;font-size:calc(16px*var(--ts));white-space:nowrap}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good);font-weight:500}
+.sav-amt{font-weight:700;font-size:calc(16px*var(--ts));white-space:nowrap}
+/* v192: 積立の人ごとの行も、精算と同じ切符の形（旅の色の縁）。バーに、25%ごとの目盛り（上の切符の駅と同じ）。 */
+.list:has(>.item.sav){background:transparent;border:0;border-radius:0;overflow:visible;box-shadow:none}
+.item.sav{background:var(--cream);border-radius:14px;margin-top:8px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy);padding-left:16px}.item.sav:first-child{margin-top:0}.item.sav+.item.sav{border-top:0}
+.item.sav .bar{position:relative}.item.sav .bar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(25% - 2px),var(--cream) calc(25% - 2px) 25%)}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good-t);font-weight:500}
 .ticket.c .t-sub{font-size:calc(12px*var(--ts));opacity:.85;margin-top:6px}
 .t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
 .ticket.m{border-radius:20px}.ticket.m .t-top{padding:10px 18px 8px}.ticket.m .t-amount{font-size:calc(30px*var(--ts));line-height:1.15}.ticket.m .t-bar{height:6px;margin-top:6px}
@@ -311,15 +315,25 @@ html,body{overscroll-behavior-x:none}
 .xfer{flex-wrap:wrap}.rline{flex-basis:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:30px;padding:0 0 0 36px;font-size:calc(12px*var(--ts));color:var(--sub)}.rline .link{width:auto;flex:none;padding:4px 6px;font-size:calc(12px*var(--ts));font-weight:700;color:var(--ink)}.rbtn{flex:none;min-height:30px;padding:0 12px;border-radius:99px;background:var(--sun);color:var(--sun-ink);font:inherit;font-size:calc(13px*var(--ts));font-weight:700}
 .noteRow{padding:4px 12px!important;font-size:calc(13px*var(--ts));color:var(--sub)}.noteRow .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .list.xl{margin-top:8px}.xfer{padding:10px 12px}
-.xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:calc(13px*var(--ts));color:var(--sub)}.xnote .link{width:auto;flex:none;padding:6px 8px;font-size:calc(13px*var(--ts));font-weight:700;color:var(--ink)}.xnote>span:first-child{min-width:0;flex:1 1 auto;overflow-wrap:anywhere}.xnote .xact{display:flex;align-items:center;flex:none}.xnote a.link{text-decoration:underline;text-underline-offset:3px}.noteRow{margin-bottom:10px}
+.xnote{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-4px 4px 10px;font-size:calc(13px*var(--ts));color:var(--sub)}.xnote .link{width:auto;flex:none;min-height:44px;margin:-7px 0;padding:6px 8px;font-size:calc(13px*var(--ts));font-weight:700;color:var(--ink)}.xnote>span:first-child{min-width:0;flex:1 1 auto;overflow-wrap:anywhere}.xnote .xact{display:flex;align-items:center;flex:none}.xnote a.link{text-decoration:underline;text-underline-offset:3px}.noteRow{margin-bottom:10px}
 .paidbtn{flex:none;display:inline-flex;align-items:center;gap:3px;min-height:44px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:calc(13px*var(--ts));font-weight:500;white-space:nowrap}
 .paidbtn .ring{display:inline-block;width:15px;height:15px;border-radius:50%;border:2px solid currentColor;opacity:.75;box-sizing:border-box}
 .paidbtn.on{background:var(--good);border-color:var(--good);color:#fff}
 .xfer .names{flex:1;min-width:0;font-weight:500;font-size:calc(14px*var(--ts));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .xfer .amt{font-weight:700;font-size:calc(16px*var(--ts));white-space:nowrap}
+/* v191: 精算の送金は、小さな切符に（クリーム色の紙・左に旅の色の縁・受け取り方の行との間に点線と切り欠き）。済みは、うっすら緑。 */
+.list.xl,.xgroup .list{background:transparent;border:0;border-radius:0;overflow:visible}
+.list.xl .xfer,.xgroup .list .xfer{position:relative;background:var(--cream);border-radius:14px;margin-top:8px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy);padding-left:16px}
+.xgroup .list .xfer:first-child{margin-top:0}
+.list.xl .xfer+.xfer,.xgroup .list .xfer+.xfer{border-top:0}
+.list.xl .xfer.done,.xgroup .list .xfer.done{background:color-mix(in srgb,var(--good) 8%,var(--cream))}
+.xfer .rline{position:relative;margin:2px -12px 0 -4px;padding:6px 12px 2px 52px;border-top:2px dashed var(--dash)}
+.xfer .rline:before,.xfer .rline:after{content:"";position:absolute;top:-9px;width:16px;height:16px;border-radius:50%;background:var(--paper)}.xfer .rline:before{left:-8px}.xfer .rline:after{right:-8px}
+.noteRow{background:transparent!important;border:1.5px dashed var(--dash)!important;border-radius:14px;margin:0 0 8px;min-height:44px}
+
 .chk{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent;flex:none}
 .chk.on{background:var(--good);border-color:var(--good);color:#fff}
-.plus-or-minus.pos{color:var(--good)}
+.plus-or-minus.pos{color:var(--good-t)}
 .plus-or-minus.neg{color:var(--bad)}
 
 /* buttons / forms */
@@ -399,12 +413,13 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) * .5 + 14px);width:calc(100% - 32px);max-width:488px;box-shadow:0 8px 20px rgba(0,0,0,.22);z-index:10}
 .toast button{margin-left:14px;color:#fff;text-decoration:underline;font-weight:700;font-size:calc(14px*var(--ts))}
 .toast{display:flex;align-items:center;max-width:calc(100vw - 32px);width:max-content;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 100px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:22px;line-height:1.5;font-size:calc(14px*var(--ts));font-weight:500;z-index:40}
-.chgtag{display:inline-block;margin-left:6px;padding:1px 7px;border:1px solid var(--line);border-radius:99px;font-size:calc(10.5px*var(--ts));font-weight:500;color:var(--sub);vertical-align:middle}.elog{margin:12px 2px 0;font-size:calc(12.5px*var(--ts));line-height:1.75;color:var(--sub)}.elog b{color:var(--ink);font-weight:600}
+.chgtag{display:inline-block;margin-left:6px;padding:1px 7px;border:1px solid var(--line);border-radius:99px;font-size:calc(11px*var(--ts));font-weight:500;color:var(--sub);vertical-align:middle}.elog{margin:12px 2px 0;font-size:calc(12.5px*var(--ts));line-height:1.75;color:var(--sub)}.elog b{color:var(--ink);font-weight:600}
 .hint{margin:6px 4px 8px;font-size:calc(12.5px*var(--ts));line-height:1.55;color:var(--sub);display:flex;justify-content:space-between;align-items:center;gap:8px}.hint .link{width:auto;flex:none;padding:6px 8px;font-size:calc(12.5px*var(--ts));font-weight:700;color:var(--ink)}
 .swp{position:relative;overflow:hidden;border-top:1px solid var(--line)}.swp:first-child{border-top:0}.swp .item{border-top:0;background:var(--card);position:relative;z-index:1;transition:transform .18s ease-out}.swp.open .item{transform:translateX(-84px)}
 .swp-del{position:absolute;right:0;top:0;bottom:0;width:84px;background:#d4372f;color:#fff;font-weight:700;font-size:calc(15px*var(--ts));display:grid;place-items:center;padding:0}
 .list>.item+.swp,.list>.swp+.item{border-top:1px solid var(--line)}
-.qchips{display:flex;gap:8px;overflow-x:auto;margin:8px 0 0;padding-bottom:2px;scrollbar-width:none;touch-action:pan-x}.qchips::-webkit-scrollbar{display:none}.qchip{flex:none;padding:6px 14px!important;min-height:44px;min-width:44px;font-size:calc(13px*var(--ts))}
+.qchips{display:flex;gap:8px;overflow-x:auto;margin:8px 0 0;padding-bottom:2px;scrollbar-width:none;touch-action:pan-x}.qchips::-webkit-scrollbar{display:none}.chip.plain[data-a=preset]{min-height:44px;min-width:44px}
+.qchip{flex:none;padding:6px 14px!important;min-height:44px;min-width:44px;font-size:calc(13px*var(--ts))}
 @media (max-height:640px){.qchips{display:none}}
 #ptr{position:fixed;left:50%;top:0;width:40px;height:40px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:5;pointer-events:none;opacity:0}
 textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--ts));border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px}
@@ -414,7 +429,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .ticket.m.stub .t-amount{font-variant-numeric:tabular-nums;white-space:nowrap}.ticket.m.stub .t-foot{margin-top:2px}.ticket.m.stub .t-foot .t-label{font-size:calc(12px*var(--ts))}.ticket.m.stub .t-foot b{font-size:calc(13px*var(--ts));font-weight:700}
 .ticket.m.stub .ufold{width:calc(100% - 30px);margin:0 12px 0 18px}
 .tk-s{flex:none;width:var(--stub);border-left:2px dashed rgba(255,255,255,.3);padding:12px 12px 10px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
-.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.slog-rest{opacity:.75}.item b.neg{color:var(--bad)}
+.nb{white-space:nowrap}.plan{border:1.5px dashed var(--dash);border-radius:14px;background:var(--cream);padding:10px 14px;margin:0 0 12px}.plan-h{font-family:var(--mono);font-size:calc(12px*var(--ts));letter-spacing:.06em;color:var(--sub)}.plan-b{font-size:calc(16px*var(--ts));margin-top:4px}.plan-b b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}.plan-s{font-size:calc(13px*var(--ts));color:var(--sub);margin-top:3px}.slog-rest .t{color:var(--sub)}   /* v197: was opacity .75 on the whole row: the grey text fell to 3.2:1 */.item b.neg{color:var(--bad)}
 .plan-go{width:100%;margin-top:10px;padding:11px 14px}
 .fly{position:fixed;z-index:56;pointer-events:none;white-space:nowrap;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:6px;padding:8px 16px;font-family:var(--mono);font-weight:600;font-size:calc(15px*var(--ts));font-variant-numeric:tabular-nums;box-shadow:0 6px 16px rgba(15,39,66,.22)}
 .stn{position:relative;height:12px;margin:3px 0 1px}.stn:before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1.5px dashed rgba(255,255,255,.22)}.stn i{position:absolute;top:1px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);background:var(--navy);box-sizing:border-box}.stn i:last-child{margin-left:-9px}.stn i.on{background:var(--sun);border-color:var(--sun)}
@@ -424,10 +439,16 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .trip-l{flex:1;min-width:0;padding:14px 12px 14px 16px}.trip-s{flex:none;width:var(--stub);border-left:2px dashed var(--dash);padding:14px 12px 14px 14px;display:flex;align-items:center}
 .trip-s .right{text-align:left;min-width:0}.trip-s .num{font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.trip-s .sub{white-space:normal;line-height:1.35}
 .trip:before,.trip:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.trip:before{top:-9px}.trip:after{bottom:-9px}
-.trip .hint-row{display:block;margin-top:2px}.trip .avs{display:flex}
+.trip .hint-row{display:block;margin-top:2px}.trip .avs{display:flex;align-items:center}.route.mini{flex:1;min-width:0;overflow:hidden;height:30px;margin:0 0 0 14px}.route.mini i{width:7px;height:7px}.route.mini i.now{width:10px;height:10px;box-shadow:0 0 0 3px color-mix(in srgb,var(--sun) 30%,transparent)}.route.mini u{min-width:3px}.route.mini span{margin-left:8px}   /* v195 */
 /* settle / savings / members: paper lists with dashed lines */
 .scroll .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
 .scroll .list .item,.scroll .list>.item+.swp,.scroll .list>.swp+.item{border-top:1.5px dashed var(--dash)}.scroll .list>:first-child .item,.scroll .list>.item:first-child{border-top:0}
+.live-tk{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;margin:10px 0 2px;padding:12px 16px 11px 20px;background:var(--cream);border-radius:14px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy)}
+.live-tk .lt-hd{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub)}
+.live-tk small{display:block;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.08em;color:var(--sub)}.live-tk b{display:block;font-size:calc(15px*var(--ts));font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.live-tk b.ph{font-weight:500;color:var(--sub)}
+.live-tk .lt-st{width:30px;height:30px;margin:-14px -4px -8px 0;border-radius:50%;display:grid;place-items:center;font-size:calc(14px*var(--ts));letter-spacing:0;font-weight:700;color:#0f2742;border:2px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(10deg);opacity:0}.live-tk .lt-st.on{opacity:1}
+@media (max-height:699px){.live-tk{display:none}}   /* the form must fit one screen: the ticket only shows where there is room (v194) */
+@media (prefers-reduced-motion: no-preference){@keyframes ltStamp{from{opacity:0;transform:scale(1.8) rotate(-16deg)}60%{opacity:1}to{opacity:1;transform:rotate(10deg)}}@keyframes ltPop{from{transform:translateY(3px);opacity:.4}to{transform:none;opacity:1}}.live-tk .lt-st.press{animation:ltStamp .42s var(--ease) both}.live-tk b.pop{animation:ltPop .22s var(--ease) both}}
 /* the first page moves once (v151): the hero ticket, then each part rises as it comes into view. Only when "reduce motion" is off. A re-draw in the middle of a move does not restart it (a negative delay carries on). */
 @media (prefers-reduced-motion: no-preference){
   @keyframes lpUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -451,7 +472,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 /* 旅のおつかれさま (v153): a trip-complete ticket, shown once per trip */
 .wr-ticket{position:relative;background:var(--cream);color:var(--ink);border-radius:16px;box-shadow:0 1px 0 var(--dash);margin-top:14px}.wr-top{padding:18px 18px 14px}
 .wr-eye{font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub)}.wr-name{font-size:calc(24px*var(--ts));font-weight:700;margin:6px 0 14px;overflow-wrap:anywhere}
-.wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(10px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
+.wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.wr-grid small,.wr-bot small{display:block;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.12em;color:var(--sub)}.wr-grid b{font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
 .wr-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px}.wr-bot:before,.wr-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.wr-bot:before{left:0;border-radius:0 11px 11px 0}.wr-bot:after{right:0;border-radius:11px 0 0 11px}
 .wr-ticket .send-stp{position:absolute;right:16px;top:-16px;width:76px;height:76px;font-size:calc(30px*var(--ts));--r:-8deg;z-index:2;margin:0}
 /* 旅のカラー (v182): the paper-and-ticket colour of a trip; the yellow accent never changes */
@@ -491,10 +512,10 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .stbar{width:100%;display:flex;align-items:center;gap:10px;background:transparent;border:1.5px dashed var(--dash);border-radius:16px;padding:9px 12px;margin:10px 0 2px;text-align:left;color:var(--ink)}
 .strow{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden}.sttxt{text-align:right;flex:none}.sttxt b{font-size:calc(13px*var(--ts))}.sttxt small{display:block;color:var(--sub);font-size:calc(12px*var(--ts))}
 .stgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px 4px;padding:18px 0 8px;text-align:center}.stgrid>div{display:flex;flex-direction:column;align-items:center;gap:6px}.stgrid .stp{margin:6px}
-.stgrid>div>span:last-child{font-size:calc(11px*var(--ts));line-height:1.3}.stgrid small{display:block;font-size:calc(10px*var(--ts));color:var(--sub)}
+.stgrid>div>span:last-child{font-size:calc(11px*var(--ts));line-height:1.3}.stgrid small{display:block;font-size:calc(11px*var(--ts));color:var(--sub)}
 .route{display:flex;align-items:center;height:20px;margin:0 2px 8px}.route i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--dash)}.route i.on{background:var(--sun)}.route i.now{width:13px;height:13px;box-shadow:0 0 0 4px color-mix(in srgb,var(--sun) 30%,transparent)}.route u{flex:1;min-width:6px;border-top:2px dashed var(--dash)}.route u.y{border-top:3px solid var(--sun)}.route span{flex:none;margin-left:10px;font-family:var(--mono);font-size:calc(11px*var(--ts));color:var(--sub);white-space:nowrap}   /* v187: the days of the trip as stations on a dashed route (lit up to today) */
-.dl{font-style:normal}.dl small{margin-left:6px;font-size:inherit;opacity:.8}
-.stbar.in{width:auto;flex:none;min-height:44px;margin:-14px 0;padding:0 2px;border:0;border-radius:0;gap:6px}.stbar.in b{font-family:var(--mono);font-size:calc(11px*var(--ts));font-weight:500;color:var(--sub)}.stbar.in .strow{flex:none;gap:3px}.stbar.in .stp.sm{width:18px;height:18px;font-size:calc(9px*var(--ts));border-width:1.5px;box-shadow:none}   /* the stamps sit in the first day heading (v187), not in a box of their own */
+.dl{font-style:normal}.dl small{margin-left:6px;font-size:inherit}#exp-list .sec>h2{gap:8px}#exp-list .sec>h2 .dl,#exp-list .sec>h2>span,.stbar.in b{white-space:nowrap}@media (max-width:380px){.stbar.in .stw{display:none}}   /* v190: on a narrow screen with a big amount the heading broke into two lines; the word "スタンプ" gives way first */
+.stbar.in{width:auto;flex:none;min-height:44px;margin:-14px 0;padding:0 2px;border:0;border-radius:0;gap:6px}.stbar.in b{font-family:var(--mono);font-size:calc(11px*var(--ts));font-weight:500;color:var(--sub)}.stbar.in .strow{flex:none;gap:3px}.stbar.in .stp.sm{width:22px;height:22px;font-size:calc(11px*var(--ts));border-width:1.5px;box-shadow:none}   /* v190: the glyph was 9px; 11px is the smallest text in the app */   /* the stamps sit in the first day heading (v187), not in a box of their own */
 .stpop{position:fixed;left:50%;top:38%;z-index:60;pointer-events:none;text-align:center;transform:translate(-50%,-50%) rotate(-8deg)}
 .stpop .stp{width:128px;height:128px;font-size:50px;border-width:4px;transform:none;margin:0 auto}.stpop .stp:after{inset:-12px;border-width:2px}
 .stpop-t{display:inline-block;margin-top:24px;background:var(--ink);color:var(--paper);border-radius:99px;padding:6px 16px;font-weight:600;font-size:15px;transform:rotate(8deg)}
@@ -1652,7 +1673,7 @@ function tripCard(t){
   const hint = homeHint(t);
   let h = '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-trip="' + themeOf(t) + '" data-a="open" data-id="' + t.id + '"><div class="trip-l"><div class="row between"><div class="trip-name">' + tmark(t) + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
     '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '<span class="hint-row"><span class="hint">' + esc(hint) + '</span></span>' : '') + '</div>' +
-    '<div class="avs" style="margin-top:12px">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
+    '<div class="avs" style="margin-top:12px">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span>' + routeMini(t) + '</div>' +
     '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></div>' +
     '<div class="trip-s">' + (pre ? '<div class="right"><div class="sub sm">積立（目標 ' + yen(t.budget) + '）</div><div class="num">' + yen(savedOf(t)) + '</div></div>' : '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div>') + '</div></button>';
   if (status(t)[0] === '終了' && t.members.length > 1) h += '<button class="btn line inv" data-a="next-trip" data-id="' + t.id + '">同じメンバーで次の旅行をつくる</button>';   // starts the next trip from this one
@@ -1701,10 +1722,28 @@ function lineCard(){
 /* a missing field in the new-trip form: a red frame and one line under that field (all missing fields at once) */
 const bad = (d, k) => d.errs && d.errs[k] ? ' bad' : '';
 const ferr = (d, k) => d.errs && d.errs[k] ? '<div class="ferr" id="e-' + k + '" role="alert">' + esc(d.errs[k]) + '</div>' : '';
+/* v194: a ticket at the top of the new-trip form that fills in as you type (the same paper as the sample on the first page). Only text is written into it: nothing is saved. The stamp is pressed once, when the trip gets a name. */
+function liveTkParts(d){
+  const ok = d.start && d.end && d.end >= d.start, n = ok ? dayDiff(d.start, d.end) : -1, bud = parseYen(d.budget);
+  const sameMonth = ok && d.start.slice(0, 7) === d.end.slice(0, 7);
+  return { name: d.name.trim(), dates: ok ? fmtDate(d.start) + (n ? '–' + (sameMonth ? Number(d.end.slice(8, 10)) : fmtDate(d.end)) : '') : '', nights: ok ? (n ? n + '泊' + (n + 1) + '日' : '日帰り') : '', budget: bud > 0 && bud <= 1000000000 ? yen(bud) : '' };
+}
+function liveTicket(d){
+  const p = liveTkParts(d), f = (id, v, ph) => '<b id="' + id + '"' + (v ? '' : ' class="ph"') + '>' + esc(v || ph) + '</b>';
+  return '<div class="live-tk" id="live-tk" aria-hidden="true"><div class="lt-hd"><span>TRIP TICKET</span><span class="lt-st' + (d.stamped ? ' on' : '') + '" id="lt-st">初</span></div>' +
+    '<div><small>行き先</small>' + f('lt-name', p.name, 'どこへ行く？') + '</div><div><small id="lt-nights">日程' + (p.nights ? '・' + p.nights : '') + '</small>' + f('lt-dates', p.dates, '—') + '</div><div><small>予算</small>' + f('lt-budget', p.budget, '—') + '</div></div>';
+}
+function liveTicketRefresh(){
+  const d = ui.draft, box = document.getElementById('live-tk'); if (!d || !box) return;
+  const p = liveTkParts(d), ph = { 'lt-name': 'どこへ行く？', 'lt-dates': '—', 'lt-budget': '—' }, vals = { 'lt-name': p.name, 'lt-dates': p.dates, 'lt-budget': p.budget };
+  Object.keys(vals).forEach(id => { const el = document.getElementById(id), v = vals[id] || ph[id]; if (!el || el.textContent === v) return; el.textContent = v; el.classList.toggle('ph', !vals[id]); if (calm()){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } });
+  const nl = document.getElementById('lt-nights'); if (nl) nl.textContent = '日程' + (p.nights ? '・' + p.nights : '');
+  const st = document.getElementById('lt-st'); if (st && p.name && !d.stamped){ d.stamped = true; st.classList.add('on'); if (calm()) st.classList.add('press'); }
+}
 function viewNew(){
   const d = ui.draft;
   let h = '<div class="top"><button class="iconbtn" data-a="home" aria-label="戻る">' + icon('back') + '</button><h1>旅行をつくる</h1></div>';
-  h += '<div class="scroll"><label class="lab" for="d-name">旅行の名前</label><input class="field' + bad(d, 'name') + '" id="d-name" type="text" data-draft="name" value="' + esc(d.name) + '" placeholder="例：箱根 紅葉旅行">' + ferr(d, 'name') +
+  h += '<div class="scroll">' + liveTicket(d) + '<label class="lab" for="d-name">旅行の名前</label><input class="field' + bad(d, 'name') + '" id="d-name" type="text" data-draft="name" value="' + esc(d.name) + '" placeholder="例：箱根 紅葉旅行">' + ferr(d, 'name') +
     '<div class="two"><div><label class="lab" for="d-start">出発日</label><input class="field" id="d-start" type="date" data-draft="start" value="' + d.start + '"></div>' +
     '<div><label class="lab" for="d-end">帰着日</label><input class="field" id="d-end" type="date" data-draft="end" value="' + d.end + '"></div></div>' +
     '<label class="lab" for="d-budget">全体の予算（円）</label><input class="field' + bad(d, 'budget') + '" id="d-budget" type="text" inputmode="numeric" data-draft="budget" value="' + esc(d.budget) + '" placeholder="例：50000">' + ferr(d, 'budget') +
@@ -1984,6 +2023,17 @@ function tearOff(ticket){
   const a = ov.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(10px,-6px) rotate(3deg)', opacity: 1, offset: .25 }, { transform: 'translate(70px,-34px) rotate(14deg)', opacity: 0 }], { duration: TEAR_MS, easing: 'cubic-bezier(.4,0,.6,1)' });
   a.onfinish = a.oncancel = () => ov.remove();
 }
+/* v196: when a round is confirmed, the transfer tickets lift, tilt and slip away to the right, one after another (they have moved into the history). Copies on <body> (like tearOff), so the redraw that follows cannot cut them. Off with "reduce motion". */
+const XFLY_MS = 650;
+function flyXfers(list){
+  list.forEach((x, i) => {
+    const w = document.createElement('div'); w.className = 'list xl xferfly'; w.setAttribute('aria-hidden', 'true'); w.appendChild(x.el); x.el.style.marginTop = '0'; x.el.querySelectorAll('[data-a]').forEach(b => b.removeAttribute('data-a'));
+    Object.assign(w.style, { position: 'fixed', left: x.r.left + 'px', top: x.r.top + 'px', width: x.r.width + 'px', margin: '0', zIndex: '55', pointerEvents: 'none' });
+    document.body.appendChild(w); const away = Math.round(innerWidth - x.r.left + 30);
+    const a = w.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(0,-7px) rotate(-1.5deg)', opacity: 1, offset: .28 }, { transform: 'translate(' + away + 'px,-16px) rotate(7deg)', opacity: .15 }], { duration: XFLY_MS, delay: i * Math.min(90, Math.floor(400 / list.length)), easing: 'cubic-bezier(.4,0,.6,1)', fill: 'backwards' });
+    a.onfinish = a.oncancel = () => w.remove();
+  });
+}
 /* a recorded expense (v162): a small receipt flies from where it was typed into the budget ticket. One overlay on <body> (like tearOff), so a redraw cannot cut it.
    flyFrom() is read BEFORE the redraw (the place it starts); recFly() runs after it (the ticket is drawn again by then). */
 const FLY_MS = 860;
@@ -2023,16 +2073,23 @@ function motionMoney(){
 const STAMP_SEEN = 'tabiwari.stampseen';   // this device only: which stamps were already shown as "pressed" (per trip), so each pops once. Not synced, not in backups.
 const stampEl = (x, sm, i) => '<span class="stp' + (sm ? ' sm' : '') + (x.on ? '' : ' off') + '" style="--r:' + [-6, 5, -3, 7, -8][i % 5] + 'deg">' + x.k + '</span>';
 const dayNoOf = (t, d) => (t.start && d >= t.start && d <= t.end) ? dayDiff(t.start, d) + 1 : 0;
-function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today. Only while travelling, and only for 2 to 14 days.
-  if (status(t)[0] !== '旅行中') return '';
-  const days = dayDiff(t.start, t.end) + 1, cur = dayDiff(t.start, todayStr()) + 1; if (days < 2 || days > 14) return '';
-  let h = '';
-  for (let k = 1; k <= days; k++){ h += '<i class="' + (k <= cur ? 'on' : '') + (k === cur ? ' now' : '') + '"></i>' + (k < days ? '<u class="' + (k < cur ? 'y' : '') + '"></u>' : ''); }
-  return '<div class="route" role="img" aria-label="' + days + '日の旅の、' + cur + '日目">' + h + '<span>' + cur + '日目 / ' + days + '日</span></div>';
+function routeParts(t){   // days / today's number, only while travelling and only for 2 to 14 days
+  if (status(t)[0] !== '旅行中') return null;
+  const days = dayDiff(t.start, t.end) + 1, cur = dayDiff(t.start, todayStr()) + 1; if (days < 2 || days > 14) return null;
+  let h = ''; for (let k = 1; k <= days; k++){ h += '<i class="' + (k <= cur ? 'on' : '') + (k === cur ? ' now' : '') + '"></i>' + (k < days ? '<u class="' + (k < cur ? 'y' : '') + '"></u>' : ''); }
+  return { days: days, cur: cur, h: h };
+}
+function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today.
+  const r = routeParts(t); if (!r) return '';
+  return '<div class="route" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '<span>' + r.cur + '日目 / ' + r.days + '日</span></div>';
+}
+function routeMini(t){   // v195: the same route, small, on the home card (to the right of the faces)
+  const r = routeParts(t); if (!r || r.days > 10 || t.members.length > 4) return '';   // no room beside many faces or for many stations: the trip screen has the full one
+  return '<span class="route mini" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '<span>' + r.cur + '日目</span></span>';
 }
 function stampInline(t){   // the same stamp button, small, to sit in the first day heading
   const all = stampsOf(t), on = all.filter(x => x.on), n = on.length, show = on.concat(all.filter(x => !x.on)).slice(0, 3);
-  return '<button type="button" class="stbar in" data-a="stamps-open" aria-label="旅のスタンプ。' + n + '個押されています。開く"><b>スタンプ ' + n + '/' + all.length + '</b><span class="strow" aria-hidden="true">' + show.map((x, i) => stampEl(x, true, i)).join('') + '</span></button>';
+  return '<button type="button" class="stbar in" data-a="stamps-open" aria-label="旅のスタンプ。' + n + '個押されています。開く"><b><span class="stw">スタンプ </span>' + n + '/' + all.length + '</b><span class="strow" aria-hidden="true">' + show.map((x, i) => stampEl(x, true, i)).join('') + '</span></button>';
 }
 function stampBar(t){
   const all = stampsOf(t), on = all.filter(x => x.on), n = on.length, show = on.concat(all.filter(x => !x.on)).slice(0, 6);
@@ -2238,10 +2295,10 @@ function savePlanHtml(t, today){
 }
 function tabSave(t){
   const target = Math.ceil(t.budget / t.members.length), plan = savePlanHtml(t, todayStr());
-  let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。積み立てた記録は、下の一覧に残ります。</div>') + '<div class="list">';
+  let h = coachCard(t) + '<div class="sec"><h2>ひとりずつの積立<span>1人 ' + yen(target) + ' が目標</span></h2>' + (plan || '<div class="sub sm" style="margin:-4px 2px 10px">出発の前に、ひとりずつ、積み立てた額を記録します。積み立てた記録は、下の一覧に残ります。押すと、直したり、消したりできます。</div>') + '<div class="list">';
   h += t.members.map(m => {
     const v = t.savings[m.id] || 0, p = pctFloor(v, target), done = v >= target;
-    return '<div class="item">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
+    return '<div class="item sav">' + av(t, m.id) + '<div class="grow"><div class="row between"><div class="t">' + esc(m.name) + '</div><div class="sav-amt">' + yen(v) + '</div></div><div class="bar" style="margin-top:4px"><i style="width:' + p + '%"></i></div>' +
       '<div class="sub sm" style="margin-top:3px">' + (done ? '<span class="sav-ok">' + icon('check', 13) + '目標に届きました</span>' : 'あと ' + yen(target - v)) + '</div></div>' +
       '<button class="btn line" data-a="add-save" data-id="' + m.id + '" style="width:auto;min-height:44px;padding:9px 14px;font-size:calc(14px*var(--ts))">積み立てる</button></div>';
   }).join('') + '</div></div>' + saveLogList(t);
@@ -2256,7 +2313,8 @@ function saveLogList(t){
   const row = r => r.x
     ? '<button class="item slim" data-a="sl-edit" data-id="' + esc(r.x.id) + '" data-m="' + esc(r.m.id) + '"><div class="grow"><div class="t">' + (many ? esc(r.m.name) + '・' : '') + fmtDay(r.x.d) + '</div>' + (r.x.by && r.x.by !== r.m.id && t.members.some(y => y.id === r.x.by) ? '<div class="sub sm">' + esc(nameOf(t, r.x.by)) + 'が記録</div>' : '') + '</div><b class="' + (r.x.a < 0 ? 'neg' : '') + '">' + sg(r.x.a) + '</b></button>'
     : '<button class="item slim slog-rest" data-a="sl-edit" data-id="rest" data-m="' + esc(r.m.id) + '"><div class="grow"><div class="t">' + (many ? esc(r.m.name) + '・' : '') + 'それ以前の積立</div><div class="sub sm">記録なし・いつ積んだか、分かりません</div></div><b>' + sg(r.rest) + '</b></button>';
-  return '<div class="sec"><h2>積立の記録<span>新しい順</span></h2>' + (any ? '<div class="list">' + dated.map(row).join('') + undated.map(row).join('') + '</div>' : '<div class="sub sm" style="margin:-4px 2px 0">積み立てると、ここに、記録が残ります。押すと、直したり、消したりできます。</div>') + '</div>';
+  if (!any) return '';   // v189: nothing to list yet: the line above already says it will appear here (one explanation at a time)
+  return '<div class="sec"><h2>積立の記録<span>新しい順</span></h2><div class="list">' + dated.map(row).join('') + undated.map(row).join('') + '</div></div>';
 }
 
 function viewSheet(){
@@ -2640,6 +2698,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'j-name' && ui.sheet && ui.sheet.type === 'join-share'){ ui.sheet.pick = null; document.querySelectorAll('.sheet .chip.on').forEach(c => c.classList.remove('on')); }
   const k = e.target.getAttribute && e.target.getAttribute('data-draft');
   if (k && ui.draft) ui.draft[k] = e.target.value;
+  if (k) liveTicketRefresh();
   if (k && ui.draft && ui.draft.errs && ui.draft.errs[k]){ delete ui.draft.errs[k]; e.target.classList.remove('bad'); const m = document.getElementById('e-' + k); if (m) m.remove(); }
   if (e.target.getAttribute && e.target.getAttribute('data-fx') && ui.sheet && ui.sheet.type === 'exp'){ const d = ui.sheet.data; d.fixed = Object.assign({}, d.fixed, { [e.target.getAttribute('data-fx')]: e.target.value }); document.getElementById('f-hint').textContent = splitHint(d); updatePartAmounts(d); return; }
   if (e.target.id === 'f-amount' && ui.sheet){ const fa = fmtAmountInput(e.target.value); if (fa !== e.target.value) e.target.value = fa; ui.sheet.data.amount = fa; e.target.style.width = amtWidth(fa); const sb = document.querySelector('[data-a=save-exp]'); if (sb) sb.disabled = !(parseYen(e.target.value) > 0); document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); updatePartAmounts(ui.sheet.data); }
@@ -3195,7 +3254,8 @@ document.addEventListener('click', e => {
   else if (a === 'toggle-recv'){ const k = el.getAttribute('data-k'); t.received = t.received || {}; if (!t.paid[k]) return; if (t.received[k]) delete t.received[k]; else t.received[k] = true; save(); }
   else if (a === 'settle-ask'){ if (openItems(t).expenses.length || openItems(t).adjustments.length) ui.sheet = { type: 'settle-confirm', err: '' }; }
   else if (a === 'settle-go'){
-    const n = (t.settlements || []).length + 1; confirmRound(t, uid(), todayStr()); ui.sheet = null; ui.tear = true; save(); render(); flash('第' + n + '回の精算を確定しました'); setTimeout(() => maruSay('settle|' + t.id + '|' + n, 'おつかれさまでした。送金は、それぞれで。済んだら、チェックを。'), 1600); return;
+    const n = (t.settlements || []).length + 1, fly = calm() && document.body.animate ? [...document.querySelectorAll('#app .xfer')].map(e => ({ r: e.getBoundingClientRect(), el: e.cloneNode(true) })).filter(x => x.r.bottom > 0 && x.r.top < innerHeight) : [];
+    confirmRound(t, uid(), todayStr()); ui.sheet = null; ui.tear = true; save(); render(); if (fly.length) flyXfers(fly); flash('第' + n + '回の精算を確定しました'); setTimeout(() => maruSay('settle|' + t.id + '|' + n, 'おつかれさまでした。送金は、それぞれで。済んだら、チェックを。'), 1600); return;
   }
   else if (a === 'settle-open'){ ui.sheet = { type: 'settle-detail', id: id, err: '' }; }
   else if (a === 'add-save'){ ui.sheet = { type: 'save', id: id, err: '' }; }
