@@ -439,7 +439,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .trip-l{flex:1;min-width:0;padding:14px 12px 14px 16px}.trip-s{flex:none;width:var(--stub);border-left:2px dashed var(--dash);padding:14px 12px 14px 14px;display:flex;align-items:center}
 .trip-s .right{text-align:left;min-width:0}.trip-s .num{font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.trip-s .sub{white-space:normal;line-height:1.35}
 .trip:before,.trip:after{content:"";position:absolute;right:calc(var(--stub) - 9px);width:18px;height:18px;border-radius:50%;background:var(--paper)}.trip:before{top:-9px}.trip:after{bottom:-9px}
-.trip .hint-row{display:block;margin-top:2px}.trip .avs{display:flex}
+.trip .hint-row{display:block;margin-top:2px}.trip .avs{display:flex;align-items:center}.route.mini{flex:1;min-width:0;overflow:hidden;height:30px;margin:0 0 0 14px}.route.mini i{width:7px;height:7px}.route.mini i.now{width:10px;height:10px;box-shadow:0 0 0 3px color-mix(in srgb,var(--sun) 30%,transparent)}.route.mini u{min-width:3px}.route.mini span{margin-left:8px}   /* v195 */
 /* settle / savings / members: paper lists with dashed lines */
 .scroll .list{background:var(--cream);border:0;border-radius:12px;box-shadow:0 1px 0 var(--dash)}
 .scroll .list .item,.scroll .list>.item+.swp,.scroll .list>.swp+.item{border-top:1.5px dashed var(--dash)}.scroll .list>:first-child .item,.scroll .list>.item:first-child{border-top:0}
@@ -1673,7 +1673,7 @@ function tripCard(t){
   const hint = homeHint(t);
   let h = '<button class="trip ' + (status(t)[1] === 'now' ? 'now' : '') + '" data-trip="' + themeOf(t) + '" data-a="open" data-id="' + t.id + '"><div class="trip-l"><div class="row between"><div class="trip-name">' + tmark(t) + esc(t.name) + '</div>' + pill(status(t)) + '</div>' +
     '<div class="sub">' + fmtDate(t.start) + ' - ' + fmtDate(t.end) + (hint ? '<span class="hint-row"><span class="hint">' + esc(hint) + '</span></span>' : '') + '</div>' +
-    '<div class="avs" style="margin-top:12px">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
+    '<div class="avs" style="margin-top:12px">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span>' + routeMini(t) + '</div>' +
     '<div class="bar ' + (left < 0 ? 'over' : '') + '" role="img" aria-label="' + (pre ? '積立は予算の ' + pct + '%' : '予算の ' + pct + '%を使用') + '"><i style="width:' + pct + '%"></i></div></div>' +
     '<div class="trip-s">' + (pre ? '<div class="right"><div class="sub sm">積立（目標 ' + yen(t.budget) + '）</div><div class="num">' + yen(savedOf(t)) + '</div></div>' : '<div class="right"><div class="sub sm">' + (left < 0 ? '予算オーバー' : '予算の残り') + '</div><div class="num">' + yen(Math.abs(left)) + '</div></div>') + '</div></button>';
   if (status(t)[0] === '終了' && t.members.length > 1) h += '<button class="btn line inv" data-a="next-trip" data-id="' + t.id + '">同じメンバーで次の旅行をつくる</button>';   // starts the next trip from this one
@@ -2062,12 +2062,19 @@ function motionMoney(){
 const STAMP_SEEN = 'tabiwari.stampseen';   // this device only: which stamps were already shown as "pressed" (per trip), so each pops once. Not synced, not in backups.
 const stampEl = (x, sm, i) => '<span class="stp' + (sm ? ' sm' : '') + (x.on ? '' : ' off') + '" style="--r:' + [-6, 5, -3, 7, -8][i % 5] + 'deg">' + x.k + '</span>';
 const dayNoOf = (t, d) => (t.start && d >= t.start && d <= t.end) ? dayDiff(t.start, d) + 1 : 0;
-function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today. Only while travelling, and only for 2 to 14 days.
-  if (status(t)[0] !== '旅行中') return '';
-  const days = dayDiff(t.start, t.end) + 1, cur = dayDiff(t.start, todayStr()) + 1; if (days < 2 || days > 14) return '';
-  let h = '';
-  for (let k = 1; k <= days; k++){ h += '<i class="' + (k <= cur ? 'on' : '') + (k === cur ? ' now' : '') + '"></i>' + (k < days ? '<u class="' + (k < cur ? 'y' : '') + '"></u>' : ''); }
-  return '<div class="route" role="img" aria-label="' + days + '日の旅の、' + cur + '日目">' + h + '<span>' + cur + '日目 / ' + days + '日</span></div>';
+function routeParts(t){   // days / today's number, only while travelling and only for 2 to 14 days
+  if (status(t)[0] !== '旅行中') return null;
+  const days = dayDiff(t.start, t.end) + 1, cur = dayDiff(t.start, todayStr()) + 1; if (days < 2 || days > 14) return null;
+  let h = ''; for (let k = 1; k <= days; k++){ h += '<i class="' + (k <= cur ? 'on' : '') + (k === cur ? ' now' : '') + '"></i>' + (k < days ? '<u class="' + (k < cur ? 'y' : '') + '"></u>' : ''); }
+  return { days: days, cur: cur, h: h };
+}
+function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today.
+  const r = routeParts(t); if (!r) return '';
+  return '<div class="route" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '<span>' + r.cur + '日目 / ' + r.days + '日</span></div>';
+}
+function routeMini(t){   // v195: the same route, small, on the home card (to the right of the faces)
+  const r = routeParts(t); if (!r || r.days > 10 || t.members.length > 4) return '';   // no room beside many faces or for many stations: the trip screen has the full one
+  return '<span class="route mini" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '<span>' + r.cur + '日目</span></span>';
 }
 function stampInline(t){   // the same stamp button, small, to sit in the first day heading
   const all = stampsOf(t), on = all.filter(x => x.on), n = on.length, show = on.concat(all.filter(x => !x.on)).slice(0, 3);

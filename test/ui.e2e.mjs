@@ -1165,6 +1165,17 @@ try {
     await q.setViewportSize({ width: 390, height: 664 }); assert.strictEqual((await g()).vis, false, 'a short screen: the ticket steps aside, the form still fits'); assert.ok(await q.evaluate(() => { const s = document.querySelector('.scroll'), k = [...s.children]; return k[k.length - 1].getBoundingClientRect().bottom <= s.getBoundingClientRect().bottom + 1; }), 'the form fits without the ticket');
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
+  // ホームの旅行カードの路線（v195）: 旅行中・2〜10日・メンバー4人まで。ほかは出ない
+  { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce' }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }; localStorage.setItem('tabiwari.noinstall', '1');
+      const mk = n => Array.from({ length: n }, (_, i) => ({ id: 'm' + i, name: ['こうき', 'あおい', 'けんた', 'みく', 'ゆう'][i], pos: i })), tr = (id, nm, a, e, k) => ({ id, name: nm, start: d(a), end: d(e), budget: 100000, paid: {}, savings: {}, settlements: [], adjustments: [], members: mk(k), expenses: [] });
+      localStorage.setItem('tabiwari.v1', JSON.stringify({ me: 'こうき', trips: [tr('h1', '三人旅', -1, 1, 3), tr('h2', '五人旅', -1, 1, 5), tr('h3', '長旅', -3, 12, 2), tr('h4', '先の旅', 20, 22, 3)] })); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.trip');
+    const has = nm => q.evaluate(n => { const el = [...document.querySelectorAll('.trip')].find(x => x.textContent.includes(n)); return el ? { mini: !!el.querySelector('.route.mini'), lit: el.querySelectorAll('.route.mini i.on').length, label: (el.querySelector('.route.mini span') || {}).textContent || '', inside: el.querySelector('.route.mini') ? (() => { const r = el.querySelector('.route.mini').getBoundingClientRect(), s = el.querySelector('.trip-s').getBoundingClientRect(); return r.right <= s.left + 1; })() : true } : null; }, nm);
+    let r3 = await has('三人旅'); assert.ok(r3.mini && r3.lit === 2 && r3.label === '2日目' && r3.inside, 'a 3-day trip on day 2, 3 people: the mini route: ' + JSON.stringify(r3));
+    assert.strictEqual((await has('五人旅')).mini, false, 'five faces: no room, no route'); assert.strictEqual((await has('長旅')).mini, false, 'a long trip: no mini route'); assert.strictEqual((await has('先の旅')).mini, false, 'not started: no route');
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
