@@ -1144,6 +1144,8 @@ try {
     await q.click('.nav .plus'); await q.waitForSelector('#f-amount'); for (const sel of ['[data-a=pick-payer]', '[data-a=toggle-split]', '[data-a=split-all]', '[data-a=parts-toggle]']) { const sz = await big('.sheet ' + sel); assert.ok(sz.length && sz.every(x => x >= 44), sel + ' is 44px: ' + sz); } await q.click('.sheet [data-a=close-sheet]');
     await q.click('[data-a=tab][data-t=save]'); await q.waitForSelector('[data-a=add-save]'); { const sz = await big('.item [data-a=add-save]'); assert.ok(sz.length && sz.every(x => x >= 44), 'add-save is 44px: ' + sz); }
     await q.click('[data-a=tab][data-t=settle]'); await q.waitForSelector('[data-a=toggle-paid]'); { const sz = await big('[data-a=toggle-paid]'); assert.ok(sz.length && sz.every(x => x >= 44), 'toggle-paid is 44px: ' + sz); }
+    { const small = await q.evaluate(() => { const o = []; document.querySelectorAll('body *').forEach(e => { const r = e.getBoundingClientRect(); if (!r.width || r.bottom < 0 || r.top > innerHeight) return; if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) return; const f = parseFloat(getComputedStyle(e).fontSize); if (f < 11) o.push(f + ':' + e.textContent.trim().slice(0, 8)); }); return o; }); assert.deepStrictEqual(small, [], 'no text under 11px on the settle tab (v193)'); }
+    await q.click('[data-a=home]'); await q.click('[data-a=new]').catch(() => {}); if (await q.locator('[data-a=preset]').count()) { const sz = await big('[data-a=preset]'); assert.ok(sz.every(x => x >= 44), 'the amount presets are 44px: ' + sz); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
