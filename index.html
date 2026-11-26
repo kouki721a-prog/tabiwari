@@ -445,9 +445,10 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .scroll .list .item,.scroll .list>.item+.swp,.scroll .list>.swp+.item{border-top:1.5px dashed var(--dash)}.scroll .list>:first-child .item,.scroll .list>.item:first-child{border-top:0}
 .live-tk{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;margin:10px 0 2px;padding:12px 16px 11px 20px;background:var(--cream);border-radius:14px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy)}
 .live-tk .lt-hd{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub)}
+.live-tk .lt-f{display:block;min-width:0;min-height:44px;margin:-4px -6px -6px;padding:4px 6px 6px;text-align:left;border-radius:10px}.live-tk .lt-f b{border-bottom:1.5px dashed var(--dash);padding-bottom:2px}.live-tk[data-focus=name] .lt-f[data-v=name] b,.live-tk[data-focus=dates] .lt-f[data-v=dates] b,.live-tk[data-focus=budget] .lt-f[data-v=budget] b{border-bottom:2px solid var(--sun)}   /* v198: tappable, and the field being typed in is underlined in yellow */
 .live-tk small{display:block;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.08em;color:var(--sub)}.live-tk b{display:block;font-size:calc(15px*var(--ts));font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.live-tk b.ph{font-weight:500;color:var(--sub)}
 .live-tk .lt-st{width:30px;height:30px;margin:-14px -4px -8px 0;border-radius:50%;display:grid;place-items:center;font-size:calc(14px*var(--ts));letter-spacing:0;font-weight:700;color:#0f2742;border:2px solid #0f2742;background:radial-gradient(circle at 35% 30%,#ffe08a,#ffc83d);transform:rotate(10deg);opacity:0}.live-tk .lt-st.on{opacity:1}
-@media (max-height:699px){.live-tk{display:none}}   /* the form must fit one screen: the ticket only shows where there is room (v194) */
+@media (max-height:719px){.live-tk{display:none}}   /* the form must fit one screen: the ticket only shows where there is room (v194) */
 @media (prefers-reduced-motion: no-preference){@keyframes ltStamp{from{opacity:0;transform:scale(1.8) rotate(-16deg)}60%{opacity:1}to{opacity:1;transform:rotate(10deg)}}@keyframes ltPop{from{transform:translateY(3px);opacity:.4}to{transform:none;opacity:1}}.live-tk .lt-st.press{animation:ltStamp .42s var(--ease) both}.live-tk b.pop{animation:ltPop .22s var(--ease) both}}
 /* the first page moves once (v151): the hero ticket, then each part rises as it comes into view. Only when "reduce motion" is off. A re-draw in the middle of a move does not restart it (a negative delay carries on). */
 @media (prefers-reduced-motion: no-preference){
@@ -1728,10 +1729,16 @@ function liveTkParts(d){
   const sameMonth = ok && d.start.slice(0, 7) === d.end.slice(0, 7);
   return { name: d.name.trim(), dates: ok ? fmtDate(d.start) + (n ? '–' + (sameMonth ? Number(d.end.slice(8, 10)) : fmtDate(d.end)) : '') : '', nights: ok ? (n ? n + '泊' + (n + 1) + '日' : '日帰り') : '', budget: bud > 0 && bud <= 1000000000 ? yen(bud) : '' };
 }
-function liveTicket(d){
-  const p = liveTkParts(d), f = (id, v, ph) => '<b id="' + id + '"' + (v ? '' : ' class="ph"') + '>' + esc(v || ph) + '</b>';
-  return '<div class="live-tk" id="live-tk" aria-hidden="true"><div class="lt-hd"><span>TRIP TICKET</span><span class="lt-st' + (d.stamped ? ' on' : '') + '" id="lt-st">初</span></div>' +
-    '<div><small>行き先</small>' + f('lt-name', p.name, 'どこへ行く？') + '</div><div><small id="lt-nights">日程' + (p.nights ? '・' + p.nights : '') + '</small>' + f('lt-dates', p.dates, '—') + '</div><div><small>予算</small>' + f('lt-budget', p.budget, '—') + '</div></div>';
+function liveTicket(d){   // v198: each field of the ticket is a button: a tap goes to that input (it looked pressable and did nothing)
+  const p = liveTkParts(d), f = (id, v, ph) => '<b id="' + id + '"' + (v ? '' : ' class="ph"') + '>' + esc(v || ph) + '</b>', c = (k, lab, inner) => '<button type="button" class="lt-f" data-a="live-focus" data-v="' + k + '" aria-label="' + lab + '">' + inner + '</button>';
+  return '<div class="live-tk" id="live-tk"><div class="lt-hd" aria-hidden="true"><span>TRIP TICKET</span><span class="lt-st' + (d.stamped ? ' on' : '') + '" id="lt-st">初</span></div>' +
+    c('name', '行き先を入力する', '<small>行き先</small>' + f('lt-name', p.name, 'どこへ行く？')) + c('dates', '出発日を選ぶ', '<small id="lt-nights">日程' + (p.nights ? '・' + p.nights : '') + '</small>' + f('lt-dates', p.dates, '—')) + c('budget', '予算を入力する', '<small>予算</small>' + f('lt-budget', p.budget, '—')) + '</div>';
+}
+const LIVE_FIELD = { name: 'd-name', dates: 'd-start', budget: 'd-budget' };
+function liveFocus(k){   // the keyboard opens only because the person tapped it; the date field opens its picker where the browser allows
+  const el = document.getElementById(LIVE_FIELD[k]); if (!el) return; el.focus();
+  if (k === 'dates'){ try { if (el.showPicker) el.showPicker(); } catch(e){} }
+  try { el.scrollIntoView({ block: 'center', behavior: calm() ? 'smooth' : 'auto' }); } catch(e){}
 }
 function liveTicketRefresh(){
   const d = ui.draft, box = document.getElementById('live-tk'); if (!d || !box) return;
@@ -2704,6 +2711,9 @@ document.addEventListener('input', e => {
   if (e.target.id === 'f-amount' && ui.sheet){ const fa = fmtAmountInput(e.target.value); if (fa !== e.target.value) e.target.value = fa; ui.sheet.data.amount = fa; e.target.style.width = amtWidth(fa); const sb = document.querySelector('[data-a=save-exp]'); if (sb) sb.disabled = !(parseYen(e.target.value) > 0); document.getElementById('f-hint').textContent = splitHint(ui.sheet.data); updatePartAmounts(ui.sheet.data); }
 });
 
+/* v198: the ticket field that matches the input being typed in is underlined (in yellow) */
+document.addEventListener('focusin', e => { const box = document.getElementById('live-tk'); if (!box) return; const k = { 'd-name': 'name', 'd-start': 'dates', 'd-end': 'dates', 'd-budget': 'budget' }[e.target.id]; if (k) box.setAttribute('data-focus', k); else box.removeAttribute('data-focus'); });
+document.addEventListener('focusout', () => { const box = document.getElementById('live-tk'); if (box) box.removeAttribute('data-focus'); });
 document.addEventListener('change', e => {
   if (e.target.id === 'ai-file' && e.target.files && e.target.files[0]){ const t = trip(), f = e.target.files[0]; e.target.value = ''; if (!t) return;
     resizeImage(f).then(img => runAi(t, { image: img, text: (document.getElementById('q-quick') || {}).value || '' }), () => { ui.quickErr = 'この写真は、読み込めませんでした。別の写真をお試しください。'; render(); }); return; }
@@ -3156,6 +3166,7 @@ document.addEventListener('click', e => {
     readSheet();
     downloadCsv(t); flash('CSVを書き出しました'); return;
   }
+  else if (a === 'live-focus'){ liveFocus(el.getAttribute('data-v')); return; }   // no redraw: it would close the keyboard
   else if (a === 'preset'){ ui.draft.budget = el.getAttribute('data-v'); }
   else if (a === 'save-trip'){
     const d = ui.draft, b = parseYen(d.budget), errs = {};
