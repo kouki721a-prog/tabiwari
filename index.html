@@ -180,6 +180,7 @@ html,body{overscroll-behavior-x:none}
 .lp-tk{position:relative;background:var(--cream);color:var(--ink);border-radius:14px;margin:6px 0 4px;box-shadow:0 1px 0 var(--dash)}
 .lp-tk-top{padding:16px 18px 14px}.lp-tk-hd{display:flex;justify-content:space-between;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.14em;color:var(--sub);margin-bottom:12px}
 .lp-tk-grid{display:grid;grid-template-columns:1fr auto;gap:12px 16px}.lp-tk small{display:block;font-family:var(--mono);font-size:calc(11px*var(--ts));letter-spacing:.12em;color:var(--sub)}.lp-tk b{font-size:calc(17px*var(--ts));font-weight:700;font-variant-numeric:tabular-nums}
+.lp-tk{margin-top:26px}.lp-f{display:block;width:100%;min-width:0;min-height:44px;margin:-4px -6px;padding:4px 6px;text-align:left;border-radius:10px;color:inherit}.lp-f b{display:inline-block;white-space:nowrap;border-bottom:1.5px dashed var(--dash);padding-bottom:2px}.lp-f:active{background:color-mix(in srgb,var(--sun) 20%,transparent)}.lp-hint{margin:8px 0 16px;text-align:center;font-size:calc(12.5px*var(--ts));color:var(--sub)}   /* v211 */
 .lp-tk-bot{position:relative;border-top:2px dashed var(--dash);padding:14px 18px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .lp-tk-bot:before,.lp-tk-bot:after{content:"";position:absolute;top:-11px;width:11px;height:22px;background:var(--paper)}.lp-tk-bot:before{left:0;border-radius:0 11px 11px 0}.lp-tk-bot:after{right:0;border-radius:11px 0 0 11px}   /* half discs, inside the ticket: nothing sticks out sideways */
 .lp-bars{display:block;flex:1;max-width:150px;height:32px;opacity:.85;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 5px,var(--ink) 5px 6px,transparent 6px 10px,var(--ink) 10px 14px,transparent 14px 17px,var(--ink) 17px 19px,transparent 19px 22px)}
@@ -1656,6 +1657,7 @@ function render(){
     } }
   if (ui.sheet && !sheetWasOpen){ const d = document.querySelector('.sheet'); if (d) d.focus({ preventScroll: true }); }   // a screen reader starts reading the dialog (a div: the keyboard stays closed)
   sheetWasOpen = !!ui.sheet; ui.sheetBack = false;
+  if (ui.newFocus){ const k = ui.newFocus; ui.newFocus = null; if (ui.view === 'new') liveFocus(k); }   // still inside the tap: the keyboard may open
   stampWatch(); questWatch(); missionWatch(); growWatch(); lpObserve(); motionMoney(); motionHome(performance.now()); motionQuest(performance.now()); motionGrow(performance.now()); motionSendoff(performance.now()); sendoffCheck(); maruPaceCheck(); wrapCheck();
 }
 let pageSlide = null;
@@ -1782,13 +1784,14 @@ function viewHomeEmpty(){
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line">' + (isStandalone() ? '<div class="sub sm">LINEでログインすると、通知とバックアップを使えます。</div>' : '') + '<button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
   if (ui.lpHero0 == null) ui.lpHero0 = performance.now();
   const he = performance.now() - ui.lpHero0, hero = he > 1800 ? { cls: ' done', st: '' } : { cls: '', st: ' style="--lp-e:' + Math.round(he) + 'ms"' };
-  const ticket = '<div class="lp-tk" aria-hidden="true"><div class="lp-tk-top"><div class="lp-tk-hd"><span>TRIP TICKET</span><span>SAMPLE</span></div><div class="lp-tk-grid"><div><small>行き先</small><b>箱根 1泊2日</b></div><div><small>日程</small><b>11/18 – 19</b></div><div><small>メンバー</small><b>あおい・けんた・みく</b></div><div><small>予算</small><b>80,000円</b></div></div></div>' +
-    '<div class="lp-tk-bot"><div><small>1人あたり</small><b>26,667円</b></div><i class="lp-bars"></i></div><span class="lp-tk-stamp">初</span></div>';
+  const tf = (v, lab, sample, al) => '<button type="button" class="lp-f" data-a="new-focus" data-v="' + v + '" aria-label="' + al + '"><small>' + lab + '</small><b>' + sample + '</b></button>';   // v211: each field of the sample ticket starts a trip at that field
+  const ticket = '<div class="lp-tk"><div class="lp-tk-top"><div class="lp-tk-hd" aria-hidden="true"><span>TRIP TICKET</span><span>SAMPLE</span></div><div class="lp-tk-grid">' + tf('name', '行き先', '箱根 1泊2日', '行き先を入れて、旅行をつくる') + tf('dates', '日程', '11/18 – 19', '日程を選んで、旅行をつくる') + tf('me', 'メンバー', 'あおい・けんた・みく', '名前を入れて、旅行をつくる') + tf('budget', '予算', '80,000円', '予算を入れて、旅行をつくる') + '</div></div>' +
+    '<div class="lp-tk-bot" aria-hidden="true"><div><small>1人あたり</small><b>26,667円</b></div><i class="lp-bars"></i></div><span class="lp-tk-stamp" aria-hidden="true">初</span></div><div class="lp-hint">欄を押すと、あなたの旅行を、書き始められます。</div>';
   const topLine = lineAcct.login && !lineAcct.user && !lineAcct.waiting ? '<button class="lineg sm hd" data-a="line-login" aria-label="LINEでログイン"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button>' : '';
   return '<div class="home0' + (isStandalone() ? ' sa' : '') + '">' + brandRow(topLine) + remoteCard() + installBanner() +
-    '<div class="lp-hero' + hero.cls + '"' + hero.st + '><h2 class="lp-h">「いくら出したっけ」を、<br>なくします。</h2><p class="lp-lead">友だちやパートナーとの国内旅行で、誰がいくら出したか分からなくなる。それを、出発前から帰ったあとまで、片づけるアプリです。</p>' +
+    '<div class="lp-hero' + hero.cls + '"' + hero.st + '><h2 class="lp-h">「いくら出したっけ」を、<br>なくします。</h2><p class="lp-lead">友だちやパートナーとの国内旅行で、誰がいくら出したか分からなくなる。それを、出発前から帰ったあとまで、片づけるアプリです。</p>' + ticket +
     '<button class="btn line" data-a="join-paste">友だちに招待された方は、こちら</button>' +
-    '<div class="home0-tags"><span>無料。ブラウザで開くだけで、使えます。</span><span>LINEでログインすると、精算のお知らせが届きます。</span></div>' + ticket + '</div>' +
+    '<div class="home0-tags"><span>無料。ブラウザで開くだけで、使えます。</span><span>LINEでログインすると、精算のお知らせが届きます。</span></div></div>' +
     '<section class="lp-sec"><div class="lp-hd"><h2>出発前から、帰ったあとまで</h2>' + ILL.train + '</div><div' + lpRv('rail', 'lp-rail', true) + '>' +
       stages.map(x => '<div' + lpRv('st' + x[0], 'lp-stage') + '><span class="n" aria-hidden="true">' + x[0] + '</span><small>' + x[1] + '</small><h3>' + x[2] + '</h3><p>' + x[3] + '</p><div class="lp-shot"><img src="icons/lp/' + x[4] + '.png" alt="' + x[5] + '" width="366" height="' + x[6] + '" loading="lazy"></div></div>').join('') + '</div></section>' +
     '<section class="lp-sec"><h2>記録するたびに、旅が進む</h2><p class="lp-sub">夕食を書いて［記録］を押すと、今日のミッションがひとつ進みます。</p><div class="lp-plain">' +
@@ -1884,7 +1887,7 @@ function liveTicket(d){   // v198: each field of the ticket is a button: a tap g
   return '<div class="live-tk" id="live-tk"><div class="lt-hd" aria-hidden="true"><span>TRIP TICKET</span><span class="lt-st' + (d.stamped ? ' on' : '') + '" id="lt-st">初</span></div>' +
     c('name', '行き先を入力する', '<small>行き先</small>' + f('lt-name', p.name, 'どこへ行く？')) + c('dates', '出発日を選ぶ', '<small id="lt-nights">日程' + (p.nights ? '・' + p.nights : '') + '</small>' + f('lt-dates', p.dates, '—')) + c('budget', '予算を入力する', '<small>予算</small>' + f('lt-budget', p.budget, '—')) + '</div>';
 }
-const LIVE_FIELD = { name: 'd-name', dates: 'd-start', budget: 'd-budget' };
+const LIVE_FIELD = { name: 'd-name', dates: 'd-start', budget: 'd-budget', me: 'd-me' };
 function liveFocus(k){   // the keyboard opens only because the person tapped it; the date field opens its picker where the browser allows
   const el = document.getElementById(LIVE_FIELD[k]); if (!el) return; el.focus();
   if (k === 'dates'){ try { if (el.showPicker) el.showPicker(); } catch(e){} }
@@ -3403,6 +3406,7 @@ document.addEventListener('click', e => {
   else if (a === 'dismiss-install'){ try { localStorage.setItem('tabiwari.noinstall', '1'); } catch(err){} }
   else if (a === 'draft-me-edit'){ if (ui.draft){ ui.draft.editMe = true; if (!ui.draft.me.trim()) ui.draft.me = lineName(); } }
   else if (a === 'new'){ ui.view = 'new'; ui.draft = newDraft(); }
+  else if (a === 'new-focus'){ ui.view = 'new'; ui.draft = newDraft(); ui.newFocus = el.getAttribute('data-v'); }   // v211: from the sample ticket on the first page: the form opens with that field ready to type in
   else if (a === 'next-trip'){   // a new trip with the same name base, length, budget and my name. Members join again by invite (they join themselves).
     const t0 = state.trips.find(x => x.id === id); if (!t0) return;
     const d = todayStr(), mine = t0.members.find(m => m.name === state.me) || t0.members[0], others = t0.members.filter(m => m !== mine).map(m => m.name);

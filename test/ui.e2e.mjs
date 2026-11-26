@@ -1360,6 +1360,19 @@ try {
     assert.deepStrictEqual(bad, [], 'no picture is cut off by its own frame: ' + bad.join(' | '));
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
+  // 最初のページの切符から始める（v211）: 切符が上にある・欄は押せる（44px）・押すと、旅行をつくる画面が、その欄にすぐ入力できる状態で開く
+  for (const [v, id, typed] of [['name', 'd-name', true], ['dates', 'd-start', false], ['me', 'd-me', true], ['budget', 'd-budget', true]]) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', hasTouch: true }), q = await c.newPage(); const qerrs = []; q.on('pageerror', e => qerrs.push(e.message)); await q.route('**/api/**', r => r.fulfill({ status: 404, json: {} }));
+    await q.addInitScript(() => { localStorage.setItem('tabiwari.noinstall', '1'); });
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.home0');
+    if (v === 'name'){
+      const g = await q.evaluate(() => { const tk = document.querySelector('.lp-tk').getBoundingClientRect(), inv = document.querySelector('[data-a=join-paste]').getBoundingClientRect(), lead = document.querySelector('.lp-lead').getBoundingClientRect(); return { n: document.querySelectorAll('.lp-f').length, hs: [...document.querySelectorAll('.lp-f')].map(e => Math.round(Math.min(e.getBoundingClientRect().height, e.getBoundingClientRect().width))), aboveInvite: tk.bottom <= inv.top, belowLead: tk.top >= lead.bottom, visible: tk.top < innerHeight * .75, hint: document.querySelector('.lp-hint').textContent }; });
+      assert.ok(g.n === 4 && g.hs.every(x => x >= 44) && g.aboveInvite && g.belowLead && g.visible && g.hint.includes('欄を押すと'), 'the ticket comes first, its four fields are 44px buttons: ' + JSON.stringify(g)); assert.strictEqual(await q.locator('[data-a=new]').count(), 1, 'still one ［旅行をつくる］'); assert.ok(await q.$$eval('.lp-f b', els => els.every(e => e.getBoundingClientRect().height < 30)), 'every value of the ticket stays on one line (the 日程 broke into two)');
+    }
+    await q.click('[data-a=new-focus][data-v=' + v + ']'); await q.waitForSelector('#d-name');
+    const af = await q.evaluate(() => ({ id: document.activeElement.id, view: ui.view, empty: !ui.draft.name })); assert.deepStrictEqual([af.id, af.view, af.empty], [id, 'new', true], 'the field you pressed is ready: ' + JSON.stringify(af));
+    if (typed){ await q.keyboard.type('5'); assert.strictEqual(await q.inputValue('#' + id), '5', 'and what you type goes into it'); }
+    assert.deepStrictEqual(qerrs, []); await c.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
