@@ -5,7 +5,7 @@ global.window = {}; eval(fs.readFileSync(path.join(root, 'config.js'), 'utf8'));
 
 const files = ['index.html', 'manifest.json', 'sw.js', 'config.js', 'sync.js', 'share.js', 'line.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/line-login-icon.png', 'icons/og.png'];
-['save', 'exp', 'settle'].forEach(n => files.push('icons/lp/' + n + '.png'));   // the screen pictures on the first page
+['save', 'exp', 'settle', 'mission', 'quest'].forEach(n => files.push('icons/lp/' + n + '.png'));   // the screen pictures on the first page
 fs.readdirSync(path.join(root, 'icons/splash')).filter(f => f.endsWith('.png')).forEach(f => files.push('icons/splash/' + f));   // iPhone start-up images
 if (window.TABIWARI && window.TABIWARI.legalReady) files.push('terms.html', 'privacy.html', 'legal.css');
 
