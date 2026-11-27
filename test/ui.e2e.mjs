@@ -1379,6 +1379,16 @@ try {
     if (typed){ await q.keyboard.type('5'); assert.strictEqual(await q.inputValue('#' + id), '5', 'and what you type goes into it'); }
     assert.deepStrictEqual(qerrs, []); await c.close(); }
 
+  // v218: the narrowest phones (320px): the savings row keeps each name on one line (the amount drops below it when the two do not fit) and the home card's "2日目" label is not cut at the stub
+  for (const w of [320, 340, 360]) { const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', reducedMotion: 'reduce', viewport: { width: w, height: 800 } }), q = await c.newPage(); q.on('pageerror', e => errs.push(e.message));
+    const d = n => { const t = new Date(); t.setDate(t.getDate() + n); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); }, mm = [{ id: 'a', name: 'あおいさやか', pos: 0 }, { id: 'b', name: 'けんた', pos: 1 }, { id: 'c', name: 'みく', pos: 2 }];
+    await q.addInitScript(t => { localStorage.setItem('tabiwari.noinstall', '1'); localStorage.setItem('tabiwari.v1', JSON.stringify({ trips: t })); }, [{ id: 't1', name: '箱根', start: d(-1), end: d(1), budget: 80000, members: mm, paid: {}, savings: {}, expenses: [] }, { id: 't2', name: '京都', start: d(20), end: d(21), budget: 600000, members: mm, paid: {}, savings: { a: 15000, b: 120000 }, expenses: [] }]);
+    await q.goto('http://localhost:8797/'); await q.waitForSelector('.route.mini'); await q.waitForTimeout(1300);
+    assert.ok(await q.$eval('.route.mini', r => { const l = r.querySelector(':scope > span'); return !l || getComputedStyle(l).display === 'none' || l.scrollWidth <= l.clientWidth + 1; }), 'the day label on the home card is whole or left out (' + w + 'px)');
+    await q.click('.trip:has-text("京都")'); await q.waitForSelector('.nav'); await q.click('.nav [data-t=save]'); await q.waitForSelector('.item.sav');
+    assert.ok(await q.$$eval('.item.sav', its => its.every(it => { const t = it.querySelector('.row.between > .t'), a = it.querySelector('.sav-amt'), bt = it.querySelector('.btn.line'); return t.getBoundingClientRect().height < parseFloat(getComputedStyle(t).lineHeight || 24) * 1.6 && t.scrollWidth <= t.clientWidth + 1 && a.getBoundingClientRect().right <= bt.getBoundingClientRect().left + 1 && it.scrollWidth <= it.clientWidth + 1 && bt.getBoundingClientRect().height >= 44; })), 'each name stays on one line, nothing runs over, the button is 44px (' + w + 'px)');
+    await c.close(); }
+
   console.log('errors:', errs); assert.deepStrictEqual(errs, []);
   console.log('ui e2e passed');
 } finally { await b.close(); srv.close(); }
