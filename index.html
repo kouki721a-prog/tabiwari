@@ -232,6 +232,8 @@ html,body{overscroll-behavior-x:none}
 /* v192: 積立の人ごとの行も、精算と同じ切符の形（旅の色の縁）。バーに、25%ごとの目盛り（上の切符の駅と同じ）。 */
 .list:has(>.item.sav){background:transparent;border:0;border-radius:0;overflow:visible;box-shadow:none}
 .item.sav{background:var(--cream);border-radius:14px;margin-top:8px;box-shadow:0 1px 0 var(--dash),inset 4px 0 0 var(--navy);padding-left:16px}.item.sav:first-child{margin-top:0}.item.sav+.item.sav{border-top:0}
+.item.sav .row.between{flex-wrap:wrap;gap:0 8px}.item.sav .row.between>.t,.item.sav .sav-amt{white-space:nowrap}   /* v218: on a 320px screen the name was squeezed to one letter a line (the amount and the button took the room): the name stays whole, and the amount drops to the next line only when the two do not fit */
+@media (max-width:340px){.item.sav>.btn.line{padding:9px 10px!important}.trip .route.mini>span{display:none}}   /* v218: and the home card has no room for the "2日目" label (it was cut at the edge of the stub): the lit station says it */
 .item.sav .bar{position:relative}.item.sav .bar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(25% - 2px),var(--cream) calc(25% - 2px) 25%)}.sav-ok{display:inline-flex;align-items:center;gap:3px;color:var(--good-t);font-weight:500}
 .ticket.c .t-sub{font-size:calc(12px*var(--ts));opacity:.85;margin-top:6px}
 .t-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.t-row .t-label{white-space:nowrap}
