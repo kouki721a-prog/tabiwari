@@ -1778,7 +1778,7 @@ function viewHomeEmpty(){
     ['旅の道のり', 'ぜんぶ歩くと、金の判子', '積立から精算までの道のりが、地図になります。いまどこまで来たかが分かり、共有している友だちと、同じ進み具合を見られます。ぜんぶ達成すると、旅のまとめ画像に、金の判子が載ります。', 'quest', '道のりの画面。旅の完成度が60%。次の目標が出ている。', 329]];
   const feats = [['一部の人だけの割り勘', '人ごとに選べる'], ['割合・金額', '多め・少なめに'], ['レシートの写真', '店名と合計を読む'], ['受け取りの確認', '払った・受け取った'], ['変更の履歴', '誰がいつ'], ['まとめ画像', 'レシート風']];
   const steps = ['旅行をつくる（名前・日付・予算・メンバー）', '共有リンクを、LINEで友だちに送る', '旅行中は、払った人が記録する', '最後に「精算」を開いて、表示のとおりに送金する'];
-  const faq = [['料金は、かかりますか？', '無料で使えます。'], ['ログインやインストールは、必要ですか？', 'どちらも、なくても使えます。ブラウザで開くだけで、始められます。LINEでログインすると、精算のお知らせが、あなたのLINEに届き、端末を替えても旅行を戻せます。ホーム画面に追加すると、すぐ開けて、アプリの通知も届きます。'], ['お金を、アプリで送れますか？', '送れません。記録と計算だけです。送金は、いつものやり方で。'], ['データは、どこに保存されますか？', 'この端末に保存されます。LINEでログインすると、バックアップされて、端末を替えても戻せます。'], ['道のりやたびまるの成長は、友だちにも見えますか？', '道のりの進み具合は、共有している旅行なら、みんなに同じように見えます。たびまるの成長は、この端末にある旅行から数えるので、その人だけのものです。']];
+  const faq = [['料金は、かかりますか？', '無料で使えます。'], ['ログインやインストールは、必要ですか？', 'ブラウザで開くだけで、すぐ始められます。LINEでログインすると、精算のお知らせが、あなたのLINEに届き、端末を替えても旅行を戻せます。ホーム画面に追加すると、すぐ開けて、アプリの通知も届きます。'], ['お金を、アプリで送れますか？', '送れません。記録と計算だけです。送金は、いつものやり方で。'], ['データは、どこに保存されますか？', 'この端末に保存されます。LINEでログインすると、バックアップされて、端末を替えても戻せます。'], ['道のりやたびまるの成長は、友だちにも見えますか？', '道のりの進み具合は、共有している旅行なら、みんなに同じように見えます。たびまるの成長は、この端末にある旅行から数えるので、その人だけのものです。']];
   let line = '';
   if (lineAcct.waiting) line = lineCard();
   else if (lineAcct.login && !lineAcct.user) line = '<div class="home0-line">' + (isStandalone() ? '<div class="sub sm">LINEでログインすると、通知とバックアップを使えます。</div>' : '') + '<button class="lineg sm" data-a="line-login"><img src="icons/line-login-icon.png" alt=""><span>LINEでログイン</span></button></div>';
@@ -1803,7 +1803,7 @@ function viewHomeEmpty(){
       '<div' + lpRv('n2', 'lp-note') + '><b>アプリの通知（積立・記録のし忘れ）</b><div class="lp-bub">箱根まで、あと7日です。あなたの積立は、あと 16,667円 で目標です。</div></div></section>' +
     '<section class="lp-sec"><div class="lp-hd"><h2>はじめ方</h2>' + ILL.map + '</div><ol' + lpRv('steps', 'lp-steps') + '>' + steps.map((x, i) => '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><span>' + x + '</span></li>').join('') + '</ol></section>' +
     '<section class="lp-sec lp-faq"><h2>よくある質問</h2><div' + lpRv('faq', '') + '>' + faq.map(x => '<details><summary>' + x[0] + '</summary><p>' + x[1] + '</p></details>').join('') + '</div></section>' +
-    '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。（ログインなしでも使えます）<div class="home0-note-sub">ログインしていないと、スマホを替えたときや、閲覧履歴を消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>' +
+    '<div class="home0-bottom">' + (lineAcct.user ? '' : '<div class="home0-note"><b>旅行のデータは、この端末に保存されます。</b>LINEでログインすると、バックアップされて、端末を替えても戻せます。<div class="home0-note-sub">ログインしていないと、スマホを替えたときや、閲覧履歴を消したときに、旅行も消えます。</div></div>') + line + legalLinks() + '</div></div>' +
     '<div class="cta home0-cta"><button class="btn" data-a="new">旅行をつくる</button></div>';   // the one thing to do, fixed at the bottom while the page scrolls
 }
 /* the one line on a home card that says what to do next */
