@@ -511,11 +511,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .thgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.thtile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px 9px;border-radius:16px;border:2px solid var(--line);background:var(--cream);color:var(--ink);font-size:calc(12px*var(--ts))}.thtile .tmark{background:var(--navy);box-shadow:none}.thtile[aria-pressed=true]{border-color:var(--sun);background:color-mix(in srgb,var(--sun) 22%,var(--cream))}.thtile[aria-pressed=true] b{font-weight:700}
 .trip-name .tmark{margin-right:7px}
 .invbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 6px}.invbar .maru-btn{margin:0 0 0 auto}   /* v217: its own row between the list and the tabs (a floating chip covered the list); the round + button stands 22px into it, the chip stays on the left */
-.btn.line.nav-inv{width:auto;min-height:44px;padding:0 16px;border-radius:99px;background:var(--card);font-size:calc(14px*var(--ts))}.dbars{position:relative;display:flex;align-items:flex-end;gap:8px;height:64px;margin:0 2px 6px;padding:0 4px}.dbars .db{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
-.dbars .db i{display:block;width:100%;max-width:44px;border-radius:5px 5px 0 0;background:var(--sub);opacity:.5}.dbars .db.now i{background:var(--sun);opacity:1}.dbars .db.future i{background:none;border:1.5px dashed var(--dash);border-bottom:0;opacity:1}
-.dbars .db b{height:12px;margin-top:4px;font:500 calc(11px*var(--ts))/12px var(--mono);color:var(--sub);font-variant-numeric:tabular-nums}.dbars .db.now b{color:var(--ink);font-weight:700}
-.dbars .ref{position:absolute;left:0;right:0;border-top:1.5px dashed var(--dash);pointer-events:none}.dbars .ref em{position:absolute;right:0;bottom:2px;padding:0 4px;border-radius:4px;background:var(--paper);font-style:normal;font-size:calc(11px*var(--ts));color:var(--sub);font-variant-numeric:tabular-nums}   /* v219: the bars of the days; the dashed line is the budget divided by the days */
-.rtrow .maru-btn{margin:0 0 -4px}   /* only the bottom overhangs (the top would be cut by the scroll area) */
+.btn.line.nav-inv{width:auto;min-height:44px;padding:0 16px;border-radius:99px;background:var(--card);font-size:calc(14px*var(--ts))}.rtrow .maru-btn{margin:0 0 -4px}   /* only the bottom overhangs (the top would be cut by the scroll area) */
 .maru-btn{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:99px;border:1.5px solid var(--dash);background:var(--cream);margin-right:6px}.maru-chat{display:flex;align-items:flex-end;gap:10px;margin:2px 0 12px}.maru-bubble.big{max-width:none;font-size:calc(14px*var(--ts));padding:10px 14px}.maru-ans{background:var(--cream);border:1.5px dashed var(--dash);border-radius:14px;padding:12px 14px;line-height:1.7;margin-bottom:12px;font-variant-numeric:tabular-nums}.maru-qs{display:flex;flex-direction:column;gap:8px;align-items:stretch}.maru-qs .chip{text-align:left;justify-content:flex-start;padding:11px 14px}.maru-qs .chip.on{background:var(--sun);border-color:var(--sun);color:var(--sun-ink)}
 .maru{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom) + 158px);z-index:45;display:flex;align-items:flex-end;gap:8px;pointer-events:none;max-width:calc(100vw - 28px)}.maru-bubble{max-width:236px;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:14px 14px 14px 4px;padding:7px 11px;font-size:calc(12.5px*var(--ts));line-height:1.5;box-shadow:0 6px 16px rgba(15,39,66,.18)}.maru-face{flex:none;display:block}
 .wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
@@ -988,13 +984,6 @@ function tripDays(start, end){   // every date from start to end, 'YYYY-MM-DD' (
   var out = [], p = String(start).split('-').map(Number), n = dayDiff(start, end); if (!(n >= 0) || n > 400) return out;
   for (var i = 0; i <= n; i++){ var d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + i)), m = d.getUTCMonth() + 1, dd = d.getUTCDate(); out.push(d.getUTCFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd); }
   return out;
-}
-/* 日ごとの棒 (v219): what each day of the trip cost, against the budget divided by the days (a fixed line, not "today's guide", which changes every day). Only while travelling, for 2 to 14 days, once something is recorded. Worked out from the expenses every time: nothing is saved. */
-function dayBars(t, today){
-  var days = tripDays(t.start, t.end), n = days.length; if (n < 2 || n > 14 || !t.expenses.length || today < t.start || today > t.end) return null;
-  var sum = {}; t.expenses.forEach(function(e){ sum[e.date] = (sum[e.date] || 0) + e.amount; });
-  var ref = Math.floor(t.budget / n), out = days.map(function(d){ return { d: d, n: Number(d.slice(8, 10)), sum: sum[d] || 0, state: d === today ? 'now' : d < today ? 'past' : 'future' }; });
-  return { ref: ref, max: Math.max(ref, Math.max.apply(null, out.map(function(x){ return x.sum; }))), days: out };
 }
 var QUEST_CHAPTERS = [[1, '出発の前', '積立'], [2, '旅のあいだ', '記録'], [3, '帰ってから', '精算']];
 var QUEST_CATS = [['food', '食', '食事'], ['transport', '交', '交通'], ['stay', '宿', '宿泊'], ['sight', '遊', '観光'], ['gift', '土', 'お土産']];
@@ -2397,16 +2386,10 @@ function routeParts(t){   // days / today's number, only while travelling and on
   let h = ''; for (let k = 1; k <= days; k++){ h += '<i class="' + (k <= cur ? 'on' : '') + (k === cur ? ' now' : '') + '"></i>' + (k < days ? '<u class="' + (k < cur ? 'y' : '') + '"></u>' : ''); }
   return { days: days, cur: cur, h: h };
 }
-function dayBarsHtml(t){   // v219: the bars sit above the route; the dashed line is the budget divided by the days
-  const b = dayBars(t, todayStr()); if (!b) return '';
-  const H = 32, hh = v => v > 0 ? Math.max(4, Math.round(v / b.max * H)) : 0, lab = b.days.map(x => fmtDate(x.d) + ' ' + (x.sum ? yen(x.sum) : '記録なし')).join('、') + '。1日あたりの予算 ' + yen(b.ref);
-  return '<div class="dbars" role="img" aria-label="日ごとの支出。' + esc(lab) + '"><div class="ref" style="bottom:' + (16 + Math.round(b.ref / b.max * H)) + 'px"><em>1日あたり ' + yen(b.ref) + '</em></div>' +
-    b.days.map(x => '<div class="db ' + x.state + '"><i style="height:' + (x.sum ? hh(x.sum) : x.state === 'future' ? 6 : 3) + 'px"></i><b>' + x.n + '</b></div>').join('') + '</div>';
-}
 function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today. v202: the pill beside it opens the day's missions (flame = the streak).
   if (status(t)[0] !== '旅行中') return '<div class="rtrow"><div class="route solo"></div>' + maruBtn() + '</div>';   // v217: before and after the trip the row holds only the mascot
   const r = routeParts(t), pill = missionPill(t);
-  return dayBarsHtml(t) + '<div class="rtrow">' + (r ? '<div class="route" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '</div>' : '<div class="route solo"></div>') + pill + maruBtn() + '</div>';
+  return '<div class="rtrow">' + (r ? '<div class="route" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '</div>' : '<div class="route solo"></div>') + pill + maruBtn() + '</div>';
 }
 function routeMini(t){   // v195: the same route, small, on the home card (to the right of the faces)
   const r = routeParts(t); if (!r || r.days > 10 || t.members.length > 4) return '';   // no room beside many faces or for many stations: the trip screen has the full one

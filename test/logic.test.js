@@ -1,7 +1,7 @@
 const fs = require('fs'), assert = require('assert'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const m = html.match(/LOGIC_START[^\n]*\n([\s\S]*?)\/\* ===== LOGIC_END/);
-const L = new Function(m[1] + '; return {crewWord, themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, questOf, tripDays, dayBars, streakOf, missionsOf, maruGrow, MARU_LV, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
+const L = new Function(m[1] + '; return {crewWord, themeKey, THEME_KEYS, amountCheck, maruAnswers, maruPace, saveEntries, saveApply, pctFloor, savePlanOf, stampsOf, STAMPS, questOf, tripDays, streakOf, missionsOf, maruGrow, MARU_LV, payKey, noteUrl, expenseChanged, prevOf, splitShares, matchExpense, parseCsv, importCsv, calcBalances, roundBalances, confirmRound, expenseAdjustment, openItems, isSettled, roundNo, settle, dayDiff, parseYen, tripCsv, csvCell, isUntouchedSample, sanitizeTrip, recapData, parseQuick, needsTabimaru, cleanParts, cleanFixed};')();
 
 // leftover yen: total is exact, nobody is off by more than 1 yen, same input -> same output, and the extra yen rotate between expenses
 const ids3 = ['a','b','c'], sum3 = r => r.reduce((t, x) => t + x[1], 0);
@@ -468,14 +468,6 @@ console.log('pair wording tests passed');
   const Q = L.questOf, mem = n => Array.from({ length: n }, (_, i) => ({ id: 'm' + i, name: 'n' + i }));
   const trip = (o) => Object.assign({ start: '2026-12-10', end: '2026-12-12', budget: 100000, members: mem(2), savings: {}, expenses: [], settlements: [], paid: {} }, o || {});
   assert.deepStrictEqual(L.tripDays('2026-12-30', '2027-01-02'), ['2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02'], 'days across a year end');
-  { // v219: the bars of the days
-    const E = (d, a) => ({ id: d + a, title: 'x', amount: a, payer: 'a', cat: 'food', date: d, split: ['a'] }), T = (ex, o) => Object.assign({ start: '2026-11-25', end: '2026-11-28', budget: 100000, expenses: ex }, o || {});
-    const b = L.dayBars(T([E('2026-11-25', 18000), E('2026-11-25', 13000), E('2026-11-26', 18000), E('2026-11-27', 12000)]), '2026-11-27');
-    assert.deepStrictEqual(b.days.map(x => [x.n, x.sum, x.state]), [[25, 31000, 'past'], [26, 18000, 'past'], [27, 12000, 'now'], [28, 0, 'future']], 'a sum and a state for each day'); assert.strictEqual(b.ref, 25000, 'the line is the budget divided by the days'); assert.strictEqual(b.max, 31000, 'the tallest bar sets the scale');
-    assert.strictEqual(L.dayBars(T([E('2026-11-25', 1000)], { budget: 400000 }), '2026-11-26').max, 100000, 'the line itself can set the scale (every day is under it)');
-    assert.strictEqual(L.dayBars(T([]), '2026-11-26'), null, 'nothing recorded: no bars'); assert.strictEqual(L.dayBars(T([E('2026-11-25', 1)]), '2026-11-24'), null, 'before the trip: none'); assert.strictEqual(L.dayBars(T([E('2026-11-25', 1)]), '2026-11-29'), null, 'after the trip: none');
-    assert.strictEqual(L.dayBars(T([E('2026-11-25', 1)], { end: '2026-11-25' }), '2026-11-25'), null, 'one day: no bars'); assert.strictEqual(L.dayBars(T([E('2026-11-25', 1)], { end: '2026-12-09' }), '2026-11-25'), null, 'more than 14 days: none'); assert.strictEqual(L.dayBars(T([E('2026-11-25', 1)], { end: '2026-12-08' }), '2026-11-25').days.length, 14, '14 days: bars');
-    assert.strictEqual(L.dayBars(T([E('2026-11-29', 500)]), '2026-11-26').days.reduce((a, x) => a + x.sum, 0), 0, 'an expense dated outside the trip is not drawn'); }
   assert.deepStrictEqual(L.tripDays('2026-12-12', '2026-12-10'), [], 'an end before the start has no days'); assert.strictEqual(L.tripDays('2020-01-01', '2026-01-01').length, 0, 'more than 400 days: none');
   // before the trip: nothing done, chapter 1 is the current one, the next goal is the first saving step
   let q = Q(trip(), '2026-12-01'); assert.strictEqual(q.total, 10, '4 saving steps + first + all + cats + every + settle + paid = 10 for two people');
