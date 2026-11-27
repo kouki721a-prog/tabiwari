@@ -129,7 +129,7 @@ try {
   await A.p.goto(base + '/'); await A.p.waitForSelector('.home1');   // the first invite left the app for LINE
   await A.p.locator('.trip', { hasText: '招待旅行' }).click(); await A.p.waitForSelector('.mem-row');
   const lineReq2 = A.p.waitForRequest(r => r.url().startsWith('https://line.me/R/msg/text/?'), { timeout: 12000 });
-  await A.p.click('.mem-row [data-a=invite]'); const sent2 = decodeURIComponent((await lineReq2).url().split('?')[1]);
+  await A.p.click('.invbar [data-a=invite]'); const sent2 = decodeURIComponent((await lineReq2).url().split('?')[1]);
   assert.ok(sent2.includes('「招待旅行」') && /#t=[A-Za-z0-9_-]{32}/.test(sent2), sent2);
 
   // ---------- 積立の履歴 on a shared trip: A deposits (an entry), B joins and sees it, B edits it, A sees the edit; A deletes it, B sees the total fall back to an "unlogged" line

@@ -413,6 +413,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .tab.on{color:var(--ink)}
 .tab.on svg{stroke-width:2.6}
 .plus{width:54px;height:54px;border-radius:50%;background:var(--sun);color:var(--sun-ink);display:grid;place-items:center;margin:-22px auto 4px;box-shadow:0 6px 16px rgba(0,0,0,.22)}
+.fab.hbar{display:flex;align-items:center;gap:10px;box-shadow:none}.hbar .iconbtn,.hbar .maru-btn{width:52px;height:52px;margin:0;box-shadow:0 4px 12px rgba(0,0,0,.12)}.hbar .btn{flex:1;min-width:0;box-shadow:0 8px 20px rgba(0,0,0,.22)}   /* v217: the bar is the fixed part; the button inside keeps its own shadow */
 .fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) * .5 + 14px);width:calc(100% - 32px);max-width:488px;box-shadow:0 8px 20px rgba(0,0,0,.22);z-index:10}
 .toast button{margin-left:14px;color:#fff;text-decoration:underline;font-weight:700;font-size:calc(14px*var(--ts))}
 .toast{display:flex;align-items:center;max-width:calc(100vw - 32px);width:max-content;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 100px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:22px;line-height:1.5;font-size:calc(14px*var(--ts));font-weight:500;z-index:40}
@@ -507,6 +508,8 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
 .tmark-btn{flex:none;min-width:44px;min-height:44px;display:grid;place-items:center;margin-right:-6px}
 .thgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.thtile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px 9px;border-radius:16px;border:2px solid var(--line);background:var(--cream);color:var(--ink);font-size:calc(12px*var(--ts))}.thtile .tmark{background:var(--navy);box-shadow:none}.thtile[aria-pressed=true]{border-color:var(--sun);background:color-mix(in srgb,var(--sun) 22%,var(--cream))}.thtile[aria-pressed=true] b{font-weight:700}
 .trip-name .tmark{margin-right:7px}
+.invbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 6px}.invbar .maru-btn{margin:0 0 0 auto}   /* v217: its own row between the list and the tabs (a floating chip covered the list); the round + button stands 22px into it, the chip stays on the left */
+.btn.line.nav-inv{width:auto;min-height:44px;padding:0 16px;border-radius:99px;background:var(--card);font-size:calc(14px*var(--ts))}.rtrow .maru-btn{margin:0 0 -4px}   /* only the bottom overhangs (the top would be cut by the scroll area) */
 .maru-btn{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:99px;border:1.5px solid var(--dash);background:var(--cream);margin-right:6px}.maru-chat{display:flex;align-items:flex-end;gap:10px;margin:2px 0 12px}.maru-bubble.big{max-width:none;font-size:calc(14px*var(--ts));padding:10px 14px}.maru-ans{background:var(--cream);border:1.5px dashed var(--dash);border-radius:14px;padding:12px 14px;line-height:1.7;margin-bottom:12px;font-variant-numeric:tabular-nums}.maru-qs{display:flex;flex-direction:column;gap:8px;align-items:stretch}.maru-qs .chip{text-align:left;justify-content:flex-start;padding:11px 14px}.maru-qs .chip.on{background:var(--sun);border-color:var(--sun);color:var(--sun-ink)}
 .maru{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom) + 158px);z-index:45;display:flex;align-items:flex-end;gap:8px;pointer-events:none;max-width:calc(100vw - 28px)}.maru-bubble{max-width:236px;background:var(--cream);color:var(--ink);border:1.5px dashed var(--dash);border-radius:14px 14px 14px 4px;padding:7px 11px;font-size:calc(12.5px*var(--ts));line-height:1.5;box-shadow:0 6px 16px rgba(15,39,66,.18)}.maru-face{flex:none;display:block}
 .wr-st{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-msg{font-size:calc(13px*var(--ts));color:var(--sub);line-height:1.7;margin:14px 2px 0}
@@ -587,7 +590,7 @@ textarea.copybox{width:100%;height:110px;font:inherit;font-size:calc(14px*var(--
   .trip:active,.item:active,.usage:active{transform:scale(.985)}
   .btn:active,.chip:active,.cat:active,.tile:active,.delrow:active,.link:active{transform:scale(.97)}
   .iconbtn:active,.tab:active,.plus:active{transform:scale(.92)}
-  .fab{transition:transform .12s ease-out}.fab:active{transform:translateX(-50%) scale(.97)}
+  .fab{transition:transform .12s ease-out}.fab:active{transform:translateX(-50%) scale(.97)}.fab.hbar:active{transform:translateX(-50%)}.hbar .btn{transition:transform .12s ease-out}.hbar .btn:active{transform:scale(.97)}
   .btn:disabled:active{transform:none}
   #app.go-f>:not(.nav):not(.fab):not(.toast):not(.sheet-bg){animation:slL .28s var(--ease)}#app.go-b>:not(.nav):not(.fab):not(.toast):not(.sheet-bg){animation:slR .28s var(--ease)}   /* a move between screens: forward comes in from the right, back from the left */
   .item.fresh{animation:fresh .6s var(--ease)}
@@ -1757,7 +1760,8 @@ function growBtn(){   // v205: the mascot with her level, beside the gear on the
   const g = maruGrow(state.trips, todayStr());
   return '<button type="button" class="maru-btn gbtn" data-a="grow-open" aria-label="たびまるのレベル。レベル' + g.lv + '、' + g.name + '">' + tabimaruLv(24, g.lv) + '<i class="lvchip">Lv' + g.lv + '</i></button>';
 }
-const brandRow = (extra) => '<div class="brandrow"><h1 class="brand">Tabiflow</h1><span class="brandact">' + (extra || '') + '<button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button></span></div>';
+const gearBtn = () => '<button class="iconbtn" data-a="app-settings" aria-label="設定">' + icon('gear', 20) + '</button>';
+const brandRow = (extra) => '<div class="brandrow"><h1 class="brand">Tabiflow</h1><span class="brandact">' + (extra || '') + gearBtn() + '</span></div>';
 /* first-page motion (v151): when each part first came into view (ui.lpAt), and when the hero started (ui.lpHero0). Kept in memory, so a re-draw carries the move on instead of restarting it. */
 const lpRv = (id, cls, line) => { const t = ui.lpAt && ui.lpAt[id], base = (cls ? cls + ' ' : '') + (line ? 'lp-rl' : 'lp-rv');
   if (t == null) return ' class="' + base + '" data-rv="' + id + '"'; const e = performance.now() - t;
@@ -1860,8 +1864,8 @@ function homeListHtml(tab){   // the list under the tabs (also built for the tab
 function viewHome(){
   if (!state.trips.length) return viewHomeEmpty();
   const { now, past, tab } = homeSets();
-  const h = brandRow(state.trips.length ? growBtn() : '') + homeTabs(now.length, past.length, tab) + remoteCard() + installBanner() + lineCard() + '<div class="hlist">' + homeListHtml(tab) + '</div>';
-  return '<div class="home1"><div>' + h + '</div></div><button class="btn fab" data-a="new">旅行をつくる</button>';
+  const h = '<div class="brandrow"><h1 class="brand">Tabiflow</h1></div>' + homeTabs(now.length, past.length, tab) + remoteCard() + installBanner() + lineCard() + '<div class="hlist">' + homeListHtml(tab) + '</div>';
+  return '<div class="home1"><div>' + h + '</div></div><div class="fab hbar">' + growBtn() + gearBtn() + '<button class="btn" data-a="new">旅行をつくる</button></div>';   // v217: the mascot and the gear sit beside the main button, where the thumb is
 }
 
 function legalLinks(){
@@ -1911,7 +1915,7 @@ function viewNew(){
     (lineName() && !d.editMe && !d.me.trim()
       ? '<span class="lab">あなたの名前</span><button type="button" class="item slim acc melink" data-a="draft-me-edit" aria-label="あなたの名前を変える"><div class="grow"><b>' + esc(lineName()) + '</b> <span class="sub sm">（LINEの名前）</span></div><span class="sub sm">変える</span></button>'
       : '<label class="lab" for="d-me">あなたの名前</label><input class="field' + bad(d, 'me') + '" id="d-me" type="text" required aria-required="true" maxlength="50" data-draft="me" value="' + esc(d.me) + '" placeholder="例：あおい">' + ferr(d, 'me')) +
-    (d.from ? '<div class="panel" style="margin-top:10px;padding:10px 12px;font-size:calc(13px*var(--ts))">「' + esc(d.from.name) + '」のメンバー（' + esc(d.from.names) + '）を、つくったあとの画面で、招待できます。</div>' : '') + '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあと、上の［＋招待］から誘えます。</div>' +
+    (d.from ? '<div class="panel" style="margin-top:10px;padding:10px 12px;font-size:calc(13px*var(--ts))">「' + esc(d.from.name) + '」のメンバー（' + esc(d.from.names) + '）を、つくったあとの画面で、招待できます。</div>' : '') + '<div class="sub" style="margin-top:8px">友だちは、旅行をつくったあと、下の［＋ 友だちを招待］から誘えます。</div>' +
     (devOn() ? '<button class="link" data-a="make-demo" style="width:auto;padding:12px 0 0;font-size:calc(12px*var(--ts))">動作確認用に、3人のテスト旅行をつくる</button>' : '');
   if (d.err) h += '<div class="err" role="alert">' + esc(d.err) + '</div>';
   return h + '</div><div class="cta"><button class="btn" data-a="save-trip">この内容でつくる</button></div>';
@@ -1944,7 +1948,7 @@ function viewTrip(){
     h += '<i class="sp"></i><div class="ticket c"><div class="t-row"><span class="t-label">' + lab + '</span>' + amt + '</div>' + bar + '</div>';
   h += '<i class="sp"></i><div class="scroll">' + tabHtml(t, ui.tab) + '</div>';
   const tb = (k, ic, lb) => '<button class="tab ' + (ui.tab === k ? 'on' : '') + '" data-a="tab" data-t="' + k + '" aria-label="' + lb + '"' + (ui.tab === k ? ' aria-current="page"' : '') + '>' + icon(ic) + lb + '</button>';
-  return h + '<nav class="nav"><div class="nav-in">' + tb('save', 'coin', '積立') + tb('exp', 'list', '記録') +
+  return h + subBar(t) + '<nav class="nav"><div class="nav-in">' + tb('save', 'coin', '積立') + tb('exp', 'list', '記録') +
     (ui.tab === 'save' ? '<button class="plus" data-a="add-save" data-id="' + esc(meId(t)) + '" aria-label="積み立てる">' + icon('plus', 28) + '</button>' : '<button class="plus" data-a="add-exp" aria-label="支出を追加">' + icon('plus', 28) + '</button>') + tb('settle', 'swap', '精算') +
     '<button class="tab" data-a="settings" aria-label="設定">' + icon('sliders') + '設定</button></div></nav>';
 }
@@ -1954,10 +1958,14 @@ function capNotice(t, before){   // "食事が、上限を 2,000円 超えまし
   const caps = t.caps || {}, now = catSums(t), hit = CATS.filter(c => caps[c[0]] && now[c[0]] > caps[c[0]] && (before[c[0]] || 0) <= caps[c[0]])[0];
   return hit ? hit[2] + 'が、上限を ' + yen(now[hit[0]] - caps[hit[0]]) + ' 超えました。' : '';
 }
-function memRow(t){   // the members and the invite button (on the record tab they share the date line)
-  return '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div>' +
-    '<button class="maru-btn" data-a="maru-open" aria-label="たびまるに聞く">' + tabimaru(17) + '</button>' +
-    '<button class="btn line sm" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備中…' : '＋招待') + '</button></div>';
+function memRow(t){   // the members (v217: the mascot and the invite button left the top edge: the mascot is in the route row, the invite is a chip above the tabs)
+  return '<div class="mem-row"><div class="avs">' + t.members.map(m => av(t, m.id)).join('') + '<span class="sr">メンバー：' + esc(t.members.map(m => m.name).join('、')) + '</span></div></div>';
+}
+const maruBtn = () => '<button class="maru-btn" data-a="maru-open" aria-label="たびまるに聞く">' + tabimaru(17) + '</button>';
+const showInviteChip = t => (!t.share || t.members.length < 2) && status(t)[0] !== '終了' && (ui.tab === 'exp' || ui.tab === 'save');   // v217: until the trip is shared and somebody has joined (after that, more people are invited from its settings)
+function subBar(t){   // v217: the row above the tabs: the invite chip on the left (until the trip is shared), and on the savings and settle tabs the mascot on the right (the record tab has it in the route row)
+  const chip = showInviteChip(t) ? '<button class="btn line sm nav-inv" data-a="invite" data-id="' + t.id + '"' + (ui.inviting === t.id ? ' disabled' : '') + '>' + (ui.inviting === t.id ? '準備しています…' : '＋ 友だちを招待') + '</button>' : '', mr = ui.tab === 'exp' ? '' : maruBtn();
+  return chip || mr ? '<div class="invbar">' + chip + mr + '</div>' : '';
 }
 /* the record tab's card: ONE thing in big letters (today's guide while travelling / what was saved before / what was spent after), one bar, one line for the rest; the category split is folded into one line (a tap opens the bar and the chips) */
 /* stations on the savings bar (v167): 25 / 50 / 75 / 100 %. A station lights up (with a small pop) when a deposit takes the total past it. */
@@ -2377,9 +2385,9 @@ function routeParts(t){   // days / today's number, only while travelling and on
   return { days: days, cur: cur, h: h };
 }
 function routeStrip(t){   // v187: a dashed route with one station per day, lit up to today. v202: the pill beside it opens the day's missions (flame = the streak).
-  if (status(t)[0] !== '旅行中') return '';
+  if (status(t)[0] !== '旅行中') return '<div class="rtrow"><div class="route solo"></div>' + maruBtn() + '</div>';   // v217: before and after the trip the row holds only the mascot
   const r = routeParts(t), pill = missionPill(t);
-  return '<div class="rtrow">' + (r ? '<div class="route" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '</div>' : '<div class="route solo"></div>') + pill + '</div>';
+  return '<div class="rtrow">' + (r ? '<div class="route" role="img" aria-label="' + r.days + '日の旅の、' + r.cur + '日目">' + r.h + '</div>' : '<div class="route solo"></div>') + pill + maruBtn() + '</div>';
 }
 function routeMini(t){   // v195: the same route, small, on the home card (to the right of the faces)
   const r = routeParts(t); if (!r || r.days > 10 || t.members.length > 4) return '';   // no room beside many faces or for many stations: the trip screen has the full one
@@ -2524,7 +2532,7 @@ function quickForm(){
     (ui.quickErr ? '<div class="err" role="alert" style="margin:6px 0 0">' + esc(ui.quickErr) + '</div>' : '') + (trip() ? quickChips(trip()) : '');
 }
 const coachKey = t => 'tabiwari.coach.' + t.id;
-const coachCard = t => lsGet(coachKey(t)) === '1' ? '<div class="coach"><b>はじめの3ステップ</b><ol><li>友だちを、上の［＋招待］から誘う</li><li>旅行中は、［＋］かひとことで、支出を記録する</li><li>帰ったら、［精算］で、誰が誰にいくらかを見る</li></ol><button class="link" data-a="coach-ok">わかった</button></div>' : '';
+const coachCard = t => lsGet(coachKey(t)) === '1' ? '<div class="coach"><b>はじめの3ステップ</b><ol><li>友だちを、下の［＋ 友だちを招待］から誘う</li><li>旅行中は、［＋］かひとことで、支出を記録する</li><li>帰ったら、［精算］で、誰が誰にいくらかを見る</li></ol><button class="link" data-a="coach-ok">わかった</button></div>' : '';
 const welcomeCard = t => lsGet('tabiwari.welcome.' + t.id) ? '<div class="install" style="margin:0 0 8px"><div class="grow"><b>参加しました。</b><div class="sub sm">支出は、下の［＋］か、ひとことで記録できます。割り勘は、自動で計算されます。</div></div><button class="btn line" data-a="welcome-ok" style="font-size:calc(14px*var(--ts));padding:8px 14px;width:auto">わかった</button></div>' : '';
 const tabHtml = (t, k) => k === 'exp' ? tabExp(t) : k === 'settle' ? tabSettle(t) : tabSave(t);
 /* two small first-time lines (they go away by themselves): how to write the one-line entry, and that a row can be swiped left to delete */
