@@ -276,9 +276,10 @@ html,body{overscroll-behavior-x:none}
 .item.acc.sub-row{padding-left:68px}.item.acc.sub-row .ico{display:none}   /* the 「うまく届かないとき」 helpers: stepped in under their title */
 .pref .acc-danger{border-top:8px solid var(--paper);margin-top:4px}
 .av.s34{width:34px;height:34px;font-size:calc(15px*var(--ts))}
-.sw{position:relative;flex:none;width:51px;height:31px;border-radius:99px;background:#b4bfcc;transition:background .15s}
-.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
-.sw[aria-checked=true]{background:var(--good)}.sw[aria-checked=true]::after{transform:translateX(20px)}
+.sw{position:relative;flex:none;width:51px;height:44px;border-radius:99px}   /* v221: the button is 44px high (the track drawn inside it stays 31px) */
+.sw::before{content:"";position:absolute;left:0;right:0;top:6.5px;height:31px;border-radius:99px;background:#b4bfcc;transition:background .15s}
+.sw::after{content:"";position:absolute;top:8.5px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.sw[aria-checked=true]::before{background:var(--good)}.sw[aria-checked=true]::after{transform:translateX(20px)}
 .sw:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .sec{margin-top:16px}
 .sec>h2{font-size:calc(15px*var(--ts));font-weight:700;margin:0 0 6px;display:flex;justify-content:space-between;align-items:baseline}
@@ -345,7 +346,7 @@ html,body{overscroll-behavior-x:none}
 .btn{display:block;width:100%;background:var(--sun);color:var(--sun-ink);border-radius:16px;padding:15px 18px;font-size:calc(16px*var(--ts));font-weight:700;text-align:center}
 .btn.line{background:none;color:var(--ink);border:1.5px solid var(--line);padding:12px 16px;font-size:calc(15px*var(--ts))}
 .btn.bad{background:var(--bad);color:#fff}
-.link{color:var(--sub);font-size:calc(14px*var(--ts));font-weight:500;padding:10px 0;text-align:center;width:100%}
+.link{color:var(--sub);font-size:calc(14px*var(--ts));font-weight:500;padding:10px 0;text-align:center;width:100%}.sheet .link[data-a=close-sheet],.sheet .link.bad,.sheet-bg .link[data-a=close-sheet]{min-height:44px}   /* v221 */
 .link.bad{color:var(--bad)}
 .field{width:100%;font:inherit;font-size:calc(16px*var(--ts));padding:13px 14px;border-radius:14px;border:1.5px solid var(--dash);background:var(--cream);color:var(--ink)}
 .field:focus{border-color:var(--focus);outline:none}
@@ -362,7 +363,7 @@ html,body{overscroll-behavior-x:none}
 .alone .btn{width:auto;margin:10px auto 0;padding:8px 16px}
 .btn:disabled{opacity:.4;pointer-events:none}
 .chip .av{width:26px;height:26px;font-size:calc(13px*var(--ts))}
-.catgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.catgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}@media (max-width:340px){.catgrid{gap:4px}}   /* v221: six tiles of 44px or more even on a 320px screen */
 .cat{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);font-weight:500;font-size:calc(11px*var(--ts));line-height:1.2;white-space:nowrap}
 .cat .tag{width:30px;height:30px;border-radius:10px;font-size:calc(14px*var(--ts))}
 .cat.on{border-color:var(--ink);border-width:2px}
@@ -384,7 +385,7 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .sheet input[type=date].field{min-height:44px}
 .sheet .chips{gap:6px}
 .sheet .chip{padding:4px 12px 4px 4px;font-size:calc(13px*var(--ts))}.sheet .chip[data-a=pick-payer],.sheet .chip[data-a=toggle-split],.sheet .chip[data-a=split-all]{min-height:44px}   /* v188: 44px to press (the add-expense sheet only; the member names in 設定 stay as they were, that sheet must fit one screen) */
-.sheet .chip.plain{padding:7px 12px}
+.sheet .chip.plain{padding:7px 12px;min-height:44px}   /* v221: 44px */
 .memo-row{display:grid;grid-template-columns:minmax(0,1fr) 148px;gap:8px;margin-top:6px}
 .memo-row .field{padding:11px 12px}
 .sheet .two .lab{margin-top:10px}
@@ -400,8 +401,8 @@ input[type=date].field::-webkit-date-and-time-value{text-align:left}
 .pamt{background:none;border:0;border-bottom:1px dotted var(--sub);padding:0 0 1px;font:inherit;color:inherit;flex:none}.fxin{width:92px;margin:0;padding:6px 10px;text-align:right;border-color:var(--sun)}.fxnote{padding:6px 0 8px;border-top:1px solid var(--line)}
 .step{display:grid;place-items:center;padding:0;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:calc(20px*var(--ts));line-height:1;flex:none}.step:disabled{opacity:.35}.pval{min-width:3.2em;text-align:center;font-weight:700}.pamt{min-width:5.5em;text-align:right;font-weight:500;color:var(--sub);font-size:calc(14px*var(--ts))}
 .ut{display:flex;border-bottom:1px solid var(--line);margin:0 0 12px}.ut button{flex:1;white-space:nowrap;padding:10px 4px 11px;font:inherit;font-size:calc(14px*var(--ts));color:var(--sub);border-bottom:3px solid transparent;margin-bottom:-1px;display:flex;gap:6px;justify-content:center;align-items:center}.ut button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--sun)}.ut .n{font-size:calc(11px*var(--ts));background:var(--soft);border-radius:99px;padding:1px 7px;color:var(--sub)}.ut button.on .n{background:var(--sun);color:var(--sun-ink)}
-.tiles{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:8px;margin:4px 0 0}.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:7px 2px;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;font:inherit;font-size:calc(12px*var(--ts));color:var(--ink)}.tile svg{color:var(--sub)}
-.delrow{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;color:var(--bad);font:inherit;font-size:calc(14px*var(--ts));margin-top:2px;padding:5px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:8px;margin:4px 0 0}.tile{min-height:44px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:7px 2px;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;font:inherit;font-size:calc(12px*var(--ts));color:var(--ink)}.tile svg{color:var(--sub)}
+.delrow{min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;color:var(--bad);font:inherit;font-size:calc(14px*var(--ts));margin-top:2px;padding:5px 0 0}
 .chkbox{width:22px;height:22px;border-radius:7px;border:2px solid var(--ink);display:grid;place-items:center;flex:none;color:var(--card)}.chkbox.on{background:var(--ink)}.aichk{text-align:left;width:100%;gap:10px}
 .aibtn{padding:0 10px!important;display:grid;place-items:center}.aibtn svg{display:block}
 .quick{display:flex;gap:8px;align-items:stretch;margin-top:4px}.quick .field{flex:1;min-width:0;padding:11px 14px}.quick .btn{width:auto;padding:0 16px;flex:none}
@@ -1608,7 +1609,7 @@ function lastWho(t){
 function shareSection(t, s){
   const tip = 'LINEなどで、旅行に行く人にだけ送ってください。ホーム画面のアプリに入れている人は、リンクをコピーして、アプリのホームにある「共有リンクで参加する」に貼り付けてもらいます。';
   if (!t.share) return '<div class="panel" style="padding:10px 12px;margin-top:12px"><div class="row" style="gap:10px"><div class="grow"><b>友だちと共有</b><div class="sub sm">リンクを知っている人は、誰でも、一緒に記録・変更・削除ができます。旅行に行く人にだけ送ってください。</div></div>' +
-    '<button class="btn line" data-a="share-start" style="width:auto;white-space:nowrap;padding:9px 14px;font-size:calc(14px*var(--ts))"' + (s.sharing ? ' disabled' : '') + '>' + (s.sharing ? '準備中…' : '共有する') + '</button></div></div>';
+    '<button class="btn line" data-a="share-start" style="width:auto;min-height:44px;white-space:nowrap;padding:9px 14px;font-size:calc(14px*var(--ts))"' + (s.sharing ? ' disabled' : '') + '>' + (s.sharing ? '準備中…' : '共有する') + '</button></div></div>';
   const url = Share.linkFor(t.share.token, location);
   return '<div class="panel" style="padding:10px 12px;margin-top:12px"><div><b>友だちと共有</b> <span class="sub sm">共有中' + (t.share.dirty ? '（同期待ち）' : '') + '・リンクを知っている人は、記録の追加・変更・削除ができます</span></div>' +
     '<div class="row" style="margin-top:6px"><input class="field" id="s-sharelink" type="text" readonly aria-label="共有リンク" value="' + esc(url) + '" style="flex:1;padding:8px 10px"><button class="btn line" data-a="share-copy" style="width:auto;white-space:nowrap;padding:9px 14px;font-size:calc(14px*var(--ts))">送る</button></div>' +
